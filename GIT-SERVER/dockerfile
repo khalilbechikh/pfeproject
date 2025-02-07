@@ -1,0 +1,11 @@
+FROM nginx:1.27.4-alpine3.21-otel
+
+RUN apk update &&  apk add --no-cache fcgiwrap spawn-fcgi git 
+
+RUN mkdir -p /var/www/git && chwon nginx:nginx /var/www/git
+
+COPY git.conf /etc/nginx/conf.d/git.conf
+
+COPY  docker-entypoint.sh /docker-entypoint.sh
+
+RUN chmod +x /docker-entypoint.sh
