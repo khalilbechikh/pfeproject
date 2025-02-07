@@ -2,15 +2,16 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:17
+    build:
+      context: ./DATABASE
+      dockerfile: Dockerfile
     container_name: postgres_db
     restart: always
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
-      POSTGRES_DB: mydb
     volumes:
-      - pg_data:/var/lib/postgresql/data # Persist PostgreSQL data
+      - pg_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     networks:
@@ -22,15 +23,15 @@ services:
       dockerfile: Dockerfile
     container_name: backend_service
     environment:
-      DATABASE_URL: postgres://myuser:mypassword@postgres_db:5432/mydb
+      DATABASE_URL: postgres://myuser:mypassword@postgres_db:5432/myuser
     depends_on:
       - postgres
     ports:
       - "5000:5000"
       - "7005:7005"
     volumes:
-      - ./WEB/BACKEND:/app # Syncs backend code between host and container
-      - /app/node_modules # Keeps node_modules inside the container
+      - ./WEB/BACKEND:/app
+      - /app/node_modules
     networks:
       - app_network
 
@@ -42,11 +43,25 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
-      
+      - "5173:5173"
     volumes:
-      - ./WEB/FRONTEND:/app # Syncs frontend code between host and container
-      - /app/node_modules # Keeps node_modules inside the container
+      - ./WEB/FRONTEND:/app
+      - /app/node_modules
+    networks:
+      - app_network
+
+  git_server:
+    build:
+      context: ./GIT-SERVER
+      dockerfile: Dockerfile
+    container_name: git_server
+    depends_on:
+      - backend
+    ports:
+      - "9418:9418"  # Corrected comment
+    volumes:
+      - ./GIT-SERVER:/app
+      - /app/node_modules
     networks:
       - app_network
 

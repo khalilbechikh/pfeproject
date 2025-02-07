@@ -1,0 +1,19 @@
+{
+    "name": "git-server",
+    "version": "1.0.0",
+    "description": "A simple Git server using node-git-server without authentication.",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+      "start": "node index.js",
+      "dev": "nodemon index.js"
+    },
+    "dependencies": {
+      "node-git-server": "^1.0.0"
+      
+    },
+    "devDependencies": {
+      "nodemon": "^3.0.0"
+    }
+  }
+  

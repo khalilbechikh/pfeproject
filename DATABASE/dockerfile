@@ -1,0 +1,9 @@
+# Use PostgreSQL version 17 as the base image
+FROM postgres:17
+
+# Set default credentials for PostgreSQL
+ENV POSTGRES_USER=myuser \
+    POSTGRES_PASSWORD=mypassword
+
+# Expose PostgreSQL port
+EXPOSE 5432
