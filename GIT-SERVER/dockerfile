@@ -9,3 +9,7 @@ COPY git.conf /etc/nginx/conf.d/git.conf
 COPY  docker-entypoint.sh /docker-entypoint.sh
 
 RUN chmod +x /docker-entypoint.sh
+
+EXPOSE 80
+
+CMD ["/docker-entrypoint.sh"]
