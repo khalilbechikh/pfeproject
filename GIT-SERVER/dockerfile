@@ -7,7 +7,7 @@ ENV GIT_HTTP_EXPORT_ALL=1
 ENV REMOTE_USER=git
 ENV GIT_ALLOW_PUSH=1
 
-# Install
+
 RUN apt-get update && \
     apt-get install -y apache2 git && \
     apt-get clean
