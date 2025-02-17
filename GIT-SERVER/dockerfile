@@ -1,5 +1,5 @@
 # Use the official Debian image
-FROM debian:latest
+FROM debian:12.9
 
 # Set environment variables for Git over HTTP
 ENV GIT_PROJECT_ROOT=/srv/git
