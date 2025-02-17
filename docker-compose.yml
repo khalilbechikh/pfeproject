@@ -38,6 +38,7 @@ services:
     volumes:
       - ./WEB/BACKEND/CODE:/app
       - ./VOLUMES/repositorys:/srv/git
+      - /app/node_modules
     ports:
       - "5000:5000"
     environment:
@@ -56,6 +57,7 @@ services:
     working_dir: /app
     volumes:
       - ./WEB/FRONTEND/CODE:/app
+      - /app/node_modules
     ports:
       - "5173:5173"
     environment:
