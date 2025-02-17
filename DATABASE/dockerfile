@@ -2,8 +2,7 @@
 FROM postgres:17.3-bookworm
 
 # Set default credentials for PostgreSQL
-ENV POSTGRES_USER=myuser \
-    POSTGRES_PASSWORD=mypassword
+
 
 # Expose PostgreSQL port
 EXPOSE 5432
