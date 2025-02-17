@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   database:
     build:
@@ -20,7 +18,7 @@ services:
   git-server:
     build:
       context: ./GIT-SERVER
-      dockerfile: dockerfile
+      dockerfile: Dockerfile
     container_name: git_server
     volumes:
       - ./VOLUMES/repositorys:/srv/git
