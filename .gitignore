@@ -4,7 +4,6 @@ dist/
 build/
 
 # Docker and VS Code files
-Dockerfile*
 docker-compose*.json
 .devcontainer/
 .vscode/
