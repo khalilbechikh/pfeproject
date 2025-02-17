@@ -1,5 +1,5 @@
 # Use PostgreSQL version 17 as the base image
-FROM postgres:17
+FROM postgres:17.3-bookworm
 
 # Set default credentials for PostgreSQL
 ENV POSTGRES_USER=myuser \
