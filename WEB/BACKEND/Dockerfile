@@ -15,4 +15,4 @@ COPY CODE/ .
 EXPOSE 5000
 
 # Start the server using your original start command
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]
