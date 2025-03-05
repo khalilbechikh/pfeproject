@@ -9,7 +9,7 @@ ENV GIT_ALLOW_PUSH=1
 
 
 RUN apt-get update && \
-    apt-get install -y apache2 git && \
+    apt-get install -y apache2 apache2-utils git && \
     apt-get clean
 
 # Fix Apache environment file (use Bash syntax)
@@ -25,22 +25,6 @@ COPY git.conf /etc/apache2/sites-available/000-default.conf
 # Enable necessary Apache modules
 RUN a2enmod cgi alias env
 
-# Set permissions for repositories
-RUN mkdir -p /srv/git/test-project.git && \
-    cd /srv/git/test-project.git && \
-    git init --bare && \
-    chown -R www-data:www-data /srv/git && \
-    chmod -R 775 /srv/git && \
-    find /srv/git/test-project.git -type d -exec chmod 775 {} \; && \
-    find /srv/git/test-project.git -type f -exec chmod 664 {} \;
-
-# Add logging for Apache
-RUN mkdir -p /var/log/apache2 && \
-    touch /var/log/apache2/access.log && \
-    touch /var/log/apache2/error.log && \
-    chown -R www-data:www-data /var/log/apache2
-
-# Expose Apache port
 EXPOSE 80
 
 # Start Apache using "service" command
