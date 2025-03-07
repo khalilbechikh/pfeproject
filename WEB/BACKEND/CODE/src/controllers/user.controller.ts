@@ -89,7 +89,7 @@ export class UserController {
                 return;
             }
 
-            const updatedUser = await this.userService.updateUser(userId, userData);
+            const updatedUser= await this.userService.updateUser(userId, userData);
 
             if (!updatedUser) {
                 res.status(404).json({ error: 'User not found or update failed' });

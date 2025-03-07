@@ -1,5 +1,5 @@
 # Use your original Node.js version
-FROM node:22.14.0-bookworm
+FROM node:23-bookworm
 
 # Set the working directory inside the container
 WORKDIR /app

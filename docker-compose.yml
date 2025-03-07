@@ -36,7 +36,6 @@ services:
     volumes:
       - ./WEB/BACKEND/CODE:/app
       - ./VOLUMES/repositorys:/srv/git
-      - /app/node_modules
     ports:
       - "5000:5000"
     environment:
