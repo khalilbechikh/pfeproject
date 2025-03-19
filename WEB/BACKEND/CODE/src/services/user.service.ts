@@ -2,14 +2,13 @@ import { injectable, inject } from 'inversify';
 import { Prisma, users } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
 
-// Define a DTO (Data Transfer Object) for user creation
+// Define a DTO(Data Transfer Object) for user creation
 export interface CreateUserDto {
     username: string;
     email: string;
     password: string; // Plain password before hashing
 }
 
-// Define a DTO for user updates
 export interface UpdateUserDto {
     username?: string;
     email?: string;
@@ -18,9 +17,7 @@ export interface UpdateUserDto {
 
 @injectable()
 export class UserService {
-    constructor(
-        @inject(UserRepository) private userRepository: UserRepository
-    ) {}
+    constructor(@inject(UserRepository) private userRepository: UserRepository) {}
 
     /**
      * Get a user by ID with optional related data

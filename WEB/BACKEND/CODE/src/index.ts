@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/', async (req: Request, res: Response) => {
-  res.send('Welcome to User Management API! Use /api routes to access the API.');
+  res.send('Welcome to User Managemensdfsdft API! Use /api routes to access the API.');
 });
 
 // Configure and mount API routes

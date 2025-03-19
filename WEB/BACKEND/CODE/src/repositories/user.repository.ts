@@ -3,7 +3,7 @@ import { injectable, inject } from 'inversify';
 
 @injectable()
 export class UserRepository {
-    private prisma: PrismaClient;
+     prisma: PrismaClient;
 
     private userRelationMap: { [tableName: string]: keyof Prisma.usersInclude } = {
         'repositories': 'repository',
