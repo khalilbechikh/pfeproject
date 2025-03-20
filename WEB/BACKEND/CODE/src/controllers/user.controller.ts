@@ -4,6 +4,7 @@ import { UserService, CreateUserDto, UpdateUserDto } from '../services/user.serv
 
 @injectable()
 export class UserController {
+
     constructor(
         @inject(UserService) private userService: UserService
     ) {}
