@@ -15,6 +15,7 @@ export class UserRepository {
     };
 
     constructor(@inject('PrismaClient') prisma: PrismaClient) {
+        console.log("user repo called");
         this.prisma = prisma;
     }
 

@@ -12,8 +12,8 @@ export class AuthenticationController {
 
     public async signUp(req: Request, res: Response): Promise<void> {
         try {
+            console.log("singup called");
             const response = await this.authService.signUp(req.body);
-
             if (response.status === ResponseStatus.SUCCESS && response.data) {
                 const token = jwt.sign(
                     { userId: response.data.id, email: response.data.email },
@@ -25,7 +25,7 @@ export class AuthenticationController {
 
             res.status(201).json(response);
         } catch (error) {
-            res.status(500).json({ error: "Failed to create user" });
+            res.status(500).json({ error: "Failed to create user c " });
         }
     }
 

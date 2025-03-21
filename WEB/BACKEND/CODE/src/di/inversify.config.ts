@@ -9,7 +9,7 @@ import {AuthService} from "../services/auth.service";
 import {AuthenticationController} from "../controllers/authentication.controller";
 
 const container = new Container(); // (8) Create a new InversifyJS Container
-
+console.log("Inversify Container Instance:", container);
 // (9) Bind PrismaClient to the identifier 'PrismaClient'
 container.bind<PrismaClient>('PrismaClient')
     .toDynamicValue(() => getPrismaClient()) // (9.1) Use toDynamicValue for singleton

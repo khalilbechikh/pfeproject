@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'; // (1) Import PrismaClient
-
+console.log("prisma client called");
 // (2) Declare a variable to hold the Prisma Client instance
 // Make it nullable by adding | null to the type
 let prisma: PrismaClient | null = null;

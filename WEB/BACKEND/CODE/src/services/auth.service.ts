@@ -81,7 +81,9 @@ export type LoginUserDto = z.infer<typeof LoginUserDto>;
 
 @injectable()
 export class AuthService {
-    constructor(@inject(UserRepository) private userRepository: UserRepository) {}
+    constructor(@inject(UserRepository) private userRepository: UserRepository) {
+        console.log("auth service constructor called ");
+    }
 
     async hashPassword(password: string): Promise<string> {
         return await bcrypt.hash(password, 10);
@@ -93,6 +95,7 @@ export class AuthService {
 
     async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
         try {
+            console.log("singup called in service");
             const validatedData = CreateUserDto.parse(userData);
 
             const existedUser = await this.userRepository.prisma.users.findUnique({
@@ -127,7 +130,7 @@ export class AuthService {
         } catch (error) {
             return {
                 status: ResponseStatus.FAILED,
-                message: 'Failed to create user',
+                message: 'Failed to create user s',
                 error: `${error}`,
             };
         }

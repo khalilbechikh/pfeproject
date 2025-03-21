@@ -1,15 +1,20 @@
-import  {Router} from 'express';
-import {UserController} from "../controllers/user.controller";
+// authentication.routes.ts
+import { Router, Request, Response } from 'express';
 import container from "../di/inversify.config";
-import  {AuthenticationController} from "../controllers/authentication.controller";
+import { AuthenticationController } from "../controllers/authentication.controller";
 
-
-export   const  authenticationRoutes = (): Router => {
+export const authenticationRoutes = (): Router => {
     const router = Router();
-    const authenticationController =container.get<AuthenticationController>(AuthenticationController);
 
-    router.post('/signup', authenticationController.signUp);
-    router.post('/signin', authenticationController.signIn);
+    router.post('/signup', async (req: Request, res: Response) => {
+        const authenticationController = container.get<AuthenticationController>(AuthenticationController);
+        await authenticationController.signUp(req, res);
+    });
+
+    router.post('/signin', async (req: Request, res: Response) => {
+        const authenticationController = container.get<AuthenticationController>(AuthenticationController);
+        await authenticationController.signIn(req, res);
+    });
 
     return router;
 }
