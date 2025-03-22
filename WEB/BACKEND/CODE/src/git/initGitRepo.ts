@@ -11,7 +11,7 @@ export const createBareRepo = (repoName: string): Promise<void> => {
             return reject(new Error("Repository name is required."));
         }
 
-        const scriptPath = path.join(__dirname, 'initGitRepo.sh');
+        const scriptPath = path.join(__dirname,'initGitRepo.sh');
 
         exec(`bash "${scriptPath}" "${repoName}"`, (error, stdout, stderr) => {
             if (error) {
