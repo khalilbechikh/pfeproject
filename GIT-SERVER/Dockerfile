@@ -25,7 +25,7 @@ COPY git.conf /etc/apache2/sites-available/000-default.conf
 # Enable necessary Apache modules
 RUN a2enmod cgi alias env
 
-EXPOSE 80
+aEXPOSE 80
 
 # Start Apache using "service" command
 CMD ["sh", "-c", "service apache2 start && tail -F /var/log/apache2/access.log /var/log/apache2/error.log"]
