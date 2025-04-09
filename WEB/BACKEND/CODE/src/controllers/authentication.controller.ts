@@ -16,7 +16,7 @@ export class AuthenticationController {
             const response = await this.authService.signUp(req.body);
             if (response.status === ResponseStatus.SUCCESS && response.data) {
                 const token = jwt.sign(
-                    { userId: response.data.id, email: response.data.email },
+                    { userId: response.data.id, username: response.data.username },
                     JWT_SECRET,
                     { expiresIn: '1h' }
                 );
@@ -42,7 +42,7 @@ export class AuthenticationController {
                 res.header('Authorization', `Bearer ${token}`);
             }
 
-            res.status(200).json(response);
+            res.status(200);
         } catch (error) {
             res.status(500).json({ error: "Failed to login user" });
         }

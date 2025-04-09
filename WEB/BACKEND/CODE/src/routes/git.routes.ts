@@ -6,6 +6,7 @@ export const configureGitRoutes = (): Router => {
     const router = Router();
 
     router.get('/:RepoName', authenticateJWT, CreateRepo);
+    router.post('/:RepoName', authenticateJWT, CreateRepo);
 
     return router;
 };
