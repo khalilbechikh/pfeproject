@@ -7,7 +7,7 @@ import { getPrismaClient } from '../prisma/prisma-client'; // (6) Import getPris
 import { PrismaClient } from '@prisma/client'; // (7) Import PrismaClient type
 import {AuthService} from "../services/auth.service";
 import {AuthenticationController} from "../controllers/authentication.controller";
-
+import  {RepositoryRepository} from "../repositories/repository.repository";
 const container = new Container(); // (8) Create a new InversifyJS Container
 console.log("Inversify Container Instance:", container);
 // (9) Bind PrismaClient to the identifier 'PrismaClient'
@@ -30,5 +30,8 @@ container.bind<UserService>(UserService)
 container.bind<UserController>(UserController)
     .toSelf() // (12.1) Use toSelf to bind to the class itself
     .inRequestScope(); // (12.2) Use request scope for controllers
+container.bind<RepositoryRepository>(RepositoryRepository)
+    .toSelf()
+    .inSingletonScope();
 
 export default container; // (13) Export the InversifyJS Container instance
