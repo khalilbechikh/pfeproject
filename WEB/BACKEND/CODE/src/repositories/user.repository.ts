@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient, users } from '@prisma/client'; // Import the actual 'users' type
 import { injectable, inject } from 'inversify';
+import { TYPES } from '../di/types';
 
 @injectable()
 export class UserRepository {
@@ -14,7 +15,7 @@ export class UserRepository {
         'pull_request_comments': 'pull_request_comment',
     };
 
-    constructor(@inject('PrismaClient') prisma: PrismaClient) {
+    constructor(@inject(TYPES.PrismaClient) prisma: PrismaClient) {
         console.log("user repo called");
         this.prisma = prisma;
     }

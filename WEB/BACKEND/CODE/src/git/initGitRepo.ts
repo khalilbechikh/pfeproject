@@ -2,34 +2,24 @@ import { exec } from 'child_process';
 import path from 'path';
 import { injectable, inject } from 'inversify';
 
-
 /**
- * Function to create a bare Git repository.
- * @param repoName - Name of the repository to create.
+ * Function to create a bare Git repository under a user's directory.
+ * @param repoName - Name of the repository to create
+ * @param username - Username to organize repositories
  */
-// i will create a class containing the  fucntions ans export it instead of direct fucntion
-
-
-
-
-
-
-
-
-
-
-
-
-
-export const createBareRepo = (repoName: string): Promise<void> => {
+export const createBareRepo = (repoName: string, username: string): Promise<void> => {
     return new Promise((resolve, reject) => {
         if (!repoName) {
             return reject(new Error("Repository name is required."));
         }
 
-        const scriptPath = path.join(__dirname,'initGitRepo.sh');
+        if (!username) {
+            return reject(new Error("Username is required."));
+        }
 
-        exec(`bash "${scriptPath}" "${repoName}"`, (error, stdout, stderr) => {
+        const scriptPath = path.join(__dirname, 'initGitRepo.sh');
+
+        exec(`bash "${scriptPath}" "${repoName}" "${username}"`, (error, stdout, stderr) => {
             if (error) {
                 return reject(error);
             }

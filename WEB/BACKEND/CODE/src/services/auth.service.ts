@@ -138,15 +138,22 @@ export class AuthService {
 
     async signIn(userData: LoginUserDto): Promise<ApiResponse<users>> {
         try {
+            console.log("========== AUTH SERVICE SIGNIN START ==========");
+            console.log("Login data received:", JSON.stringify(userData));
+            
             const validatedData = LoginUserDto.parse(userData);
+            console.log("Data validation successful");
 
             const user = await this.userRepository.prisma.users.findUnique({
                 where: {
                     email: validatedData.email,
                 },
             });
+            
+            console.log("User lookup complete. User found:", user ? "Yes" : "No");
 
             if (!user) {
+                console.log("User not found for email:", validatedData.email);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'User not found',
@@ -155,8 +162,10 @@ export class AuthService {
             }
 
             const isPasswordValid = await this.comparePassword(validatedData.password, user.password_hash);
+            console.log("Password validation result:", isPasswordValid ? "Valid" : "Invalid");
 
             if (!isPasswordValid) {
+                console.log("Invalid password provided for user:", validatedData.email);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Invalid password',
@@ -164,12 +173,16 @@ export class AuthService {
                 };
             }
 
+            console.log("Login successful for user:", validatedData.email);
+            console.log("========== AUTH SERVICE SIGNIN END ==========");
             return {
                 status: ResponseStatus.SUCCESS,
                 message: 'User logged in successfully',
                 data: user,
             };
         } catch (error) {
+            console.log("========== AUTH SERVICE SIGNIN ERROR ==========");
+            console.error("Error in auth service signin:", error);
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Failed to login user',

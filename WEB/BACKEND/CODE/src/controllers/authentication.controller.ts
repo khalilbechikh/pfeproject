@@ -31,20 +31,33 @@ export class AuthenticationController {
 
     public async signIn(req: Request, res: Response): Promise<void> {
         try {
+            console.log("========== SIGNIN CONTROLLER START ==========");
+            console.log("Request body:", JSON.stringify(req.body));
+            
             const response = await this.authService.signIn(req.body);
+            console.log("Service response:", JSON.stringify(response));
 
             if (response.status === ResponseStatus.SUCCESS && response.data) {
+                console.log("Authentication successful, generating token");
                 const token = jwt.sign(
                     { userId: response.data.id, email: response.data.email },
                     JWT_SECRET,
                     { expiresIn: '1h' }
                 );
                 res.header('Authorization', `Bearer ${token}`);
+                console.log("Token generated and added to header");
+            } else {
+                console.log("Authentication failed:", response.message);
             }
 
-            res.status(200);
+            res.status(200).json(response);
+            console.log("Response sent successfully");
+            console.log("========== SIGNIN CONTROLLER END ==========");
         } catch (error) {
+            console.log("========== SIGNIN CONTROLLER ERROR ==========");
+            console.error("Error in signin controller:", error);
             res.status(500).json({ error: "Failed to login user" });
+            console.log("Error response sent");
         }
     }
 }
