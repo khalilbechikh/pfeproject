@@ -8,6 +8,11 @@ import { PrismaClient } from '@prisma/client';
 import { AuthService } from "../services/auth.service";
 import { AuthenticationController } from "../controllers/authentication.controller";
 import { RepositoryRepository } from "../repositories/repository.repository";
+import { RepositoryService } from "../services/repository.service";
+import { RepositoryController } from "../controllers/repository.controller";
+import { RepositoryAccessRepository } from "../repositories/repository_access.repository";
+import { RepositoryAccessService } from "../services/repository_access.service";
+import { RepositoryAccessController } from "../controllers/repository_access.controller";
 import { GitCrud } from "../git/git.crud";
 import { TYPES } from './types';
 
@@ -29,12 +34,24 @@ container.bind<RepositoryRepository>(TYPES.RepositoryRepository)
     .to(RepositoryRepository)
     .inSingletonScope();
 
+container.bind<RepositoryAccessRepository>(TYPES.RepositoryAccessRepository)
+    .to(RepositoryAccessRepository)
+    .inSingletonScope();
+
 // Bind services
 container.bind<UserService>(UserService)
     .toSelf()
     .inSingletonScope();
 
 container.bind<AuthService>(AuthService)
+    .toSelf()
+    .inSingletonScope();
+
+container.bind<RepositoryService>(RepositoryService)
+    .toSelf()
+    .inSingletonScope();
+
+container.bind<RepositoryAccessService>(RepositoryAccessService)
     .toSelf()
     .inSingletonScope();
 
@@ -48,6 +65,14 @@ container.bind<UserController>(UserController)
     .inRequestScope();
 
 container.bind<AuthenticationController>(AuthenticationController)
+    .toSelf()
+    .inSingletonScope();
+
+container.bind<RepositoryController>(RepositoryController)
+    .toSelf()
+    .inSingletonScope();
+
+container.bind<RepositoryAccessController>(RepositoryAccessController)
     .toSelf()
     .inSingletonScope();
 

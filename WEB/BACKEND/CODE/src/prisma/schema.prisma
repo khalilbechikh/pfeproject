@@ -50,7 +50,7 @@ model repository_access {
   id            Int        @id @default(autoincrement()) @db.Integer
   repository_id Int        @db.Integer
   user_id       Int        @db.Integer
-  access_level  String     @db.VarChar(50)
+  access_level  RepositoryAccess  
   created_at    DateTime   @default(now()) @db.Timestamp(6)
   updated_at    DateTime   @default(now()) @updatedAt @db.Timestamp(6)
 
@@ -122,3 +122,8 @@ model pull_request_comment {
   pull_request    pull_request  @relation(fields: [pull_request_id], references: [id], onDelete: Cascade)
   author          users?        @relation(fields: [author_id], references: [id], onDelete: SetNull)
 }
+
+enum RepositoryAccess {
+  view
+  edit
+  }

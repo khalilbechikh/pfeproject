@@ -1,19 +1,19 @@
-# Use Node.js 23 on Alpine Linux for a lightweight image
+# Use Node.js 22 on Debian Bookworm
 FROM node:22.14.0-bookworm
 
 # Set the working directory inside the container
 WORKDIR /app
 
 # Copy package files and install dependencies
-COPY package*.json ./
+COPY CODE/my-vue-app/package*.json ./
 RUN npm install
 
 # Copy the rest of the frontend code
-COPY . .
+# Not needed due to volume mount, but included for completeness
+COPY CODE/my-vue-app/ ./
 
 # Expose the port for the Vite development server
 EXPOSE 5173
 
-# Default command to start the Vite server
-# Command to start the Vite development server
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Command to start the Vite development server with proper host argument
+CMD ["sh", "-c", "cd my-vue-app && npm run dev"]
