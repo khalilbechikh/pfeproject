@@ -8,4 +8,4 @@ docker-compose*.json
 .vscode/
 
 # Environment variables
-.env
+
