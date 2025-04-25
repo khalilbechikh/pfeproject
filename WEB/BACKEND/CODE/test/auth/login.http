@@ -1,0 +1,11 @@
+### Login User
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "email": "johasdfsdfn@exam12ple.com",
+  "password": "SecurePass123!"
+}
+
+### Store the auth token from the response
+@authToken = {{login.response.headers.Authorization}}

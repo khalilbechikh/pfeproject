@@ -1,0 +1,43 @@
+### Auth and Repository Test Suite
+
+### 1. Register User (Optional - use if the user doesn't exist)
+# POST http://localhost:5000/v1/api/signup
+# Content-Type: application/json
+#
+# {
+#   "username": "john1asdfsdaf2_doe",
+#   "email": "johasdfsdfn@exam12ple.com",
+#   "password": "SecurePass123!"
+# }
+
+### 2. Login User
+# @name login
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "email": "johasdfsdfn@exam12ple.com",
+  "password": "SecurePass123!"
+}
+
+### 3. Create Repository
+# This test uses the auth token from the login test above
+POST http://localhost:5000/v1/api/git/my-test-repo
+Content-Type: application/json
+Authorization: {{login.response.headers.Authorization}}
+
+{
+  "description": "A test repository created via HTTP test",
+  "is_private": false
+}
+
+### 4. Create Another Repository with Different Name
+# This is an example of creating multiple repositories with the same auth token
+POST http://localhost:5000/v1/api/git/second-test-repo
+Content-Type: application/json
+Authorization: {{login.response.headers.Authorization}}
+
+{
+  "description": "Another test repository created via HTTP test",
+  "is_private": true
+}

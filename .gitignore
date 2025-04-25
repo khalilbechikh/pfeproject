@@ -1,11 +1,11 @@
 # Node.js dependencies and build artifacts
 dist/
 build/
-#node_modules/
+
 # Docker and VS Code files
 docker-compose*.json
 .devcontainer/
 .vscode/
-
+VOLUMES/
 # Environment variables
 

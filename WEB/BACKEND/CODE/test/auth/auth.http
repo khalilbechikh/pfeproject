@@ -1,0 +1,104 @@
+### Successful Sign-Up
+POST http://localhost:5000/v1/api/signup
+Content-Type: application/json
+
+{
+  "username": "john1asdfsdaf2_doe",
+  "email": "johasdfsdfn@exam12ple.com",
+  "password": "SecurePass123!"
+}
+
+### Sign-Up: Missing Username
+POST http://localhost:5000/v1/api/signup
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "SecurePass123!"
+}
+
+### Sign-Up: Invalid Email Format
+POST http://localhost:5000/v1/api/signup
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "email": "invalid_email_format",
+  "password": "SecurePass123!"
+}
+
+### Sign-Up: Weak Password (missing special character)
+POST http://localhost:5000/v1/api/signup
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "SecurePass123"
+}
+
+### Sign-Up: User Already Exists
+POST http://localhost:5000/v1/api/signup
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "SecurePass123!"
+}
+
+### Successful Sign-In
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "SecurePass123!"
+}
+
+### Sign-In: Incorrect Password
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "WrongPassword123!"
+}
+
+### Sign-In: Non-existent User
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "email": "nonexistent@example.com",
+  "password": "SecurePass123!"
+}
+
+### Sign-In: Missing Email
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "password": "SecurePass123!"
+}
+
+### Sign-In: Short Password (below minimum length)
+POST http://localhost:5000/v1/api/signin
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "short"
+}
+### test port request
+POST https://app.shipper.market/graphql
+authorization: Bearer 119144|jxIaIJxRX38FzOns2EJ8hpJ1uAeHMKssxOEZjJ6K
+content-type: application/json
+referer: https://app.shipper.market/?currentPage=1&hide_stock_out=true&show_only_shipper_express_products=false&perPage=120&sortBy=newest&productType=dropshipping&from_country_id=227&to_country_id=227&min_price=&max_price=&min_qte=&max_qte=&has_reliable_fulfillment_label=false&has_quality_products_label=false&has_up_to_date_stocks_label=false
+sec-ch-ua: "Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Linux"
+user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36
+withcredentials: true
+
+

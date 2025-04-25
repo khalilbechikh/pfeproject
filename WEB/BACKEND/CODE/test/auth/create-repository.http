@@ -1,0 +1,22 @@
+### Create Repository
+# This test requires a valid auth token from the login test
+POST http://localhost:5000/v1/api/git/pfetest
+Content-Type: application/json
+Authorization:Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsImVtYWlsIjoiam9oYXNkZnNkZm5AZXhhbTEycGxlLmNvbSIsImlhdCI6MTc0NTQ5ODcwNCwiZXhwIjoxNzQ1NTAyMzA0fQ.6QH9DgPMURcEfuTNPDv50HjbIaG5mDrEtyw2Ala6WBs
+
+{
+  "description": "A test repository created via HTTP test",
+  "is_private": false
+}
+
+### Response should include repository information
+# Expected response:
+# {
+#   "message": "Repository 'username/my-test-repo' created successfully.",
+#   "repository": {
+#     "name": "my-test-repo",
+#     "path": "username/my-test-repo.git",
+#     "owner": "username",
+#     "owner_id": 123
+#   }
+# }
