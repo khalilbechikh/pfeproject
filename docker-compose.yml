@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   database:
     build:
@@ -34,18 +36,18 @@ services:
     container_name: express_backend
     working_dir: /app
     volumes:
-      - ./WEB/BACKEND/CODE:/app
-      - ./WEB/BACKEND/HOST_NODE_MODULES:/app_host
-      - ./VOLUMES/repositorys:/srv/git
+      - ./WEB/BACKEND/CODE:/app                # project source (bind mount)
+      - backend_cache:/modules_cache           # ⬅️ persistent node_modules cache
+      - ./VOLUMES/repositorys:/srv/git         # shared Git repos
     ports:
       - "5000:5000"
     environment:
       - NODE_ENV=development
-    networks:
-      - app-network
     depends_on:
       - database
       - git-server
+    networks:
+      - app-network
 
   frontend:
     build:
@@ -55,19 +57,20 @@ services:
     working_dir: /app
     volumes:
       - ./WEB/FRONTEND/CODE:/app
-      - /app/node_modules
+      - /app/node_modules                      # (unchanged; fix later if desired)
     ports:
       - "5173:5173"
     environment:
       - NODE_ENV=development
-    networks:
-      - app-network
     depends_on:
       - backend
+    networks:
+      - app-network
 
 volumes:
   database:
   repositorys:
+  backend_cache:                               # ⬅️ named cache volume
 
 networks:
   app-network:
