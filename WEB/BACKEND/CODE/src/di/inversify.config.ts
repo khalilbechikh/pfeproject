@@ -13,8 +13,14 @@ import { RepositoryController } from "../controllers/repository.controller";
 import { RepositoryAccessRepository } from "../repositories/repository_access.repository";
 import { RepositoryAccessService } from "../services/repository_access.service";
 import { RepositoryAccessController } from "../controllers/repository_access.controller";
+import { IssueRepository } from "../repositories/issue.repository";
 import { GitCrud } from "../git/git.crud";
 import { TYPES } from './types';
+import { IssueService } from "../services/issue.service";
+// Import new IssueComment components
+import { IssueCommentRepository } from '../repositories/issue_comment.repository';
+import { IssueCommentService } from '../services/issue_comment.service';
+import { IssueCommentController } from '../controllers/issue_comment.controller';
 
 // Create a single InversifyJS Container
 const container = new Container();
@@ -38,6 +44,15 @@ container.bind<RepositoryAccessRepository>(TYPES.RepositoryAccessRepository)
     .to(RepositoryAccessRepository)
     .inSingletonScope();
 
+container.bind<IssueRepository>(TYPES.IssueRepository)
+    .to(IssueRepository)
+    .inSingletonScope();
+
+// Bind IssueCommentRepository
+container.bind<IssueCommentRepository>(TYPES.IssueCommentRepository)
+    .to(IssueCommentRepository)
+    .inSingletonScope();
+
 // Bind services
 container.bind<UserService>(UserService)
     .toSelf()
@@ -53,6 +68,15 @@ container.bind<RepositoryService>(RepositoryService)
 
 container.bind<RepositoryAccessService>(RepositoryAccessService)
     .toSelf()
+    .inSingletonScope();
+
+container.bind<IssueService>(IssueService)
+    .toSelf()
+    .inSingletonScope();
+
+// Bind IssueCommentService
+container.bind<IssueCommentService>(TYPES.IssueCommentService)
+    .to(IssueCommentService)
     .inSingletonScope();
 
 container.bind<GitCrud>(GitCrud)
@@ -75,5 +99,10 @@ container.bind<RepositoryController>(RepositoryController)
 container.bind<RepositoryAccessController>(RepositoryAccessController)
     .toSelf()
     .inSingletonScope();
+
+// Bind IssueCommentController
+container.bind<IssueCommentController>(TYPES.IssueCommentController)
+    .to(IssueCommentController)
+    .inSingletonScope(); // Or .inRequestScope() depending on preference
 
 export default container;
