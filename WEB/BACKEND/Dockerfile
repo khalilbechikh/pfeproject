@@ -10,11 +10,4 @@ RUN npm install
 COPY CODE/ .
 
 EXPOSE 5000
-
-# ────────────────────────────────────────────────────────────────
-# On container start:
-#   1) copy fresh node_modules to /modules_cache (named volume)
-#   2) copy them back into the bind-mounted host folder if missing
-#   3) install dependencies and start the dev server
-# ────────────────────────────────────────────────────────────────
 CMD ["sh", "-c", "npm install && npm run dev"]

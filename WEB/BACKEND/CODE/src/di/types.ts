@@ -6,6 +6,7 @@ const TYPES = {
     AuthService: Symbol.for('AuthService'),
     AuthenticationController: Symbol.for('AuthenticationController'),
     RepositoryRepository: Symbol.for('RepositoryRepository'),
+    PullRequestRepository: Symbol.for('PullRequestRepository'), // Added this line
     RepositoryService: Symbol.for('RepositoryService'),
     RepositoryController: Symbol.for('RepositoryController'),
     RepositoryAccessRepository: Symbol.for('RepositoryAccessRepository'),
@@ -19,6 +20,7 @@ const TYPES = {
     IssueCommentRepository: Symbol.for('IssueCommentRepository'),
     IssueCommentService: Symbol.for('IssueCommentService'),
     IssueCommentController: Symbol.for('IssueCommentController'),
+    GitService: Symbol.for('GitService'), // Add this line
 };
 
 export { TYPES };

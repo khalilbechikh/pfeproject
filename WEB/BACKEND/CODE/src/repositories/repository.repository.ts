@@ -1,30 +1,12 @@
 import {Prisma, PrismaClient, repository} from '@prisma/client';
 import {inject, injectable} from 'inversify';
 import { TYPES } from '../di/types';
+import { exec } from 'child_process';
+import util from 'util';
+import fs from 'fs/promises';
+import path from 'path';
 
-// this is the schema for the repository table
-/*model repository {
-  id                Int                  @id @default(autoincrement()) @db.Integer
-  name              String               @db.VarChar(255)
-  owner_user_id     Int                  @db.Integer
-  description       String?              @db.Text
-  is_private        Boolean?             @default(false) @db.Boolean
-  parent_id         Int?                 @db.Integer      // Field to track the parent repository if this is a fork
-  forked_at         DateTime?            @db.Timestamp(6) // When this repository was forked (if it is a fork)
-  created_at        DateTime             @default(now()) @db.Timestamp(6)
-  updated_at        DateTime             @default(now()) @updatedAt @db.Timestamp(6)
-
-  // Foreign key relationships
-  owner             users                @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
-  parent            repository?          @relation("ForkRelation", fields: [parent_id], references: [id], onDelete: SetNull)
-  forks             repository[]         @relation("ForkRelation")
-
-  // Relations to other models
-  access            repository_access[]
-  issue             issue[]
-  pull_request      pull_request[]
-}
-*/
+const execPromise = util.promisify(exec);
 
 @injectable()
 export class RepositoryRepository {
@@ -181,5 +163,49 @@ export class RepositoryRepository {
     // Alias for findById to match naming convention in GitCrud
     async getRepositoryById(id: number): Promise<repository | null> {
         return this.findById(id);
+    }
+
+    /**
+     * Finds a repository by ID and returns details needed for constructing its path.
+     * Assumes a relation 'owner' exists on the 'repository' model linking to 'users',
+     * and the 'users' model has a 'username' field.
+     */
+    async findRepositoryPathDetails(id: number): Promise<{ ownerUsername: string, repoName: string } | null> {
+        console.log(`RepositoryRepository: Finding path details for repo ID: ${id}`);
+        try {
+            const repository = await this.prisma.repository.findUnique({
+                where: { id: id },
+                include: {
+                    owner: { // Include the related user record
+                        select: {
+                            username: true // Select only the username
+                        }
+                    }
+                }
+            });
+
+            if (!repository) {
+                console.warn(`Repository with ID ${id} not found.`);
+                return null; // Or throw new Error(...) if preferred
+            }
+            if (!repository.owner || !repository.owner.username) {
+                console.error(`Repository with ID ${id} found, but owner or owner username is missing.`);
+                // Throw standard Error instead of InternalServerError
+                throw new Error(`Data integrity issue: Owner details missing for repository ID ${id}.`);
+            }
+
+            console.log(`Found details for repo ID ${id}: Owner=${repository.owner.username}, Name=${repository.name}`);
+            return { ownerUsername: repository.owner.username, repoName: repository.name };
+        } catch (error: unknown) {
+            console.error(`Error finding repository path details for ID ${id}:`, error);
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+                 // Record not found specifically by Prisma
+                 console.warn(`Prisma P2025: Repository with ID ${id} not found.`);
+                 return null; // Or throw new Error(...) if preferred
+            }
+            // Re-throw other errors or wrap them in a standard Error
+            // Throw standard Error instead of InternalServerError
+            throw new Error(`Database error finding repository details for ID ${id}: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 }

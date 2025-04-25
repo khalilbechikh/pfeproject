@@ -5,6 +5,9 @@ import { RepositoryRepository } from "../repositories/repository.repository";
 import fs from 'fs';
 import { TYPES } from '../di/types';
 
+// TODO: Move this to configuration/environment variables, ensure consistency with GitService
+const GIT_REPO_BASE_PATH = '/srv/git';
+
 @injectable()
 export class GitCrud {
     constructor(@inject(TYPES.RepositoryRepository) private repoRepo: RepositoryRepository) {
@@ -93,41 +96,54 @@ export class GitCrud {
     }
 
     /**
-     * Deletes a bare Git repository.
+     * Deletes a bare Git repository from the filesystem and the database.
      * @param id - Repository ID
      * @returns Promise resolving when repository is deleted
      */
     async deleteBareRepo(id: number): Promise<void> {
-        // Get repository information from database
-        const repository = await this.repoRepo.findById(id);
-        
-        if (!repository) {
-            throw new Error("Repository not found");
+        console.log(`=== GITCRUD: deleteBareRepo START (ID: ${id}) ===`);
+        // Get repository path details from database
+        const repoDetails = await this.repoRepo.findRepositoryPathDetails(id);
+
+        if (!repoDetails) {
+            console.error(`Repository path details not found for ID: ${id}`);
+            throw new Error(`Repository with ID ${id} not found or owner details missing.`);
         }
-        
+
+        const { ownerUsername, repoName } = repoDetails;
+        // Construct the correct path including the username
+        const repoFullPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
+        console.log(`Constructed path for deletion: ${repoFullPath}`);
+
         return new Promise((resolve, reject) => {
-            // Use userId to get username in the future
-            // For now, construct the path using just the repository name
-            const repoPath = `${repository.name}.git`;
-            
-            // Construct deletion command
-            const command = `rm -rf /srv/git/${repoPath}`;
-            
+            // Construct deletion command using the full path
+            // Ensure path is quoted to handle potential special characters
+            const command = `rm -rf "${repoFullPath}"`;
+            console.log(`Executing deletion command: ${command}`);
+
             exec(command, async (error, stdout, stderr) => {
                 if (error) {
-                    return reject(error);
+                    console.error(`Error executing filesystem delete command for ${repoFullPath}:`, error);
+                    return reject(new Error(`Failed to delete repository directory: ${error.message}`));
                 }
-                
+
                 if (stderr) {
-                    console.error(`stderr: ${stderr}`);
+                    console.warn(`Filesystem delete command stderr for ${repoFullPath}: ${stderr}`);
                 }
-                
+
+                console.log(`Filesystem repository deleted successfully: ${repoFullPath}`);
+                console.log(`Script stdout output: ${stdout}`);
+
                 try {
-                    // Delete repository from database
+                    console.log(`Deleting repository entry from database for ID: ${id}`);
                     await this.repoRepo.deleteRepository(id);
+                    console.log(`Database entry deleted successfully for ID: ${id}`);
+                    console.log(`=== GITCRUD: deleteBareRepo END - Success (ID: ${id}) ===`);
                     resolve();
                 } catch (dbError: unknown) {
-                    reject(dbError);
+                    console.error(`=== GITCRUD: deleteBareRepo ERROR (ID: ${id}) ===`);
+                    console.error(`Database error deleting repository with ID ${id}:`, dbError);
+                    reject(new Error(`Failed to delete repository database entry: ${dbError instanceof Error ? dbError.message : String(dbError)}`));
                 }
             });
         });

@@ -51,6 +51,3 @@ export const deleteRepository = async (repoId: number): Promise<void> => {
     const gitCrud = getGitCrud();
     return gitCrud.deleteBareRepo(repoId);
 };
-
-// Export direct access to the createBareRepo function
-export { createBareRepo } from './initGitRepo';
