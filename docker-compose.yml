@@ -37,7 +37,6 @@ services:
     working_dir: /app
     volumes:
       - ./WEB/BACKEND/CODE:/app                # project source (bind mount)
-      - backend_cache:/modules_cache           # ⬅️ persistent node_modules cache
       - ./VOLUMES/repositorys:/srv/git         # shared Git repos
     ports:
       - "5000:5000"
