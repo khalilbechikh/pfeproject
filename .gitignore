@@ -2,6 +2,7 @@
 dist/
 build/
 node_modules/
+node_modules
 
 # Docker and VS Code files
 docker-compose*.json
