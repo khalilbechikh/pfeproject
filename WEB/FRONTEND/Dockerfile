@@ -1,5 +1,5 @@
 # Use Node.js 22 on Debian Bookworm
-FROM node:22.14.0-bookworm
+FROM node:23-alpine3.20
 
 # Set the working directory inside the container
 WORKDIR /app

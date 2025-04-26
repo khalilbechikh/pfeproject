@@ -1,5 +1,5 @@
 # Use PostgreSQL version 17 as the base image
-FROM postgres:17.3-bookworm
+FROM postgres:17.3-alpine
 
 # Set default credentials for PostgreSQL
 
