@@ -16,4 +16,4 @@ COPY CODE/my-react-app/ ./
 EXPOSE 5173
 
 # Command to start the Vite development server with proper host argument
-CMD ["sh", "-c", "cd my-react-app && npm run dev -- --host"]
+CMD ["sh", "-c", "cd my-react-app && ls && npm install && npm run dev"]

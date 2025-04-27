@@ -93,49 +93,63 @@ export class AuthService {
         return await bcrypt.compare(password, hashedPassword);
     }
 
-    async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
-        try {
-            console.log("singup called in service");
-            const validatedData = CreateUserDto.parse(userData);
+    // Update the signUp method in AuthService
+    
+async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
+    try {
+        console.log("signup called in service");
+        const validatedData = CreateUserDto.parse(userData);
 
-            const existedUser = await this.userRepository.prisma.users.findUnique({
-                where: {
-                    email: validatedData.email,
-                },
-            });
+        // Check for existing username first
+        const existingUsername = await this.userRepository.prisma.users.findUnique({
+            where: { username: validatedData.username },
+        });
 
-            if (existedUser) {
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: 'User already exists',
-                    error: 'User already exists',
-                };
-            }
-
-            const hashedPassword = await this.hashPassword(validatedData.password);
-
-            const user = await this.userRepository.prisma.users.create({
-                data: {
-                    username: validatedData.username,
-                    email: validatedData.email,
-                    password_hash: hashedPassword,
-                },
-            });
-
-            return {
-                status: ResponseStatus.SUCCESS,
-                message: 'User created successfully',
-                data: user,
-            };
-        } catch (error) {
+        if (existingUsername) {
             return {
                 status: ResponseStatus.FAILED,
-                message: 'Failed to create user s',
-                error: `${error}`,
+                message: 'Username already exists',
+                error: 'Username already taken',
             };
         }
-    }
 
+        // Then check for existing email
+        const existingEmail = await this.userRepository.prisma.users.findUnique({
+            where: { email: validatedData.email },
+        });
+
+        if (existingEmail) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Email already exists',
+                error: 'Email already registered',
+            };
+        }
+
+        const hashedPassword = await this.hashPassword(validatedData.password);
+
+        const user = await this.userRepository.prisma.users.create({
+            data: {
+                username: validatedData.username,
+                email: validatedData.email,
+                password_hash: hashedPassword,
+            },
+        });
+
+        return {
+            status: ResponseStatus.SUCCESS,
+            message: 'User created successfully',
+            data: user,
+        };
+    } catch (error) {
+        console.error("Signup error:", error);
+        return {
+            status: ResponseStatus.FAILED,
+            message: 'Failed to create user',
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
     async signIn(userData: LoginUserDto): Promise<ApiResponse<users>> {
         try {
             console.log("========== AUTH SERVICE SIGNIN START ==========");
