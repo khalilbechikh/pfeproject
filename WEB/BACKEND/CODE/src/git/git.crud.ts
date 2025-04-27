@@ -4,6 +4,7 @@ import { injectable, inject } from 'inversify';
 import { RepositoryRepository } from "../repositories/repository.repository";
 import fs from 'fs';
 import { TYPES } from '../di/types';
+import { ApiResponse, ResponseStatus } from "../DTO/apiResponse.DTO";
 
 // TODO: Move this to configuration/environment variables, ensure consistency with GitService
 const GIT_REPO_BASE_PATH = '/srv/git';
@@ -147,5 +148,102 @@ export class GitCrud {
                 }
             });
         });
+    }
+
+    /**
+     * Forks a repository: clones it to the new user's namespace and creates a DB record.
+     * @param repoId - ID of the repository to fork
+     * @param userId - ID of the user who will own the fork
+     * @param username - Username of the new owner
+     * @returns ApiResponse with new repo id or error
+     */
+    async createFork(repoId: number, userId: number, username: string): Promise<ApiResponse<{ id: number }>> {
+        try {
+            // 1. Get source repo details (owner username, repo name)
+            const sourceDetails = await this.repoRepo.findRepositoryPathDetails(repoId);
+            if (!sourceDetails) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Source repository not found.',
+                    error: 'Repository with the given ID does not exist.'
+                };
+            }
+            const { ownerUsername, repoName } = sourceDetails;
+
+            // 2. Get full source repo (for is_private)
+            const sourceRepo = await this.repoRepo.findById(repoId);
+            if (!sourceRepo) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Source repository not found.',
+                    error: 'Repository with the given ID does not exist.'
+                };
+            }
+
+            // 3. Check for name conflict
+            const userRepos = await this.repoRepo.findByOwnerId(userId);
+            if (userRepos.some(r => r.name === repoName)) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Repository with this name already exists for this user.',
+                    error: 'Name conflict.'
+                };
+            }
+
+            // 4. Prepare shell script to clone repo
+            const srcPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
+            const destDir = path.join(GIT_REPO_BASE_PATH, username);
+            const destPath = path.join(destDir, `${repoName}.git`);
+            const shellScript = `mkdir -p "${destDir}" && git clone --bare "${srcPath}" "${destPath}"`;
+
+            // 5. Execute shell script
+            const execPromise = (cmd: string) => new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
+                exec(cmd, (error, stdout, stderr) => {
+                    if (error) return reject(error);
+                    resolve({ stdout, stderr });
+                });
+            });
+            try {
+                await execPromise(shellScript);
+            } catch (err: any) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Failed to clone repository on filesystem.',
+                    error: err?.message || String(err)
+                };
+            }
+
+            // 6. Create DB record for fork
+            try {
+                const forkedRepo = await this.repoRepo.createRepository({
+                    name: repoName,
+                    description: `forked from ${ownerUsername}/${repoName}`,
+                    is_private: sourceRepo.is_private,
+                    parent: { connect: { id: repoId } },
+                    forked_at: new Date(),
+                    owner: { connect: { id: userId } }
+                });
+                return {
+                    status: ResponseStatus.SUCCESS,
+                    message: 'Repository forked successfully.',
+                    data: { id: forkedRepo.id }
+                };
+            } catch (dbErr: any) {
+                // Clean up the forked repo from disk if DB creation fails
+                const cleanupCmd = `rm -rf "${destPath}"`;
+                await execPromise(cleanupCmd);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Failed to create forked repository in database. Filesystem changes reverted.',
+                    error: dbErr?.message || String(dbErr)
+                };
+            }
+        } catch (err: any) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Unexpected error during fork operation.',
+                error: err?.message || String(err)
+            };
+        }
     }
 }

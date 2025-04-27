@@ -32,12 +32,11 @@ model repository {
   owner_user_id     Int                  @db.Integer
   description       String?              @db.Text
   is_private        Boolean?             @default(false) @db.Boolean
-  parent_id         Int?                 @db.Integer      // Field to track the parent repository if this is a fork
-  forked_at         DateTime?            @db.Timestamp(6) // When this repository was forked (if it is a fork)
+  parent_id         Int?                 @db.Integer     
+  forked_at         DateTime?            @db.Timestamp(6) 
   created_at        DateTime             @default(now()) @db.Timestamp(6)
   updated_at        DateTime             @default(now()) @updatedAt @db.Timestamp(6)
 
-  // Foreign key relationships
   owner             users                @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
   parent            repository?          @relation("ForkRelation", fields: [parent_id], references: [id], onDelete: SetNull)
   forks             repository[]         @relation("ForkRelation")
