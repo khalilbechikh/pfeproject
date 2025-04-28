@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useRef} from 'react';
 import { User, Settings, Edit, Camera, Save, X, Key, Github, Mail, Calendar, MapPin, Clock, FileText, GitFork, Star, AlertCircle, RefreshCw, Shield, Code, MessageSquare, Trash2, Sun, Moon } from 'lucide-react';
+import { z } from 'zod';
 import { jwtDecode } from 'jwt-decode';
-
+import { CheckCircle } from 'lucide-react';  // Add this with other icon imports
 
 
 interface Particle {
@@ -57,6 +58,10 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
     });
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [validationErrors, setValidationErrors] = useState<z.ZodIssue[] | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
 
     const [particles, setParticles] = useState<Particle[]>(Array(15).fill(null).map(() => ({
@@ -148,28 +153,111 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
         return `${diffYears} ${diffYears === 1 ? 'year' : 'years'} ago`;
     };
 
-    const handleSaveProfile = () => {
-        if (!user) return;
+    // Replace the existing handleSaveProfile function with this one
+    const handleSaveProfile = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
 
-        setUser({
-            ...user,
-            username: editForm.username,
-            email: editForm.email,
-            bio: editForm.bio,
-            updated_at: new Date().toISOString()
-        });
-        setEditMode(false);
+            const decoded = jwtDecode<JwtPayload>(token);
+            const userId = decoded.userId;
+
+            const response = await fetch(`http://localhost:5000/v1/api/users/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(editForm)
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                if (response.status === 400 && responseData.details) {
+                    setValidationErrors(responseData.details);
+                }
+                // Handle conflict errors (username/email taken)
+                else if (response.status === 409) {
+                    setValidationErrors([{
+                        message: responseData.message || 'Conflict occurred',
+                        path: [],
+                        code: 'custom'
+                    }]);
+                } else {
+                    throw new Error(responseData.error || 'Failed to update profile');
+                }
+                return;
+            }
+            setUser(responseData);
+            setEditMode(false);
+            setSuccessMessage('Profile updated successfully!');
+            setValidationErrors(null);
+
+            // Clear success message after 3 seconds
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error('Error saving profile:', err);
+            setValidationErrors([{
+                message: err instanceof Error ? err.message : 'An unknown error occurred',
+                path: [],
+                code: 'custom'
+            }]);
+        }
     };
 
-    const handlePasswordChange = () => {
-        setPasswordForm({
-            currentPassword: '',
-            newPassword: '',
-            confirmPassword: '',
-        });
-        setShowPasswordModal(false);
-    };
+    const handlePasswordChange = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
 
+            const decoded = jwtDecode<JwtPayload>(token);
+            const userId = decoded.userId;
+
+            if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+                setValidationErrors([{
+                    message: 'New passwords do not match',
+                    path: [],
+                    code: 'custom'
+                }]);
+                return;
+            }
+
+            const response = await fetch(`http://localhost:5000/v1/api/users/${userId}/change-password`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    currentPassword: passwordForm.currentPassword,
+                    newPassword: passwordForm.newPassword,
+                    confirmNewPassword: passwordForm.confirmPassword
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to change password');
+            }
+
+            setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            setShowPasswordModal(false);
+            setSuccessMessage('Password updated successfully!');
+            setValidationErrors(null);
+
+            // Clear success message after 3 seconds
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error('Error changing password:', err);
+            setValidationErrors([{
+                message: err instanceof Error ? err.message : 'An unknown error occurred',
+                path: [],
+                code: 'custom'
+            }]);
+        }
+    };
     const handleCancelEdit = () => {
         if (!user) return;
 
@@ -179,6 +267,49 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             bio: user.bio || '',
         });
         setEditMode(false);
+    };
+    const handleAvatarClick = () => {
+        if (editMode && fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !user) return;
+
+        setIsUploading(true);
+        const formData = new FormData();
+        formData.append('avatar', file);
+
+        try {
+            const token = localStorage.getItem('authToken');
+            const decoded = jwtDecode<JwtPayload>(token!);
+            const response = await fetch( `http://localhost:5000/v1/api/users/${decoded.userId}/avatar`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.error || 'Failed to upload avatar');
+
+            setUser({ ...user, avatar_path: data.avatar_path });
+            setSuccessMessage('Avatar updated successfully!');
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            setValidationErrors([{
+                message: err instanceof Error ? err.message : 'Failed to upload avatar',
+                path: [],
+                code: 'custom'
+            }]);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
     const handleDeleteAccount = async () => {
         try {
@@ -281,13 +412,46 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             case 'overview':
                 return (
                     <div className="space-y-6">
+
+
+                        {/* Success/Error Notifications */}
+                        {successMessage && (
+                            <div className={`p-4 rounded-lg ${darkMode
+                                ? 'bg-green-900/30 border-green-800 text-green-400'
+                                : 'bg-green-100 border-green-200 text-green-800'} border`}>
+                                <div className="flex items-center">
+                                    <CheckCircle className="mr-2" size={20} />
+                                    {successMessage}
+                                </div>
+                            </div>
+                        )}
+
+                        {validationErrors && (
+                            <div className={`p-4 rounded-lg ${darkMode ? 'bg-red-900/30 border-red-800 text-red-400' : 'bg-red-100 border-red-200 text-red-800'} border`}>
+                                <div className="flex items-center mb-2">
+                                    <AlertCircle className="mr-2" size={20} />
+                                    <span className="font-semibold">Update Error:</span>
+                                </div>
+                                <ul className="list-disc list-inside pl-4">
+                                    {validationErrors.map((error, index) => (
+                                        <li key={index} className="text-sm">
+                                            {error.message}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         <div className={`${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'} backdrop-blur-sm border rounded-xl p-6`}>
                             <div className="flex flex-col md:flex-row items-start md:items-center">
                                 <div className="relative mb-4 md:mb-0">
-                                    <div className={`w-24 h-24 rounded-full ${darkMode ? 'bg-violet-600/20 text-violet-400 border-violet-600/30' : 'bg-cyan-50 text-cyan-600 border-cyan-200'} border-2 flex items-center justify-center text-3xl font-medium`}>
+                                    <div
+                                        onClick={handleAvatarClick}
+                                        className={`w-24 h-24 rounded-full ${darkMode ? 'bg-violet-600/20 text-violet-400 border-violet-600/30' : 'bg-cyan-50 text-cyan-600 border-cyan-200'} border-2 flex items-center justify-center text-3xl font-medium cursor-pointer`}
+                                    >
                                         {user.avatar_path ? (
                                             <img
-                                                src={user.avatar_path}
+                                            src={`http://localhost:5000${user.avatar_path}`}
                                                 alt={user.username}
                                                 className="w-full h-full rounded-full object-cover"
                                             />
@@ -295,9 +459,29 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                             user.username.charAt(0).toUpperCase()
                                         )}
                                     </div>
+                                    <input
+                                        type="file"
+                                        hidden
+                                        ref={fileInputRef}
+                                        onChange={handleFileUpload}
+                                        accept="image/*"
+                                    />
                                     {editMode && (
-                                        <button className={`absolute bottom-0 right-0 p-1.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
-                                            <Camera size={16} />
+                                        <button
+                                            onClick={handleAvatarClick}
+                                            className={`absolute bottom-0 right-0 p-1.5 rounded-full ${darkMode
+                                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={isUploading}
+                                        >
+                                            {isUploading ? (
+                                                <div className="animate-spin">
+                                                    <RefreshCw size={16} />
+                                                </div>
+                                            ) : (
+                                                <Camera size={16} />
+                                            )}
                                         </button>
                                     )}
                                 </div>
@@ -603,6 +787,16 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             case 'settings':
                 return (
                     <div className="space-y-6">
+                        {successMessage && (
+                            <div className={`p-4 rounded-lg ${darkMode
+                                ? 'bg-green-900/30 border-green-800 text-green-400'
+                                : 'bg-green-100 border-green-200 text-green-800'} border`}>
+                                <div className="flex items-center">
+                                    <CheckCircle className="mr-2" size={20} />
+                                    {successMessage}
+                                </div>
+                            </div>
+                        )}
                         <div className="mb-6">
                             <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Settings</h2>
                             <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Manage your preferences</p>
@@ -615,7 +809,10 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                     <h4 className={`text-md font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Password</h4>
                                     <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Change your account password</p>
                                     <button
-                                        onClick={() => setShowPasswordModal(true)}
+                                        onClick={() => {
+                                            setShowPasswordModal(true);
+                                            setSuccessMessage(null); // Clear any existing success messages
+                                        }}
                                         className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} rounded-lg transition-colors`}
                                     >
                                         <Key size={16} />
@@ -762,6 +959,21 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                 <X size={20} />
                             </button>
                         </div>
+                        {validationErrors && (
+                            <div className={`p-4 rounded-lg ${darkMode ? 'bg-red-900/30 border-red-800 text-red-400' : 'bg-red-100 border-red-200 text-red-800'} border`}>
+                                <div className="flex items-center mb-2">
+                                    <AlertCircle className="mr-2" size={20} />
+                                    <span className="font-semibold">Password Change Error:</span>
+                                </div>
+                                <ul className="list-disc list-inside pl-4">
+                                    {validationErrors.map((error, index) => (
+                                        <li key={index} className="text-sm">
+                                            {error.message}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                         <div className="space-y-4">
                             <div>
                                 <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-700'}`}>

@@ -1,9 +1,12 @@
 import { injectable, inject } from 'inversify';
 import { Prisma, users } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
+import {} from 'zod';
 
 // update-user.dto.ts
 import { z } from 'zod';
+import * as bcrypt from 'bcrypt';
+
 
 /**
  * ## UpdateUserDto Schema
@@ -44,7 +47,7 @@ export const UpdateUserDto = z.object({
         .max(500, 'Bio cannot exceed 500 characters.')
         .nullable()
         .optional(),
-        avatar_path: z
+    avatar_path: z
         .string()
         .regex(/^[a-zA-Z0-9_\-./]+$/, 'Avatar path must be a valid relative path')
         .max(255, 'Avatar path cannot exceed 255 characters.')
@@ -64,7 +67,7 @@ export interface CreateUserDto {
 
 @injectable()
 export class UserService {
-    constructor(@inject(UserRepository) private userRepository: UserRepository) {}
+    constructor(@inject(UserRepository) private userRepository: UserRepository) { }
 
     /**
      * Get a user by ID with optional related data
@@ -112,35 +115,44 @@ export class UserService {
      */
     async updateUser(id: number, userData: UpdateUserDto): Promise<users | null> {
         try {
-            const updateData: Prisma.usersUpdateInput = {};
-
             if (userData.username) {
-                updateData.username = userData.username;
+                const existingUser = await this.userRepository.findByUsername(userData.username);
+                if (existingUser && existingUser.id !== id) {
+                    throw new Error('Username already exists');
+                }
             }
-
+    
             if (userData.email) {
-                updateData.email = userData.email;
+                const existingUser = await this.userRepository.findByEmail(userData.email);
+                if (existingUser && existingUser.id !== id) {
+                    throw new Error('Email already in use');
+                }
             }
-
-            if (userData.password) {
-                updateData.password_hash = await this.hashPassword(userData.password);
+    
+            const updateData: Prisma.usersUpdateInput = {};
+    
+            if (userData.username) updateData.username = userData.username;
+            if (userData.email) updateData.email = userData.email;
+            if (userData.password) updateData.password_hash = await this.hashPassword(userData.password);
+            if (userData.bio !== undefined) updateData.bio = userData.bio;
+            if (userData.avatar_path !== undefined) updateData.avatar_path = userData.avatar_path;
+    
+            const updatedUser = await this.userRepository.updateUser(id, updateData);
+            
+            if (!updatedUser) {
+                throw new Error('User not found or update failed');
             }
-
-            if (userData.bio !== undefined) {
-                updateData.bio = userData.bio;
-            }
-
-            if (userData.avatar_path !== undefined) {
-                updateData.avatar_path = userData.avatar_path;
-            }
-
-            return await this.userRepository.updateUser(id, updateData);
+    
+            return updatedUser;
         } catch (error) {
             console.error('Error in UserService.updateUser:', error);
+            // Don't modify the error message - throw it as-is
+            if (error instanceof Error) {
+                throw error;
+            }
             throw new Error('Failed to update user');
         }
     }
-
     /**
      * Delete a user by ID
      * @param id User ID
@@ -161,8 +173,26 @@ export class UserService {
      * @returns Hashed password
      */
     private async hashPassword(password: string): Promise<string> {
-        // In a real application, use a proper password hashing library like bcrypt
-        // This is just a placeholder for demonstration purposes
-        return `hashed_${password}_${Date.now()}`;
+        return await bcrypt.hash(password, 10);
     }
+    public async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+        try {
+            const user = await this.userRepository.findById(userId);
+            if (!user) throw new Error('User not found');
+    
+            // Use bcrypt.compare to validate current password
+            const isPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+            if (!isPasswordValid) {
+                throw new Error('Current password is incorrect');
+            }
+    
+            // Hash new password using bcrypt
+            const newPasswordHash = await this.hashPassword(newPassword);
+            await this.userRepository.updateUser(userId, { password_hash: newPasswordHash });
+        } catch (error) {
+            console.error('Error in UserService.changePassword:', error);
+            throw error;
+        }
+    }
+    
 }

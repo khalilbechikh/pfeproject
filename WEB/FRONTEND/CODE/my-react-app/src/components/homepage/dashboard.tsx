@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, AlertCircle, Check, Clock, Filter, ChevronDown, Tag, User } from 'lucide-react';
 import Profile from './profile';
+import RepositoriesList from './RepositoriesList';
+import { jwtDecode } from 'jwt-decode';
 
 const languageColors = {
     JavaScript: "bg-yellow-400",
@@ -12,16 +14,7 @@ const languageColors = {
     HTML: "bg-red-500"
 };
 
-interface Project {
-    name: string;
-    description: string;
-    language: keyof typeof languageColors;
-    stars: number;
-    forks: number;
-    updated: string;
-    contributors: number;
-    progress: number;
-}
+
 
 const labelColors = {
     "bug": {
@@ -97,6 +90,25 @@ const labelColors = {
         darkText: "text-amber-400"
     }
 };
+interface JwtPayload {
+    userId: string;
+    // Add other fields if needed, e.g. exp, iat, etc.
+}
+
+
+interface UserProfile {
+    id: number;
+    username: string;
+    email: string;
+    bio: string | null;
+    avatar_path: string | null;
+    is_admin: boolean;
+    created_at: string;
+    updated_at: string;
+    repositories?: any[];
+    issues?: any[];
+    pull_requests?: any[];
+}
 
 interface Issue {
     id: string;
@@ -147,49 +159,33 @@ export default function EnhancedSharecodeDashboard() {
         speedX: (Math.random() - 0.5) * 0.3,
         speedY: (Math.random() - 0.5) * 0.3
     })));
+    const [user, setUser] = useState<UserProfile | null>(null);
+    // Add this useEffect to fetch user data
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) return;
 
-    const projects: Project[] = [
-        {
-            name: "Neural Network Visualizer",
-            description: "Interactive visualization tool for neural networks with real-time training data",
-            language: "TypeScript",
-            stars: 128,
-            forks: 35,
-            updated: "2 days ago",
-            contributors: 8,
-            progress: 85
-        },
-        {
-            name: "Quantum Algorithm Simulator",
-            description: "Simulate quantum computing algorithms and visualize qubit states",
-            language: "Python",
-            stars: 246,
-            forks: 87,
-            updated: "5 days ago",
-            contributors: 12,
-            progress: 92
-        },
-        {
-            name: "3D Code Architecture",
-            description: "Generate interactive 3D visualizations of code architecture and dependencies",
-            language: "JavaScript",
-            stars: 193,
-            forks: 42,
-            updated: "1 week ago",
-            contributors: 5,
-            progress: 78
-        },
-        {
-            name: "Blockchain Explorer",
-            description: "Advanced blockchain visualization and transaction analysis tool",
-            language: "Rust",
-            stars: 317,
-            forks: 103,
-            updated: "3 days ago",
-            contributors: 15,
-            progress: 96
-        }
-    ];
+                const decoded = jwtDecode<JwtPayload>(token);
+                const response = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch user data');
+
+                const userData = await response.json();
+                setUser(userData);
+            } catch (err) {
+                console.error('Error fetching user data:', err);
+            }
+        };
+
+        fetchUserData();
+    }, [])
+
 
     const issues: Issue[] = [
         {
@@ -510,108 +506,8 @@ export default function EnhancedSharecodeDashboard() {
                     </div>
                 );
             case 'repositories':
-                return (
-                    <>
-                        <div className="mb-6 flex justify-between items-center">
-                            <div>
-                                <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Your Repositories</h1>
-                                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Manage and explore your code repositories</p>
-                            </div>
-                            <button className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg transition-all duration-300 hover:shadow-lg ${darkMode ? 'hover:shadow-violet-500/30' : 'hover:shadow-cyan-500/30'} transform hover:-translate-y-0.5`}>
-                                <Plus size={18} />
-                                <span>New</span>
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-6">
-                            {projects.map((project, index) => (
-                                <div
-                                    key={index}
-                                    className={`${darkMode ? 'bg-gray-800/60 border-gray-700 hover:border-gray-600' : 'bg-white/70 border-gray-200 hover:border-cyan-300'} backdrop-blur-sm group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
-                                >
-                                    <div className="p-6">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <div className="flex items-center space-x-3">
-                                                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline`}>
-                                                        {project.name}
-                                                    </h3>
-                                                    <span className={`text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded-full`}>
-                                                        Public
-                                                    </span>
-                                                </div>
-                                                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>{project.description}</p>
-                                            </div>
-                                            <div className="flex space-x-2">
-                                                <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
-                                                    <Star size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                                </button>
-                                                <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
-                                                    <GitFork size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="mb-4">
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>Project completion</span>
-                                                <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{project.progress}%</span>
-                                            </div>
-                                            <div className={`h-1.5 w-full rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} overflow-hidden`}>
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-500 ease-out ${darkMode ? 'bg-gradient-to-r from-violet-500 to-purple-500' : 'bg-gradient-to-r from-cyan-500 to-teal-400'
-                                                        }`}
-                                                    style={{ width: `${project.progress}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-wrap items-center text-sm gap-y-2">
-                                            <div className="flex items-center mr-5">
-                                                <span className={`inline-block w-3 h-3 rounded-full ${languageColors[project.language]} mr-2`}></span>
-                                                <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{project.language}</span>
-                                            </div>
-                                            <div className="flex items-center mr-5 group">
-                                                <Star size={16} className={`mr-1.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'} group-hover:text-yellow-400 transition-colors`} />
-                                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{project.stars}</span>
-                                            </div>
-                                            <div className="flex items-center mr-5">
-                                                <GitFork size={16} className="mr-1.5 text-gray-400" />
-                                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{project.forks}</span>
-                                            </div>
-                                            <div className="flex items-center mr-5">
-                                                <Users size={16} className="mr-1.5 text-gray-400" />
-                                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{project.contributors} contributors</span>
-                                            </div>
-                                            <span className={`${darkMode ? 'text-gray-500' : 'text-gray-500'} text-sm ml-auto`}>Updated {project.updated}</span>
-                                        </div>
-                                    </div>
-                                    <div className={`px-6 py-3 flex justify-between items-center border-t ${darkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-100 bg-gray-50/80'} backdrop-blur-sm`}>
-                                        <div className="flex -space-x-2">
-                                            {[...Array(3)].map((_, i) => (
-                                                <div key={i} className={`w-8 h-8 rounded-full border-2 ${darkMode ? 'border-gray-800 bg-gray-700' : 'border-white bg-gray-100'} flex items-center justify-center text-xs font-medium`}>
-                                                    {['A', 'B', 'C'][i]}
-                                                </div>
-                                            ))}
-                                            {project.contributors > 3 && (
-                                                <div className={`w-8 h-8 rounded-full border-2 ${darkMode ? 'border-gray-800 bg-gray-700 text-gray-300' : 'border-white bg-gray-100 text-gray-600'} flex items-center justify-center text-xs font-medium`}>
-                                                    +{project.contributors - 3}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <button className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}>
-                                                <Code size={14} className="inline-block mr-1.5" />
-                                                Code
-                                            </button>
-                                            <button className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-400' : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700'} transition-colors`}>
-                                                <Share2 size={14} className="inline-block mr-1.5" />
-                                                Share
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                );
+                return <RepositoriesList darkMode={darkMode} />;
+                ;
             case 'activity':
                 return (
                     <div className="space-y-6">
@@ -722,8 +618,19 @@ export default function EnhancedSharecodeDashboard() {
                         >
                             {darkMode ? <Sun size={20} className="text-gray-400" /> : <Moon size={20} className="text-gray-600" />}
                         </button>
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-medium">
-                            U
+                        {/* Updated avatar display */}
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
+                            {user?.avatar_path ? (
+                                <img
+                                    src={`http://localhost:5000${user.avatar_path}`}
+                                    alt={user.username}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <span className="text-white font-medium">
+                                    {user?.username?.charAt(0).toUpperCase() || 'U'}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -797,6 +704,6 @@ export default function EnhancedSharecodeDashboard() {
                     </footer>
                 </div>
             </main>
-        </div>
+        </div >
     );
 }

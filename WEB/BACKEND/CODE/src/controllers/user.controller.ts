@@ -7,7 +7,7 @@ export class UserController {
 
     constructor(
         @inject(UserService) private userService: UserService
-    ) {}
+    ) { }
 
     /**
      * Get a user by ID
@@ -75,35 +75,50 @@ export class UserController {
     updateUser = async (req: Request, res: Response): Promise<void> => {
         try {
             const userId = parseInt(req.params.id, 10);
-
-            // Check if ID is a valid number
             if (isNaN(userId)) {
                 res.status(400).json({ error: 'Invalid user ID' });
                 return;
             }
-
-            const userData: UpdateUserDto = req.body;
-
-            // Check if there is any data to update
+    
+            const validationResult = UpdateUserDto.safeParse(req.body);
+            if (!validationResult.success) {
+                res.status(400).json({
+                    error: 'Validation error',
+                    details: validationResult.error.errors
+                });
+                return;
+            }
+    
+            const userData = validationResult.data;
+    
             if (Object.keys(userData).length === 0) {
                 res.status(400).json({ error: 'No update data provided' });
                 return;
             }
-
-            const updatedUser= await this.userService.updateUser(userId, userData);
-
+    
+            const updatedUser = await this.userService.updateUser(userId, userData);
+    
             if (!updatedUser) {
                 res.status(404).json({ error: 'User not found or update failed' });
                 return;
             }
-
+    
             res.status(200).json(updatedUser);
         } catch (error) {
             console.error('Error in UserController.updateUser:', error);
+            if (error instanceof Error) {
+                if (error.message === 'Username already exists' || 
+                    error.message === 'Email already in use') {
+                    res.status(409).json({ 
+                        error: error.message,
+                        message: error.message
+                    });
+                    return;
+                }
+            }
             res.status(500).json({ error: 'Failed to update user' });
         }
     };
-
     /**
      * Delete a user by ID
      * @param req Express request object
@@ -132,4 +147,82 @@ export class UserController {
             res.status(500).json({ error: 'Failed to delete user' });
         }
     };
+    public changePassword = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = parseInt(req.params.id, 10);
+            if (isNaN(userId)) {
+                res.status(400).json({ error: 'Invalid user ID' });
+                return;
+            }
+    
+            const { currentPassword, newPassword, confirmNewPassword } = req.body;
+    
+            if (!currentPassword || !newPassword || !confirmNewPassword) {
+                res.status(400).json({ error: 'All password fields are required' });
+                return;
+            }
+    
+            if (newPassword !== confirmNewPassword) {
+                res.status(400).json({ error: 'New passwords do not match' });
+                return;
+            }
+    
+            const passwordSchema = UpdateUserDto.pick({ password: true });
+            const validationResult = passwordSchema.safeParse({ password: newPassword });
+            if (!validationResult.success) {
+                res.status(400).json({
+                    error: 'Validation error',
+                    details: validationResult.error.errors
+                });
+                return;
+            }
+    
+            await this.userService.changePassword(userId, currentPassword, newPassword);
+            res.status(200).json({ message: 'Password updated successfully' });
+        } catch (error) {
+            console.error('Error in UserController.changePassword:', error);
+            if (error instanceof Error) {
+                if (error.message === 'Current password is incorrect') {
+                    res.status(401).json({ error: error.message });
+                } else {
+                    res.status(500).json({ error: error.message });
+                }
+            } else {
+                res.status(500).json({ error: 'Failed to change password' });
+            }
+        }
+    };
+    // Add to UserController
+public uploadAvatar = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) {
+            res.status(400).json({ error: 'Invalid user ID' });
+            return;
+        }
+
+        if (!req.file) {
+            res.status(400).json({ error: 'No file uploaded' });
+            return;
+        }
+
+        const avatarPath = `/uploads/avatars/${req.file.filename}`;
+        const updatedUser = await this.userService.updateUser(userId, { 
+            avatar_path: avatarPath 
+        });
+
+        res.status(200).json(updatedUser);
+    } catch (error) {
+        console.error('Error in UserController.uploadAvatar:', error);
+        if (error instanceof Error) {
+            if (error.message === 'Only image files are allowed') {
+                res.status(400).json({ error: error.message });
+            } else {
+                res.status(500).json({ error: 'Failed to upload avatar' });
+            }
+        } else {
+            res.status(500).json({ error: 'Failed to upload avatar' });
+        }
+    }
+}
 }

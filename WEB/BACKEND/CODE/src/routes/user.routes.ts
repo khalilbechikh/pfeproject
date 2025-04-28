@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/user.controller';
 import container from '../di/inversify.config';
+import { avatarUpload } from '../config/multer.config'; // Adjust the path as needed
 
 export const configureUserRoutes = (): Router => {
     const router = Router();
@@ -17,6 +18,14 @@ export const configureUserRoutes = (): Router => {
 
     // DELETE /api/users/:id - Delete a user by ID
     router.delete('/:id', userController.deleteUser);
+
+    router.put('/:id/change-password', userController.changePassword);
+
+    router.patch(
+        '/:id/avatar', // Remove duplicate 'users' from path
+        avatarUpload,
+        userController.uploadAvatar.bind(userController)
+    );
 
     return router;
 };

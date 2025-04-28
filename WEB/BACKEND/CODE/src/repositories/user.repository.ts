@@ -89,4 +89,17 @@ export class UserRepository {
             return null;
         }
     }
+    // user.repository.ts
+
+async findByUsername(username: string): Promise<users | null> {
+    return this.prisma.users.findFirst({
+        where: { username }
+    });
+}
+
+async findByEmail(email: string): Promise<users | null> {
+    return this.prisma.users.findFirst({
+        where: { email }
+    });
+}
 }

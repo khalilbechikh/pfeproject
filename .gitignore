@@ -2,6 +2,8 @@
 dist/
 build/
 node_modules/
+node_modules
+
 # Docker and VS Code files
 docker-compose*.json
 .devcontainer/
@@ -9,3 +11,4 @@ docker-compose*.json
 VOLUMES/
 # Environment variables
 
+/WEB/BACKEND/CODE/node_modules/

@@ -11,6 +11,7 @@ export const configureRoutes = (): Router => {
     router.use('/git', configureGitRoutes());
     router.use('', authenticationRoutes());
     router.use('/repositories', configureRepositoryRoutes());
+    
 
     return router;
 };

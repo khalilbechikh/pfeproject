@@ -11,7 +11,7 @@ const app = express();
 const corsOptions = {
   origin: 'http://localhost:5173', // Explicit origin
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], 
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Authorization']
 };
@@ -32,6 +32,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/', async (req: Request, res: Response) => {
   res.send('Welcome User Managsdgfgdement API! Use /api routes to access the API.');
 });
+app.use('/uploads/avatars', express.static('uploads/avatars'));
 
 // Configure and mount API routes
 app.use('/v1/api', configureRoutes());
@@ -41,6 +42,7 @@ app.listen(port, async () => {
   console.log(`Server running at http://localhost:${port}`);
   console.log(`API Documentation available at http://localhost:${port}/api-docs`);
 });
+
 
 export default app;
 
