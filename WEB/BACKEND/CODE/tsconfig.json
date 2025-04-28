@@ -19,7 +19,7 @@
     },
     "include": [
       "src/**/*.ts"
-    ],
+, "src/git/index"    ],
     "exclude": [
       "node_modules",
       "dist"

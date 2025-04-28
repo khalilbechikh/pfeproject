@@ -7,6 +7,9 @@ export const configureUserRoutes = (): Router => {
     const router = Router();
     const userController = container.get<UserController>(UserController);
 
+    // GET /api/users - Get all users
+    router.get('/', userController.getAllUsers);
+
     // GET /api/users/:id - Get a user by ID
     router.get('/:id', userController.getUserById);
 

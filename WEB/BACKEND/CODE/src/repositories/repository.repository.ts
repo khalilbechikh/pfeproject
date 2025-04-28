@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import util from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 
 const execPromise = util.promisify(exec);
 
@@ -25,7 +26,7 @@ export class RepositoryRepository {
      */
     async findById(
         id: number,
-        tableNamesToInclude?: string[]): Promise<repository | null> {
+        tableNamesToInclude?: string[]): Promise<ApiResponse<repository | null>> {
         try {
             let includeRelations: Prisma.repositoryInclude | undefined = undefined;
             if (tableNamesToInclude && tableNamesToInclude.length > 0) {
@@ -43,32 +44,46 @@ export class RepositoryRepository {
                 where: { id: id },
                 include: includeRelations,
             });
-            return repository;
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: repository ? "Repository found" : "Repository not found",
+                data: repository
+            };
         } catch (error: unknown) {
             console.error(error);
-            throw error;
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to find repository',
+                error: error instanceof Error ? error.message : String(error)
+            };
         }
     }
 
-    /**
-     * Find repositories by owner ID
-     */
-    async findByOwnerId(ownerId: number): Promise<repository[]> {
+   
+    async findByOwnerId(ownerId: number): Promise<ApiResponse<repository[]>> {
         try {
             const repositories = await this.prisma.repository.findMany({
                 where: { owner_user_id: ownerId },
             });
-            return repositories;
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repositories retrieved successfully",
+                data: repositories
+            };
         } catch (error: unknown) {
             console.error('Error in RepositoryRepository.findByOwnerId:', error as Error);
-            throw error;
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to find repositories by owner ID',
+                error: error instanceof Error ? error.message : String(error)
+            };
         }
     }
 
     /**
      * Create a new repository with correct owner relationship
      */
-    async createRepository(data: Prisma.repositoryCreateInput): Promise<repository> {
+    async createRepository(data: Prisma.repositoryCreateInput): Promise<ApiResponse<repository>> {
         console.log('=== REPOSITORY REPOSITORY: createRepository START ===');
         console.log('Received data:', JSON.stringify(data, null, 2));
         
@@ -99,7 +114,11 @@ export class RepositoryRepository {
                 
                 if (!userExists) {
                     console.error(`User with ID ${dataToSave.owner.connect.id} does not exist`);
-                    throw new Error(`Cannot create repository: User with ID ${dataToSave.owner.connect.id} does not exist`);
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: "Cannot create repository: User does not exist",
+                        error: 'User not found'
+                    };
                 }
                 
                 console.log('User exists check passed');
@@ -114,54 +133,82 @@ export class RepositoryRepository {
             
             console.log('Repository created successfully:', JSON.stringify(newRepository));
             console.log('=== REPOSITORY REPOSITORY: createRepository END - Success ===');
-            return newRepository;
+            
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: 'Repository created successfully',
+                data: newRepository
+            };
         } catch (error: unknown) {
             console.error('=== REPOSITORY REPOSITORY: createRepository ERROR ===');
             console.error('Error in RepositoryRepository.createRepository:', error);
+            
+            let errorMessage = 'Failed to create repository';
             
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 console.error('Prisma error code:', error.code);
                 console.error('Prisma error message:', error.message);
                 
                 if (error.code === 'P2003') {
-                    console.error('Foreign key constraint failed - likely invalid owner_user_id');
+                    errorMessage = 'Foreign key constraint failed - likely invalid owner_user_id';
                 } else if (error.code === 'P2002') {
-                    console.error('Unique constraint failed - repository name might already exist');
+                    errorMessage = 'Unique constraint failed - repository name might already exist';
                 }
             }
             
             console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
-            throw error;
+            
+            return {
+                status: ResponseStatus.FAILED,
+                message: errorMessage,
+                error: error instanceof Error ? error.message : String(error)
+            };
         }
     }
 
-    async updateRepository(id: number, data: Prisma.repositoryUpdateInput): Promise<repository> {
+    async updateRepository(id: number, data: Prisma.repositoryUpdateInput): Promise<ApiResponse<repository>> {
         try {
             const updatedRepository = await this.prisma.repository.update({
                 where: { id: id },
                 data,
             });
-            return updatedRepository;
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository updated successfully",
+                data: updatedRepository
+            };
         } catch (error: unknown) {
             console.error('Error in RepositoryRepository.updateRepository:', error as Error);
-            throw error;
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to update repository",
+                error: error instanceof Error ? error.message : String(error)
+            };
         }
     }
 
-    async deleteRepository(id: number): Promise<repository> {
+    async deleteRepository(id: number): Promise<ApiResponse<repository>> {
         try {
             const deletedRepository = await this.prisma.repository.delete({
                 where: { id: id },
             });
-            return deletedRepository;
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository deleted successfully",
+                data: deletedRepository
+            };
         } catch (error: unknown) {
             console.error('Error in RepositoryRepository.deleteRepository:', error as Error);
-            throw error;
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to delete repository",
+                error: error instanceof Error ? error.message : String(error)
+            };
         }
     }
 
     // Alias for findById to match naming convention in GitCrud
-    async getRepositoryById(id: number): Promise<repository | null> {
+    async getRepositoryById(id: number): Promise<ApiResponse<repository | null>> {
         return this.findById(id);
     }
 
@@ -170,7 +217,7 @@ export class RepositoryRepository {
      * Assumes a relation 'owner' exists on the 'repository' model linking to 'users',
      * and the 'users' model has a 'username' field.
      */
-    async findRepositoryPathDetails(id: number): Promise<{ ownerUsername: string, repoName: string } | null> {
+    async findRepositoryPathDetails(id: number): Promise<ApiResponse<{ ownerUsername: string, repoName: string } | null>> {
         console.log(`RepositoryRepository: Finding path details for repo ID: ${id}`);
         try {
             const repository = await this.prisma.repository.findUnique({
@@ -186,26 +233,34 @@ export class RepositoryRepository {
 
             if (!repository) {
                 console.warn(`Repository with ID ${id} not found.`);
-                return null; // Or throw new Error(...) if preferred
+                return {
+                    status: ResponseStatus.SUCCESS,
+                    message: "Repository not found",
+                    data: null
+                };
             }
             if (!repository.owner || !repository.owner.username) {
                 console.error(`Repository with ID ${id} found, but owner or owner username is missing.`);
-                // Throw standard Error instead of InternalServerError
-                throw new Error(`Data integrity issue: Owner details missing for repository ID ${id}.`);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Data integrity issue: Owner details missing",
+                    error: 'Missing owner data'
+                };
             }
 
             console.log(`Found details for repo ID ${id}: Owner=${repository.owner.username}, Name=${repository.name}`);
-            return { ownerUsername: repository.owner.username, repoName: repository.name };
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository path details found",
+                data: { ownerUsername: repository.owner.username, repoName: repository.name }
+            };
         } catch (error: unknown) {
             console.error(`Error finding repository path details for ID ${id}:`, error);
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-                 // Record not found specifically by Prisma
-                 console.warn(`Prisma P2025: Repository with ID ${id} not found.`);
-                 return null; // Or throw new Error(...) if preferred
-            }
-            // Re-throw other errors or wrap them in a standard Error
-            // Throw standard Error instead of InternalServerError
-            throw new Error(`Database error finding repository details for ID ${id}: ${error instanceof Error ? error.message : String(error)}`);
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Error finding repository details",
+                error: error instanceof Error ? error.message : String(error)
+            };
         }
     }
 }

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { injectable, inject } from 'inversify';
-import { UserService, CreateUserDto, UpdateUserDto } from '../services/user.service';
+import { UserService } from '../services/user.service'; // Keep UserService import
+import { Prisma } from '@prisma/client'; // Import Prisma
+import { ResponseStatus } from '../DTO/apiResponse.DTO'; // Import ResponseStatus
 
 @injectable()
 export class UserController {
@@ -8,6 +10,43 @@ export class UserController {
     constructor(
         @inject(UserService) private userService: UserService
     ) { }
+
+    /**
+     * Get all users
+     * @param req Express request object
+     * @param res Express response object
+     */
+    getAllUsers = async (req: Request, res: Response): Promise<void> => {
+        try {
+            // Extract optional relations from query parameters
+            let relations: string[] | undefined;
+            if (req.query.relations && typeof req.query.relations === 'string') {
+                relations = req.query.relations.split(',');
+            }
+
+            const usersResponse = await this.userService.getAllUsers(relations);
+
+            // Check the status from the service response
+            if (usersResponse.status === ResponseStatus.SUCCESS) {
+                res.status(200).json(usersResponse);
+            } else {
+                // Use the message and error from the service response
+                res.status(500).json({
+                    status: usersResponse.status,
+                    message: usersResponse.message,
+                    error: usersResponse.error
+                });
+            }
+        } catch (error) {
+            console.error('Error in UserController.getAllUsers:', error);
+            // Generic fallback error
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve users',
+                error: (error instanceof Error) ? error.message : 'Unknown error'
+            });
+        }
+    };
 
     /**
      * Get a user by ID
@@ -51,19 +90,32 @@ export class UserController {
      */
     createUser = async (req: Request, res: Response): Promise<void> => {
         try {
-            const userData: CreateUserDto = req.body;
+            // Expect username, email, password in the body
+            // The type here reflects the expected input structure, not necessarily the final DB structure
+            const userData = req.body;
 
-            // Basic validation
-            if (!userData.username || !userData.email || !userData.password) {
+            // Basic validation for required fields including raw password
+            if (!userData.username || !userData.email || !userData.password) { // Check for raw password
                 res.status(400).json({ error: 'Username, email, and password are required' });
                 return;
             }
 
+            // Pass the raw userData (containing password) to the service.
+            // The service is responsible for validation (e.g., with Zod) and hashing.
             const newUser = await this.userService.createUser(userData);
             res.status(201).json(newUser);
         } catch (error) {
             console.error('Error in UserController.createUser:', error);
-            res.status(500).json({ error: 'Failed to create user' });
+            // Check if the error is from the service (e.g., validation) and return appropriate status
+            // This part depends on how userService.createUser signals errors
+            if (error instanceof Error && error.message.includes('Validation failed')) { // Example check
+                 res.status(400).json({ error: error.message });
+            } else if (error instanceof Error && error.message.includes('already exists')) { // Example check
+                 res.status(409).json({ error: error.message });
+            }
+             else {
+                res.status(500).json({ error: 'Failed to create user' });
+            }
         }
     };
 

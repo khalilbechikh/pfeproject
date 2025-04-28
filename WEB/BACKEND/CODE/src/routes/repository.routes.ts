@@ -11,5 +11,20 @@ export const configureRepositoryRoutes = (): Router => {
     router.put('/:id', authenticateJWT, (req, res) => 
         repositoryController.updateRepository(req, res));
 
+    // POST endpoint to create a repository
+    router.post('/', authenticateJWT, (req, res) =>
+        repositoryController.createRepository(req, res)
+    );
+
+    // DELETE endpoint to delete a repository
+    router.delete('/:id', authenticateJWT, (req, res) =>
+        repositoryController.deleteRepository(req, res)
+    );
+
+    // POST endpoint to fork a repository
+    router.post('/:id/fork', authenticateJWT, (req, res) =>
+        repositoryController.forkRepository(req, res)
+    );
+
     return router;
 };

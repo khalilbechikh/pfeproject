@@ -5,26 +5,6 @@ import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 import * as bcrypt from 'bcrypt';
 import { z } from 'zod';
 
-/**
- * ## CreateUserDto Schema
- *
- * Validates the incoming data for creating a new user.
- *
- * | Field    | Type   | Validation Rules                                                    |
- * |----------|--------|---------------------------------------------------------------------|
- * | username | string | Required, 3-50 chars, alphanumeric & underscores only               |
- * | email    | string | Required, valid email format, max 100 chars                         |
- * | password | string | Required, 8-64 chars, min 1 uppercase, 1 lowercase, 1 digit, 1 symbol |
- *
- * ### Example:
- * ```json
- * {
- *   "username": "john_doe",
- *   "email": "john@example.com",
- *   "password": "StrongPass123!"
- * }
- * ```
- */
 export const CreateUserDto = z.object({
     username: z
         .string({ required_error: 'Username is required.' })
@@ -49,24 +29,7 @@ export const CreateUserDto = z.object({
 
 export type CreateUserDto = z.infer<typeof CreateUserDto>;
 
-/**
- * ## LoginUserDto Schema
- *
- * Validates the incoming data for user login.
- *
- * | Field    | Type   | Validation Rules                        |
- * |----------|--------|----------------------------------------|
- * | email    | string | Required, valid email format          |
- * | password | string | Required, at least 8 characters long  |
- *
- * ### Example:
- * ```json
- * {
- *   "email": "john@example.com",
- *   "password": "SecurePass123!"
- * }
- * ```
- */
+
 export const LoginUserDto = z.object({
     email: z
         .string({ required_error: 'Email is required.' })
@@ -93,23 +56,71 @@ export class AuthService {
         return await bcrypt.compare(password, hashedPassword);
     }
 
-    // Update the signUp method in AuthService
-    
-async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
-    try {
-        console.log("signup called in service");
-        const validatedData = CreateUserDto.parse(userData);
+    async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
+        try {
+            console.log("signup called in service");
+            
+            // Step 1: Validate input using Zod first
+            let validatedData: z.infer<typeof CreateUserDto>;
+            try {
+                validatedData = CreateUserDto.parse(userData);
+            } catch (validationError) {
+                // Return immediately if validation fails
+                if (validationError instanceof z.ZodError) {
+                    const errorMessages = validationError.errors.map(e => 
+                        `${e.path.join('.')}: ${e.message}`).join('; ');
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: 'Validation error',
+                        error: errorMessages,
+                    };
+                }
+                throw validationError;
+            }
 
-        // Check for existing username first
-        const existingUsername = await this.userRepository.prisma.users.findUnique({
-            where: { username: validatedData.username },
-        });
+            // Step 2: Check if user already exists
+            const existedUser = await this.userRepository.prisma.users.findUnique({
+                where: { email: validatedData.email },
+            });
 
-        if (existingUsername) {
+            if (existedUser) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'User already exists',
+                    error: 'User already exists',
+                };
+            }
+
+            // Step 3: Hash password
+            const hashedPassword = await this.hashPassword(validatedData.password);
+
+            // Step 4: Use repository method for user creation
+            const response = await this.userRepository.createUser({
+                username: validatedData.username,
+                email: validatedData.email,
+                password_hash: hashedPassword,
+            });
+
+            // Step 5: Check response from repository and return appropriate response
+            if (response.status === ResponseStatus.SUCCESS) {
+                return {
+                    status: ResponseStatus.SUCCESS,
+                    message: 'User created successfully',
+                    data: response.data,
+                };
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: response.message || 'Failed to create user',
+                    error: response.error || 'Unknown error occurred',
+                };
+            }
+        } catch (error) {
+            console.error('Error in AuthService.signUp:', error);
             return {
                 status: ResponseStatus.FAILED,
-                message: 'Username already exists',
-                error: 'Username already taken',
+                message: 'Failed to create user',
+                error: `${error}`,
             };
         }
 
@@ -155,13 +166,30 @@ async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
             console.log("========== AUTH SERVICE SIGNIN START ==========");
             console.log("Login data received:", JSON.stringify(userData));
             
-            const validatedData = LoginUserDto.parse(userData);
+            // Step 1: Validate input using Zod first
+            let validatedData: z.infer<typeof LoginUserDto>;
+            try {
+                validatedData = LoginUserDto.parse(userData);
+            } catch (validationError) {
+                // Return immediately if validation fails
+                if (validationError instanceof z.ZodError) {
+                    const errorMessages = validationError.errors.map(e => 
+                        `${e.path.join('.')}: ${e.message}`).join('; ');
+                    console.log("Validation error:", errorMessages);
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: 'Validation error',
+                        error: errorMessages,
+                    };
+                }
+                throw validationError;
+            }
+            
             console.log("Data validation successful");
 
+            // Step 2: Find the user
             const user = await this.userRepository.prisma.users.findUnique({
-                where: {
-                    email: validatedData.email,
-                },
+                where: { email: validatedData.email },
             });
             
             console.log("User lookup complete. User found:", user ? "Yes" : "No");
@@ -175,6 +203,7 @@ async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
                 };
             }
 
+            // Step 3: Validate password
             const isPasswordValid = await this.comparePassword(validatedData.password, user.password_hash);
             console.log("Password validation result:", isPasswordValid ? "Valid" : "Invalid");
 
@@ -187,8 +216,10 @@ async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
                 };
             }
 
+            // Step 4: Return successful response
             console.log("Login successful for user:", validatedData.email);
             console.log("========== AUTH SERVICE SIGNIN END ==========");
+            
             return {
                 status: ResponseStatus.SUCCESS,
                 message: 'User logged in successfully',
@@ -197,6 +228,7 @@ async signUp(userData: CreateUserDto): Promise<ApiResponse<users>> {
         } catch (error) {
             console.log("========== AUTH SERVICE SIGNIN ERROR ==========");
             console.error("Error in auth service signin:", error);
+            
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Failed to login user',
