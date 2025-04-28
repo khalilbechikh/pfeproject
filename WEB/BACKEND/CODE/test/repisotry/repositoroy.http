@@ -1,0 +1,99 @@
+@baseUrl = http://localhost:5000/v1/api/repositories
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjksInVzZXJuYW1lIjoiam9icmFuMDAwMDAwMDAwMDAwMCIsImlhdCI6MTc0NTg1NzMyMywiZXhwIjoxNzQ1OTQzNzIzfQ.CTPd_re8aC7cZxzxnrhx4nck1v1-vabDLv4PGCTZO5M
+@existingRepoId = 4
+@nonExistentRepoId = 999
+
+### Create Repository - Success
+POST {{baseUrl}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "repoName": "test-repo",
+    "name": "Test Repository",
+    "description": "This is a test repository",
+    "is_private": false
+}
+
+### Create Repository - Missing Required Fields
+POST {{baseUrl}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "description": "Missing required fields"
+}
+
+### Create Repository - Unauthorized (No Token)
+POST {{baseUrl}}
+Content-Type: application/json
+
+{
+    "repoName": "test-repo",
+    "name": "Test Repository"
+}
+
+### Update Repository - Success
+PUT {{baseUrl}}/{{existingRepoId}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "name": "Updated Repository Name",
+    "description": "Updated repository description",
+    "is_private": true
+}
+
+### Update Repository - Not Found
+PUT {{baseUrl}}/{{nonExistentRepoId}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "name": "This Won't Work",
+    "description": "Repository doesn't exist"
+}
+
+### Update Repository - Validation Error
+PUT {{baseUrl}}/{{existingRepoId}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "name": ""
+}
+
+### Update Repository - Unauthorized
+PUT {{baseUrl}}/{{existingRepoId}}
+Content-Type: application/json
+
+{
+    "name": "Unauthorized Update"
+}
+
+### Delete Repository - Success
+DELETE {{baseUrl}}/{{existingRepoId}}
+Authorization: Bearer {{authToken}}
+
+### Delete Repository - Not Found
+DELETE {{baseUrl}}/{{nonExistentRepoId}}
+Authorization: Bearer {{authToken}}
+
+### Delete Repository - Unauthorized
+DELETE {{baseUrl}}/{{existingRepoId}}
+
+### Fork Repository - Success
+POST {{baseUrl}}/{{existingRepoId}}/fork
+Authorization: Bearer {{authToken}}
+
+### Fork Repository - Source Not Found
+POST {{baseUrl}}/{{nonExistentRepoId}}/fork
+Authorization: Bearer {{authToken}}
+
+### Fork Repository - Name Conflict (Response code 409)
+# This assumes you already have a repository with the same name
+POST {{baseUrl}}/{{existingRepoId}}/fork
+Authorization: Bearer {{authToken}}
+
+### Fork Repository - Unauthorized
+POST {{baseUrl}}/{{existingRepoId}}/fork

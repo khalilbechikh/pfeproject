@@ -14,7 +14,7 @@ import { RepositoryAccessRepository } from "../repositories/repository_access.re
 import { RepositoryAccessService } from "../services/repository_access.service";
 import { RepositoryAccessController } from "../controllers/repository_access.controller";
 import { IssueRepository } from "../repositories/issue.repository";
-import { GitCrud } from "../git/git.crud";
+//import { GitCrud } from "../git/git.crud";
 import { TYPES } from './types';
 import { IssueService } from "../services/issue.service";
 // Import new IssueComment components
@@ -24,7 +24,7 @@ import { IssueCommentController } from '../controllers/issue_comment.controller'
 // Import PullRequestRepository
 import { PullRequestRepository } from '../repositories/pullRequest.repository';
 // Import GitService
-import { GitService } from '../services/git.service';
+//import { GitService } from '../services/git.service';
 
 // Create a single InversifyJS Container
 const container = new Container();
@@ -87,15 +87,17 @@ container.bind<IssueService>(IssueService)
 container.bind<IssueCommentService>(TYPES.IssueCommentService)
     .to(IssueCommentService)
     .inSingletonScope();
-
+/*
 container.bind<GitCrud>(GitCrud)
     .toSelf()
     .inSingletonScope();
-
+*/
 // Bind GitService
+/*
 container.bind<GitService>(TYPES.GitService)
     .to(GitService)
     .inSingletonScope();
+*/
 
 // Bind controllers
 container.bind<UserController>(UserController)
