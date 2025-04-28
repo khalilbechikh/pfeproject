@@ -39,9 +39,7 @@ model repository {
 
   owner             users                @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
   parent            repository?          @relation("ForkRelation", fields: [parent_id], references: [id], onDelete: SetNull)
-  forks             repository[]         @relation("ForkRelation")
-
-  // Relations to other models
+  forks            repository[]         @relation("ForkRelation")
   access            repository_access[]
   issue             issue[]
   pull_request      pull_request[] // Default relation for repository_id
