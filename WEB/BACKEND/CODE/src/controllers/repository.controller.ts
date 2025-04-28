@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { inject, injectable } from 'inversify';
-import { RepositoryService, UpdateRepositoryDto, CreateRepositoryDto } from '../services/repository.service';
+import { RepositoryService, UpdateRepositoryDto } from '../services/repository.service';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 
 @injectable()
@@ -42,7 +42,7 @@ export class RepositoryController {
                 return;
             }
 
-            const createData: CreateRepositoryDto = req.body;
+            const createData = req.body;
 
             const result = await this.repositoryService.createBareRepo(userId, username, createData);
 
