@@ -67,6 +67,48 @@ export class UserRepository {
         }
     }
 
+    /**
+     * Get all users with optional related data
+     * @param tableNamesToInclude Optional array of related table names to include
+     * @returns ApiResponse with array of user objects or error
+     */
+    async getAllUsers(
+        tableNamesToInclude?: string[]
+    ): Promise<ApiResponse<users[]>> {
+        try {
+            let includeRelations: Prisma.usersInclude | undefined = undefined;
+
+            if (tableNamesToInclude && tableNamesToInclude.length > 0) {
+                includeRelations = {};
+                for (const tableName of tableNamesToInclude) {
+                    const relationName = this.userRelationMap[tableName];
+                    if (relationName) {
+                        includeRelations[relationName] = true;
+                    } else {
+                        console.warn(`Warning: Table name "${tableName}" is not a valid relation for users model and will be ignored.`);
+                    }
+                }
+            }
+
+            const allUsers = await this.prisma.users.findMany({
+                include: includeRelations,
+            });
+
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: 'Users retrieved successfully',
+                data: allUsers,
+            };
+        } catch (error) {
+            console.error('Error in UserRepository.getAllUsers:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Error fetching users',
+                error: (error as Error).message,
+            };
+        }
+    }
+
     async createUser(data: Prisma.usersCreateInput): Promise<ApiResponse<users>> { 
         try {
             const newUser = await this.prisma.users.create({

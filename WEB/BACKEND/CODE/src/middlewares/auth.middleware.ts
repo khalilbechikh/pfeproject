@@ -4,10 +4,10 @@ import jwt from 'jsonwebtoken';
 // Get JWT secret from environment variables with fallback
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key_here';
 
-// Interface for decoded token data
+// Interface for decoded token data - updated to match controller's token format
 interface DecodedToken {
     userId: string;
-    email: string;
+    username: string;
     iat: number;
     exp: number;
 }

@@ -46,7 +46,7 @@ export class RepositoryRepository {
             });
             return {
                 status: ResponseStatus.SUCCESS,
-                message: repository ? `Repository found with ID: ${id}` : `No repository found with ID: ${id}`,
+                message: repository ? "Repository found" : "Repository not found",
                 data: repository
             };
         } catch (error: unknown) {
@@ -67,7 +67,7 @@ export class RepositoryRepository {
             });
             return {
                 status: ResponseStatus.SUCCESS,
-                message: `Found ${repositories.length} repositories for owner ID: ${ownerId}`,
+                message: "Repositories retrieved successfully",
                 data: repositories
             };
         } catch (error: unknown) {
@@ -116,7 +116,7 @@ export class RepositoryRepository {
                     console.error(`User with ID ${dataToSave.owner.connect.id} does not exist`);
                     return {
                         status: ResponseStatus.FAILED,
-                        message: `Cannot create repository: User with ID ${dataToSave.owner.connect.id} does not exist`,
+                        message: "Cannot create repository: User does not exist",
                         error: 'User not found'
                     };
                 }
@@ -174,14 +174,14 @@ export class RepositoryRepository {
             });
             return {
                 status: ResponseStatus.SUCCESS,
-                message: `Repository with ID ${id} updated successfully`,
+                message: "Repository updated successfully",
                 data: updatedRepository
             };
         } catch (error: unknown) {
             console.error('Error in RepositoryRepository.updateRepository:', error as Error);
             return {
                 status: ResponseStatus.FAILED,
-                message: `Failed to update repository with ID ${id}`,
+                message: "Failed to update repository",
                 error: error instanceof Error ? error.message : String(error)
             };
         }
@@ -194,14 +194,14 @@ export class RepositoryRepository {
             });
             return {
                 status: ResponseStatus.SUCCESS,
-                message: `Repository with ID ${id} deleted successfully`,
+                message: "Repository deleted successfully",
                 data: deletedRepository
             };
         } catch (error: unknown) {
             console.error('Error in RepositoryRepository.deleteRepository:', error as Error);
             return {
                 status: ResponseStatus.FAILED,
-                message: `Failed to delete repository with ID ${id}`,
+                message: "Failed to delete repository",
                 error: error instanceof Error ? error.message : String(error)
             };
         }
@@ -235,7 +235,7 @@ export class RepositoryRepository {
                 console.warn(`Repository with ID ${id} not found.`);
                 return {
                     status: ResponseStatus.SUCCESS,
-                    message: `Repository with ID ${id} not found`,
+                    message: "Repository not found",
                     data: null
                 };
             }
@@ -243,7 +243,7 @@ export class RepositoryRepository {
                 console.error(`Repository with ID ${id} found, but owner or owner username is missing.`);
                 return {
                     status: ResponseStatus.FAILED,
-                    message: `Data integrity issue: Owner details missing for repository ID ${id}`,
+                    message: "Data integrity issue: Owner details missing",
                     error: 'Missing owner data'
                 };
             }
@@ -251,14 +251,14 @@ export class RepositoryRepository {
             console.log(`Found details for repo ID ${id}: Owner=${repository.owner.username}, Name=${repository.name}`);
             return {
                 status: ResponseStatus.SUCCESS,
-                message: `Found path details for repository ID ${id}`,
+                message: "Repository path details found",
                 data: { ownerUsername: repository.owner.username, repoName: repository.name }
             };
         } catch (error: unknown) {
             console.error(`Error finding repository path details for ID ${id}:`, error);
             return {
                 status: ResponseStatus.FAILED,
-                message: `Database error finding repository details for ID ${id}`,
+                message: "Error finding repository details",
                 error: error instanceof Error ? error.message : String(error)
             };
         }

@@ -65,9 +65,9 @@ export class AuthenticationController {
             
             // Check response status and return appropriate HTTP status
             if (response.status === ResponseStatus.SUCCESS && response.data) {
-                // Generate JWT token on success
+                // Generate JWT token on success - using userId and username
                 const token = jwt.sign(
-                    { userId: response.data.id, email: response.data.email },
+                    { userId: response.data.id, username: response.data.username },
                     JWT_SECRET,
                     { expiresIn: '1h' }
                 );

@@ -89,6 +89,35 @@ export class UserService {
     }
 
     /**
+     * Get all users with optional related data
+     * @param relations Optional array of related tables to include
+     * @returns ApiResponse with array of user objects or error
+     */
+    async getAllUsers(relations?: string[]): Promise<ApiResponse<users[]>> {
+        try {
+            const response = await this.userRepository.getAllUsers(relations);
+
+            // Check response status from repository
+            if (response.status === ResponseStatus.SUCCESS) {
+                return response;
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: response.message || 'Failed to retrieve users',
+                    error: response.error,
+                };
+            }
+        } catch (error) {
+            console.error('Error in UserService.getAllUsers:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve users',
+                error: (error as Error).message,
+            };
+        }
+    }
+
+    /**
      * Create a new user
      * @param userData User creation data
      * @returns ApiResponse with created user object or error

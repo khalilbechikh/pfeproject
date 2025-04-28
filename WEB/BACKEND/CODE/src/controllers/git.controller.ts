@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { createRepository } from '../git';
+import { createRepository } from '../git/index';
 
 /**
  * Controller to create a bare Git repository.
