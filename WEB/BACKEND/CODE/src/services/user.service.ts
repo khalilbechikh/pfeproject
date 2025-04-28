@@ -1,19 +1,58 @@
 import { injectable, inject } from 'inversify';
 import { Prisma, users } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
+import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
+import { z } from 'zod';
 
-// Define a DTO(Data Transfer Object) for user creation
-export interface CreateUserDto {
-    username: string;
-    email: string;
-    password: string; // Plain password before hashing
-}
+// Zod schema for user creation
+export const CreateUserSchema = z.object({
+    username: z
+        .string({ required_error: 'Username is required.' })
+        .min(3, 'Username must be at least 3 characters.')
+        .max(50, 'Username cannot exceed 50 characters.')
+        .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores.'),
+    email: z
+        .string({ required_error: 'Email is required.' })
+        .email('Invalid email address.')
+        .max(100, 'Email cannot exceed 100 characters.'),
+    password: z
+        .string({ required_error: 'Password is required.' })
+        .min(8, 'Password must be at least 8 characters long.')
+        .max(64, 'Password cannot exceed 64 characters.')
+        .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+        .regex(/[0-9]/, 'Password must contain at least one digit.')
+        .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character.')
+    // bio, gitCliPassword, avatar_path removed from creation
+});
 
-export interface UpdateUserDto {
-    username?: string;
-    email?: string;
-    password?: string; // Plain password before hashing
-}
+// Zod schema for user update
+export const UpdateUserSchema = z.object({
+    username: z
+        .string()
+        .min(3, 'Username must be at least 3 characters.')
+        .max(50, 'Username cannot exceed 50 characters.')
+        .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores.')
+        .optional(),
+    email: z
+        .string()
+        .email('Invalid email address.')
+        .max(100, 'Email cannot exceed 100 characters.')
+        .optional(),
+    password: z
+        .string()
+        .min(8, 'Password must be at least 8 characters long.')
+        .max(64, 'Password cannot exceed 64 characters.')
+        .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+        .regex(/[0-9]/, 'Password must contain at least one digit.')
+        .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character.')
+        .optional(),
+    bio: z.string().optional().nullable(),
+    gitCliPassword: z.string().optional().nullable(),
+    avatar_path: z.string().optional().nullable(),
+    // is_admin is intentionally omitted
+});
 
 @injectable()
 export class UserService {
@@ -23,37 +62,79 @@ export class UserService {
      * Get a user by ID with optional related data
      * @param id User ID
      * @param relations Optional array of related tables to include
-     * @returns User object or null if not found
+     * @returns ApiResponse with user object or error
      */
-    async getUserById(id: number, relations?: string[]): Promise<users | null> {
+    async getUserById(id: number, relations?: string[]): Promise<ApiResponse<users | null>> {
         try {
-            return await this.userRepository.findById(id, relations);
+            const response = await this.userRepository.findById(id, relations);
+            
+            // Check response status from repository
+            if (response.status === ResponseStatus.SUCCESS) {
+                return response;
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: response.message || 'Failed to retrieve user',
+                    error: response.error,
+                };
+            }
         } catch (error) {
             console.error('Error in UserService.getUserById:', error);
-            throw new Error('Failed to retrieve user');
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve user',
+                error: (error as Error).message,
+            };
         }
     }
 
     /**
      * Create a new user
      * @param userData User creation data
-     * @returns Created user object
+     * @returns ApiResponse with created user object or error
      */
-    async createUser(userData: CreateUserDto): Promise<users> {
+    async createUser(userData: Prisma.usersCreateInput & { password: string }): Promise<ApiResponse<users>> {
         try {
-            // In a real application, you would hash the password here
-            const passwordHash = await this.hashPassword(userData.password);
+            // Validate input using Zod
+            const validatedData = CreateUserSchema.parse(userData);
+
+            const passwordHash = await this.hashPassword(validatedData.password);
 
             const userCreateInput: Prisma.usersCreateInput = {
-                username: userData.username,
-                email: userData.email,
+                ...validatedData,
                 password_hash: passwordHash,
             };
+            // Remove plain password property if present
+            delete (userCreateInput as any).password;
 
-            return await this.userRepository.createUser(userCreateInput);
-        } catch (error) {
+            const response = await this.userRepository.createUser(userCreateInput);
+            
+            // Check response status from repository
+            if (response.status === ResponseStatus.SUCCESS) {
+                return response;
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: response.message || 'Failed to create user',
+                    error: response.error,
+                };
+            }
+        } catch (error: any) {
             console.error('Error in UserService.createUser:', error);
-            throw new Error('Failed to create user');
+            if (error instanceof z.ZodError) {
+                // Format Zod errors into a single string
+                const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Validation error',
+                    error: errorMessages,
+                };
+            }
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to create user',
+                error: error.message,
+            };
         }
     }
 
@@ -61,42 +142,82 @@ export class UserService {
      * Update a user by ID
      * @param id User ID
      * @param userData User update data
-     * @returns Updated user object or null if update failed
+     * @returns ApiResponse with updated user object or error
      */
-    async updateUser(id: number, userData: UpdateUserDto): Promise<users | null> {
+    async updateUser(id: number, userData: Prisma.usersUpdateInput & { password?: string }): Promise<ApiResponse<users | null>> {
         try {
-            const updateData: Prisma.usersUpdateInput = {};
+            // Validate input using Zod
+            const validatedData = UpdateUserSchema.parse(userData);
 
-            if (userData.username) {
-                updateData.username = userData.username;
+            const updateData: Prisma.usersUpdateInput = { ...validatedData };
+
+            // Never update is_admin, even if present in userData
+            if ('is_admin' in updateData) {
+                delete (updateData as any).is_admin;
             }
 
-            if (userData.email) {
-                updateData.email = userData.email;
+            if (validatedData.password !== undefined) {
+                updateData.password_hash = await this.hashPassword(validatedData.password);
+                delete (updateData as any).password;
             }
 
-            if (userData.password) {
-                updateData.password_hash = await this.hashPassword(userData.password);
+            const response = await this.userRepository.updateUser(id, updateData);
+            
+            // Check response status from repository
+            if (response.status === ResponseStatus.SUCCESS) {
+                return response;
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: response.message || 'Failed to update user',
+                    error: response.error,
+                };
             }
-
-            return await this.userRepository.updateUser(id, updateData);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error in UserService.updateUser:', error);
-            throw new Error('Failed to update user');
+            if (error instanceof z.ZodError) {
+                // Format Zod errors into a single string
+                const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Validation error',
+                    error: errorMessages,
+                };
+            }
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to update user',
+                error: error.message,
+            };
         }
     }
 
     /**
      * Delete a user by ID
      * @param id User ID
-     * @returns Deleted user object or null if deletion failed
+     * @returns ApiResponse with deleted user object or error
      */
-    async deleteUser(id: number): Promise<users | null> {
+    async deleteUser(id: number): Promise<ApiResponse<users | null>> {
         try {
-            return await this.userRepository.deleteUser(id);
+            const response = await this.userRepository.deleteUser(id);
+            
+            // Check response status from repository
+            if (response.status === ResponseStatus.SUCCESS) {
+                return response;
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: response.message || 'Failed to delete user',
+                    error: response.error,
+                };
+            }
         } catch (error) {
             console.error('Error in UserService.deleteUser:', error);
-            throw new Error('Failed to delete user');
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to delete user',
+                error: (error as Error).message,
+            };
         }
     }
 

@@ -90,7 +90,7 @@ export class UserRepository {
     async updateUser(
         id: number,
         data: Prisma.usersUpdateInput
-    ): Promise<ApiResponse<users | null>> { // Use ApiResponse as return type
+    ): Promise<ApiResponse<users | null>> { 
         try {
             const updatedUser = await this.prisma.users.update({
                 where: { id: id },
