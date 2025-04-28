@@ -8,7 +8,7 @@ export class RepositoryController {
     constructor(
         @inject(RepositoryService) private repositoryService: RepositoryService
     ) {
-        console.log("RepositoryController constructor called");
+        console.log("RepositoryContjroller constructor called");
     }
 
     /**
