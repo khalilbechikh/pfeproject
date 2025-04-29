@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, GitFork, Users, Code, Share2, Plus } from 'lucide-react';
+import { GitFork, Users, Code, Share2, Plus } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 
 interface JwtPayload {
@@ -14,7 +14,6 @@ interface Repository {
     is_private: boolean;
     created_at: string;
     updated_at: string;
-    stars: number;
     forks: number;
     contributors: number;
     language: string;
@@ -84,13 +83,11 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
 
                 const userData = await response.json();
                 const staticLanguages = ["TypeScript", "Python", "JavaScript", "Rust", "Go", "Java", "C++", "Ruby"];
-                const staticStars = [128, 246, 193, 317, 89, 154, 201, 275];
                 const staticForks = [35, 87, 42, 103, 28, 56, 74, 91];
                 const staticContributors = [8, 12, 5, 15, 7, 9, 11, 14];
 
                 const mergedRepos = (userData.data.repository || []).map((repo: any, index: number) => ({
                     ...repo,
-                    stars: staticStars[index % staticStars.length],
                     forks: staticForks[index % staticForks.length],
                     contributors: staticContributors[index % staticContributors.length],
                     language: staticLanguages[index % staticLanguages.length]
@@ -180,9 +177,6 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                     </div>
                                     <div className="flex space-x-2">
                                         <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
-                                            <Star size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                        </button>
-                                        <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
                                             <GitFork size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
                                         </button>
                                     </div>
@@ -191,10 +185,6 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                     <div className="flex items-center mr-5">
                                         <span className={`inline-block w-3 h-3 rounded-full ${languageColors[repository.language] || 'bg-gray-400'} mr-2`}></span>
                                         <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{repository.language}</span>
-                                    </div>
-                                    <div className="flex items-center mr-5 group">
-                                        <Star size={16} className={`mr-1.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'} group-hover:text-yellow-400 transition-colors`} />
-                                        <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{repository.stars}</span>
                                     </div>
                                     <div className="flex items-center mr-5">
                                         <GitFork size={16} className="mr-1.5 text-gray-400" />
@@ -205,7 +195,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                         <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{repository.contributors} contributors</span>
                                     </div>
                                     <span className={`${darkMode ? 'text-gray-500' : 'text-gray-500'} text-sm ml-auto`}>
-                                        Updated {formatTime(repository.updated_at)}
+                                        Created {formatTime(repository.created_at)} • Updated {formatTime(repository.updated_at)}
                                     </span>
                                 </div>
                             </div>
