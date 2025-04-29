@@ -12,13 +12,14 @@ export class RepositoryController {
     }
 
     /**
-     * Get a repository by its ID
-     * GET /api/repositories/:id
+     * Get a repository by its ID, optionally including related data.
+     * GET /api/repositories/:id?relations=tableName1,tableName2
      */
     async getRepositoryById(req: Request, res: Response): Promise<void> {
         try {
             console.log("=== REPOSITORY CONTROLLER: getRepositoryById START ===");
             console.log("Request params:", req.params);
+            console.log("Request query:", req.query); // Log query params
 
             const repositoryId = parseInt(req.params.id);
 
@@ -32,7 +33,15 @@ export class RepositoryController {
                 return;
             }
 
-            const result = await this.repositoryService.getRepositoryById(repositoryId);
+            // Extract and parse the 'relations' query parameter
+            let includeTables: string[] | undefined;
+            if (req.query.relations && typeof req.query.relations === 'string') {
+                includeTables = req.query.relations.split(',').map(table => table.trim()).filter(Boolean);
+                console.log("Including related tables (relations):", includeTables);
+            }
+
+            // Pass the includeTables array to the service method
+            const result = await this.repositoryService.getRepositoryById(repositoryId, includeTables);
 
             if (result.status === ResponseStatus.SUCCESS) {
                 if (result.data) {

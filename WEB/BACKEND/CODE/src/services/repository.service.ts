@@ -50,14 +50,17 @@ export class RepositoryService {
     }
 
     /**
-     * Retrieves a single repository by its ID.
+     * Retrieves a single repository by its ID, optionally including related data.
+     * The related tables are specified via the 'relations' query parameter in the controller.
      * @param id Repository ID
+     * @param includeTables Optional array of related table names to include (parsed from 'relations' query param)
      * @returns ApiResponse with the repository data or error
      */
-    async getRepositoryById(id: number): Promise<ApiResponse<repository | null>> {
-        console.log(`=== REPOSITORY SERVICE: getRepositoryById START (ID: ${id}) ===`);
+    async getRepositoryById(id: number, includeTables?: string[]): Promise<ApiResponse<repository | null>> {
+        console.log(`=== REPOSITORY SERVICE: getRepositoryById START (ID: ${id}, Relations: ${includeTables?.join(',')}) ===`);
         try {
-            const response = await this.repositoryRepository.findById(id);
+            // Pass includeTables to the repository method
+            const response = await this.repositoryRepository.findById(id, includeTables);
 
             if (response.status === ResponseStatus.FAILED) {
                 console.error(`Failed to retrieve repository with ID ${id}:`, response.error);
