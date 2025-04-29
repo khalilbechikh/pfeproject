@@ -40,10 +40,12 @@ export class RepositoryRepository {
                     }
                 }
             }
+            console.info(`Finding repository with ID ${id} and including relations: ${JSON.stringify(includeRelations)}`);
             const repository = await this.prisma.repository.findUnique({
                 where: { id: id },
                 include: includeRelations,
             });
+            console.warn(`Repository found: ${JSON.stringify(repository)}`);
             return {
                 status: ResponseStatus.SUCCESS,
                 message: repository ? "Repository found" : "Repository not found",
