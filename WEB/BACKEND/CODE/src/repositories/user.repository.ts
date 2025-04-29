@@ -174,15 +174,15 @@ export class UserRepository {
     }
     // user.repository.ts
 
-async findByUsername(username: string): Promise<users | null> {
-    return this.prisma.users.findFirst({
-        where: { username }
-    });
-}
-
-async findByEmail(email: string): Promise<users | null> {
-    return this.prisma.users.findFirst({
-        where: { email }
-    });
-}
+    async findByUsername(username: string): Promise<users | null> {
+        return this.prisma.users.findUnique({
+            where: { username }
+        });
+    }
+    
+    async findByEmail(email: string): Promise<users | null> {
+        return this.prisma.users.findUnique({
+            where: { email }
+        });
+    }
 }

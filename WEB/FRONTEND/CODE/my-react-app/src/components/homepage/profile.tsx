@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useRef} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Settings, Edit, Camera, Save, X, Key, Github, Mail, Calendar, MapPin, Clock, FileText, GitFork, Star, AlertCircle, RefreshCw, Shield, Code, MessageSquare, Trash2, Sun, Moon } from 'lucide-react';
 import { z } from 'zod';
 import { jwtDecode } from 'jwt-decode';
@@ -92,11 +92,11 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                 }
 
                 const userData = await response.json();
-                setUser(userData);
+                setUser(userData.data);
                 setEditForm({
-                    username: userData.username,
-                    email: userData.email,
-                    bio: userData.bio || '',
+                    username: userData.data.username, // Use userData.data
+                    email: userData.data.email,
+                    bio: userData.data.bio || '',
                 });
             } catch (err) {
                 console.error('Error fetching user data:', err);
@@ -170,26 +170,33 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                 },
                 body: JSON.stringify(editForm)
             });
-
+    
             const responseData = await response.json();
-
+    
             if (!response.ok) {
-                if (response.status === 400 && responseData.details) {
-                    setValidationErrors(responseData.details);
-                }
-                // Handle conflict errors (username/email taken)
-                else if (response.status === 409) {
-                    setValidationErrors([{
+                // Handle conflict errors first
+                if (response.status === 409) {
+                    setValidationErrors(responseData.details || [{
                         message: responseData.message || 'Conflict occurred',
                         path: [],
                         code: 'custom'
                     }]);
-                } else {
-                    throw new Error(responseData.error || 'Failed to update profile');
+                }
+                // Handle validation errors
+                else if (response.status === 400 && responseData.details) {
+                    setValidationErrors(responseData.details);
+                }
+                // Handle all other errors
+                else {
+                    setValidationErrors([{
+                        message: responseData.message || 'Failed to update profile',
+                        path: [],
+                        code: 'custom'
+                    }]);
                 }
                 return;
             }
-            setUser(responseData);
+            setUser(responseData.data);
             setEditMode(false);
             setSuccessMessage('Profile updated successfully!');
             setValidationErrors(null);
@@ -238,6 +245,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
 
             const data = await response.json();
 
+
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to change password');
             }
@@ -285,7 +293,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
         try {
             const token = localStorage.getItem('authToken');
             const decoded = jwtDecode<JwtPayload>(token!);
-            const response = await fetch( `http://localhost:5000/v1/api/users/${decoded.userId}/avatar`, {
+            const response = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}/avatar`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -297,7 +305,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
 
             if (!response.ok) throw new Error(data.error || 'Failed to upload avatar');
 
-            setUser({ ...user, avatar_path: data.avatar_path });
+            setUser({ ...user, avatar_path: data.data.avatar_path });
             setSuccessMessage('Avatar updated successfully!');
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
@@ -451,7 +459,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                     >
                                         {user.avatar_path ? (
                                             <img
-                                            src={`http://localhost:5000${user.avatar_path}`}
+                                                src={`http://localhost:5000${user.avatar_path}`}
                                                 alt={user.username}
                                                 className="w-full h-full rounded-full object-cover"
                                             />
@@ -470,8 +478,8 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                         <button
                                             onClick={handleAvatarClick}
                                             className={`absolute bottom-0 right-0 p-1.5 rounded-full ${darkMode
-                                                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                                 } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             disabled={isUploading}
                                         >

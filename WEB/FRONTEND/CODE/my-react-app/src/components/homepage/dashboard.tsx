@@ -177,7 +177,7 @@ export default function EnhancedSharecodeDashboard() {
                 if (!response.ok) throw new Error('Failed to fetch user data');
 
                 const userData = await response.json();
-                setUser(userData);
+                setUser(userData.data);
             } catch (err) {
                 console.error('Error fetching user data:', err);
             }

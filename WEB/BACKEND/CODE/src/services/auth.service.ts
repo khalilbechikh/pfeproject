@@ -123,44 +123,8 @@ export class AuthService {
                 error: `${error}`,
             };
         }
-
-        // Then check for existing email
-        const existingEmail = await this.userRepository.prisma.users.findUnique({
-            where: { email: validatedData.email },
-        });
-
-        if (existingEmail) {
-            return {
-                status: ResponseStatus.FAILED,
-                message: 'Email already exists',
-                error: 'Email already registered',
-            };
-        }
-
-        const hashedPassword = await this.hashPassword(validatedData.password);
-
-        const user = await this.userRepository.prisma.users.create({
-            data: {
-                username: validatedData.username,
-                email: validatedData.email,
-                password_hash: hashedPassword,
-            },
-        });
-
-        return {
-            status: ResponseStatus.SUCCESS,
-            message: 'User created successfully',
-            data: user,
-        };
-    } catch (error) {
-        console.error("Signup error:", error);
-        return {
-            status: ResponseStatus.FAILED,
-            message: 'Failed to create user',
-            error: error instanceof Error ? error.message : 'Unknown error',
-        };
     }
-}
+
     async signIn(userData: LoginUserDto): Promise<ApiResponse<users>> {
         try {
             console.log("========== AUTH SERVICE SIGNIN START ==========");

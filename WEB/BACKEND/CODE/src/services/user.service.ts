@@ -3,6 +3,7 @@ import { Prisma, users } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 import { z } from 'zod';
+import * as bcrypt from 'bcrypt';
 
 // Zod schema for user creation
 export const CreateUserSchema = z.object({
@@ -177,19 +178,43 @@ export class UserService {
         try {
             // Validate input using Zod
             const validatedData = UpdateUserSchema.parse(userData);
-
+    
+            // Check for username conflict
+            if (validatedData.username) {
+                const existingUser = await this.userRepository.findByUsername(validatedData.username.toString());
+                if (existingUser && existingUser.id !== id) {
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: 'Username already exists',
+                        error: 'Username already exists'
+                    };
+                }
+            }
+    
+            // Check for email conflict
+            if (validatedData.email) {
+                const existingUser = await this.userRepository.findByEmail(validatedData.email.toString());
+                if (existingUser && existingUser.id !== id) {
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: 'Email already in use',
+                        error: 'Email already in use'
+                    };
+                }
+            }
+    
             const updateData: Prisma.usersUpdateInput = { ...validatedData };
-
+    
             // Never update is_admin, even if present in userData
             if ('is_admin' in updateData) {
                 delete (updateData as any).is_admin;
             }
-
+    
             if (validatedData.password !== undefined) {
                 updateData.password_hash = await this.hashPassword(validatedData.password);
                 delete (updateData as any).password;
             }
-
+    
             const response = await this.userRepository.updateUser(id, updateData);
             
             // Check response status from repository
@@ -211,6 +236,7 @@ export class UserService {
                     status: ResponseStatus.FAILED,
                     message: 'Validation error',
                     error: errorMessages,
+                    // details: error.errors // Include full validation errors
                 };
             }
             return {
@@ -261,13 +287,14 @@ export class UserService {
         try {
             const user = await this.userRepository.findById(userId);
             if (!user) throw new Error('User not found');
+            if (user.data){
     
             // Use bcrypt.compare to validate current password
-            const isPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+            const isPasswordValid = await bcrypt.compare(currentPassword, user.data.password_hash);
             if (!isPasswordValid) {
                 throw new Error('Current password is incorrect');
             }
-    
+        }
             // Hash new password using bcrypt
             const newPasswordHash = await this.hashPassword(newPassword);
             await this.userRepository.updateUser(userId, { password_hash: newPasswordHash });
