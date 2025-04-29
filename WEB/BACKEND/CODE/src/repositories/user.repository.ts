@@ -68,6 +68,65 @@ export class UserRepository {
     }
 
     /**
+     * Finds a user by ID and includes specified related data based on the userRelationMap.
+     * @param id User ID
+     * @param relationNames Array of relation names (keys from userRelationMap) to include.
+     * @returns ApiResponse with the user data (including relations) or error.
+     */
+    async findByIdWithRelations(
+        id: number,
+        relationNames?: string[]
+    ): Promise<ApiResponse<users | null>> {
+        try {
+            let includeRelations: Prisma.usersInclude | undefined = undefined;
+
+            if (relationNames && relationNames.length > 0) {
+                includeRelations = {};
+                for (const name of relationNames) {
+                    const relationKey = this.userRelationMap[name];
+                    if (relationKey) {
+                        includeRelations[relationKey] = true;
+                    } else {
+                        console.warn(`Warning: Relation name "${name}" is not valid for the users model and will be ignored.`);
+                    }
+                }
+                // Ensure includeRelations is not an empty object if no valid names were provided
+                if (Object.keys(includeRelations).length === 0) {
+                    includeRelations = undefined;
+                }
+            }
+
+            console.log(`Finding user ${id} with relations:`, includeRelations);
+
+            const user = await this.prisma.users.findUnique({
+                where: { id: id },
+                include: includeRelations,
+            });
+
+            if (user) {
+                return {
+                    status: ResponseStatus.SUCCESS,
+                    message: 'User found with specified relations',
+                    data: user,
+                };
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'User not found',
+                    data: null,
+                };
+            }
+        } catch (error) {
+            console.error(`Error in UserRepository.findByIdWithRelations (ID: ${id}):`, error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Error fetching user with relations',
+                error: (error as Error).message,
+            };
+        }
+    }
+
+    /**
      * Get all users with optional related data
      * @param tableNamesToInclude Optional array of related table names to include
      * @returns ApiResponse with array of user objects or error
