@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { inject, injectable } from 'inversify';
-import { RepositoryService, UpdateRepositoryDto, CreateRepositoryDto } from '../services/repository.service';
+import { RepositoryService, UpdateRepositoryDto } from '../services/repository.service';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 
 @injectable()
@@ -9,6 +9,59 @@ export class RepositoryController {
         @inject(RepositoryService) private repositoryService: RepositoryService
     ) {
         console.log("RepositoryContjroller constructor called");
+    }
+
+    /**
+     * Get a repository by its ID
+     * GET /api/repositories/:id
+     */
+    async getRepositoryById(req: Request, res: Response): Promise<void> {
+        try {
+            console.log("=== REPOSITORY CONTROLLER: getRepositoryById START ===");
+            console.log("Request params:", req.params);
+
+            const repositoryId = parseInt(req.params.id);
+
+            if (isNaN(repositoryId)) {
+                console.log("Invalid repository ID provided:", req.params.id);
+                res.status(400).json({
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID',
+                    error: 'Repository ID must be a number',
+                });
+                return;
+            }
+
+            const result = await this.repositoryService.getRepositoryById(repositoryId);
+
+            if (result.status === ResponseStatus.SUCCESS) {
+                if (result.data) {
+                    console.log("Repository found:", result.data.id);
+                    res.status(200).json(result);
+                } else {
+                    console.log("Repository not found for ID:", repositoryId);
+                    res.status(404).json({
+                        status: ResponseStatus.SUCCESS, // Operation succeeded, but resource not found
+                        message: 'Repository not found',
+                        data: null
+                    });
+                }
+            } else {
+                console.log("Failed to retrieve repository with error:", result.error);
+                // Service layer handles specific errors, controller returns 500 for service failures
+                res.status(500).json(result);
+            }
+
+            console.log("=== REPOSITORY CONTROLLER: getRepositoryById END ===");
+        } catch (error) {
+            console.error("=== REPOSITORY CONTROLLER: getRepositoryById ERROR ===");
+            console.error("Error in getRepositoryById controller:", error);
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve repository due to a server error',
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
     }
 
     /**
@@ -42,7 +95,7 @@ export class RepositoryController {
                 return;
             }
 
-            const createData: CreateRepositoryDto = req.body;
+            const createData = req.body;
 
             const result = await this.repositoryService.createBareRepo(userId, username, createData);
 

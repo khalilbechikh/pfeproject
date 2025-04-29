@@ -26,5 +26,10 @@ export const configureRepositoryRoutes = (): Router => {
         repositoryController.forkRepository(req, res)
     );
 
+    // GET endpoint to retrieve a repository by ID
+    router.get('/:id', authenticateJWT, (req, res) =>
+        repositoryController.getRepositoryById(req, res)
+    );
+
     return router;
 };

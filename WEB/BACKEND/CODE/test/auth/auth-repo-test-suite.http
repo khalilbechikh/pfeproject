@@ -22,7 +22,7 @@ Content-Type: application/json
 
 ### 3. Create Repository
 # This test uses the auth token from the login test above
-POST http://localhost:5000/v1/api/git/my-test-repo
+POST http://localhost:5000/v1/api/git/thebestrepo
 Content-Type: application/json
 Authorization: {{login.response.headers.Authorization}}
 

@@ -9,8 +9,8 @@ Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "repoName": "test-repo",
-    "name": "Test Repository",
+
+    "name": "jobjbjbojbojbobjobjbojbobjo",
     "description": "This is a test repository",
     "is_private": false
 }
