@@ -52,7 +52,11 @@ export class FolderPreviewController {
       });
     } catch (error) {
       console.error('Error cloning repository:', error);
-      res.status(500).json({ error: `Failed to clone repository: ${error.message}` });
+      let errorMessage = 'Failed to clone repository';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      res.status(500).json({ error: errorMessage });
     }
   }
 
@@ -118,7 +122,11 @@ export class FolderPreviewController {
       }
     } catch (error) {
       console.error('Error fetching path content:', error);
-      res.status(500).json({ error: `Failed to fetch path content: ${error.message}` });
+      let errorMessage = 'Failed to fetch path content';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      res.status(500).json({ error: errorMessage });
     }
   }
 
@@ -162,7 +170,11 @@ export class FolderPreviewController {
       });
     } catch (error) {
       console.error('Error updating file:', error);
-      res.status(500).json({ error: `Failed to update file: ${error.message}` });
+      let errorMessage = 'Failed to update file';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      res.status(500).json({ error: errorMessage });
     }
   }
 }

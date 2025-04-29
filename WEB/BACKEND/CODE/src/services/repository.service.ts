@@ -57,7 +57,11 @@ export class RepositoryService {
      * @returns ApiResponse with the repository data or error
      */
     async getRepositoryById(id: number, includeTables?: string[]): Promise<ApiResponse<repository | null>> {
-        console.log(`=== REPOSITORY SERVICE: getRepositoryById START (ID: ${id}, Relations: ${includeTables?.join(',')}) ===`);
+        // Explicitly log the received includeTables array
+        console.log(`=== REPOSITORY SERVICE: getRepositoryById START (ID: ${id}) ===`);
+        console.log(`Received includeTables parameter:`, includeTables); // Added explicit log
+        console.log(`Attempting to log joined relations: ${includeTables?.join(',')}`); // Keep original log for comparison
+
         try {
             // Pass includeTables to the repository method
             const response = await this.repositoryRepository.findById(id, includeTables);

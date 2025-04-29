@@ -11,10 +11,17 @@ const execPromise = util.promisify(exec);
 
 @injectable()
 export class RepositoryRepository {
+    // Updated keys to match expected query parameter values
     private repoRelationMap: { [tableName: string]: keyof Prisma.repositoryInclude } = {
-        'repository_accesses': 'access',
+        'access': 'access', // Changed from 'repository_accesses'
         'issues': 'issue',
         'pull_requests': 'pull_request',
+        // Add mappings for other relations if needed, e.g., forks, owner
+        'forks': 'forks',
+        'owner': 'owner',
+        'parent': 'parent',
+        'source_pull_requests': 'source_pull_requests',
+        'target_pull_requests': 'target_pull_requests'
     };
 
     constructor(@inject(TYPES.PrismaClient) private prisma: PrismaClient) {
@@ -31,14 +38,19 @@ export class RepositoryRepository {
             let includeRelations: Prisma.repositoryInclude | undefined = undefined;
             if (tableNamesToInclude && tableNamesToInclude.length > 0) {
                 includeRelations = {};
+                console.log(`RepositoryRepository: Building include object for tables: ${tableNamesToInclude.join(', ')}`); // Added log
                 for (const tableName of tableNamesToInclude) {
                     const relationName = this.repoRelationMap[tableName];
                     if (relationName) {
+                        console.log(`RepositoryRepository: Mapping query param "${tableName}" to Prisma relation "${relationName}"`); // Added log
                         includeRelations[relationName] = true;
                     } else {
-                        console.warn(`Warning: Table name "${tableName}" is not a valid relation for repository model and will be ignored.`);
+                        // Log clearly which table name was ignored
+                        console.warn(`RepositoryRepository: Warning: Query parameter relation name "${tableName}" is not a valid key in repoRelationMap and will be ignored.`);
                     }
                 }
+                // Log the final include object being sent to Prisma
+                console.log(`RepositoryRepository: Final Prisma include object:`, JSON.stringify(includeRelations));
             }
             console.info(`Finding repository with ID ${id} and including relations: ${JSON.stringify(includeRelations)}`);
             const repository = await this.prisma.repository.findUnique({
