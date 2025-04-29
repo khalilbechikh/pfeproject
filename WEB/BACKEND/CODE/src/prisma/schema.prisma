@@ -42,9 +42,9 @@ model repository {
   forks            repository[]         @relation("ForkRelation")
   access            repository_access[]
   issue             issue[]
-  pull_request      pull_request[] // Default relation for repository_id
-  source_pull_requests pull_request[] @relation("SourceRepository") // Relation for source_repository_id
-  target_pull_requests pull_request[] @relation("TargetRepository") // Relation for target_repository_id
+  pull_request      pull_request[] 
+  source_pull_requests pull_request[] @relation("SourceRepository") 
+  target_pull_requests pull_request[] @relation("TargetRepository") 
 }
 
 model repository_access {

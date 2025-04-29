@@ -50,6 +50,45 @@ export class RepositoryService {
     }
 
     /**
+     * Retrieves a single repository by its ID.
+     * @param id Repository ID
+     * @returns ApiResponse with the repository data or error
+     */
+    async getRepositoryById(id: number): Promise<ApiResponse<repository | null>> {
+        console.log(`=== REPOSITORY SERVICE: getRepositoryById START (ID: ${id}) ===`);
+        try {
+            const response = await this.repositoryRepository.findById(id);
+
+            if (response.status === ResponseStatus.FAILED) {
+                console.error(`Failed to retrieve repository with ID ${id}:`, response.error);
+                return response; // Propagate the failure response
+            }
+
+            if (!response.data) {
+                console.log(`Repository with ID ${id} not found.`);
+                return {
+                    status: ResponseStatus.SUCCESS, // Still a success in terms of operation execution
+                    message: 'Repository not found',
+                    data: null,
+                };
+            }
+
+            console.log(`Repository with ID ${id} retrieved successfully.`);
+            console.log(`=== REPOSITORY SERVICE: getRepositoryById END - Success ===`);
+            return response; // Return the success response with data
+
+        } catch (error: unknown) {
+            console.error(`=== REPOSITORY SERVICE: getRepositoryById ERROR (ID: ${id}) ===`);
+            console.error(`Error retrieving repository:`, error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to retrieve repository due to an unexpected error",
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
      * Update an existing repository
      * @param id Repository ID
      * @param updateData Repository data to update
