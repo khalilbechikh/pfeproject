@@ -1,7 +1,36 @@
 @baseUrl = http://localhost:5000/v1/api/repositories
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjksInVzZXJuYW1lIjoiam9icmFuMDAwMDAwMDAwMDAwMCIsImlhdCI6MTc0NTg1NzMyMywiZXhwIjoxNzQ1OTQzNzIzfQ.CTPd_re8aC7cZxzxnrhx4nck1v1-vabDLv4PGCTZO5M
-@existingRepoId = 4
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwLCJ1c2VybmFtZSI6Impvc2Rmc2Rmc2RmMCIsImlhdCI6MTc0NTk3MDQyNiwiZXhwIjoxNzQ2MDU2ODI2fQ.rfb7Krnj-j49NvNJOTd4hKQyk13UGOUd_t6d75zM9ew
+@existingRepoId = 8
 @nonExistentRepoId = 999
+@repoIdToGet = 4 # Use an ID that exists for successful GET tests
+@repoIdWithRelations = 8
+
+### Get Repository by ID - Success
+GET {{baseUrl}}/{{repoIdToGet}}
+Authorization: Bearer {{authToken}}
+
+### Get Repository by ID - Include Owner Relation
+GET {{baseUrl}}/{{repoIdWithRelations}}?relations=owner
+Authorization: Bearer {{authToken}}
+
+### Get Repository by ID - Include Multiple Relations (Owner, Issues, Access)
+GET {{baseUrl}}/{{repoIdWithRelations}}?relations=owner,issues,access,forks
+Authorization: Bearer {{authToken}}
+
+### Get Repository by ID - Include Invalid Relation Name
+GET {{baseUrl}}/{{repoIdWithRelations}}?relations=owner,invalidRelationName
+Authorization: Bearer {{authToken}}
+
+### Get Repository by ID - Not Found
+GET {{baseUrl}}/{{nonExistentRepoId}}
+Authorization: Bearer {{authToken}}
+
+### Get Repository by ID - Invalid ID Format
+GET {{baseUrl}}/invalid-id
+Authorization: Bearer {{authToken}}
+
+### Get Repository by ID - Unauthorized
+GET {{baseUrl}}/{{repoIdToGet}}
 
 ### Create Repository - Success
 POST {{baseUrl}}
