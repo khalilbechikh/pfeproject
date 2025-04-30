@@ -12,4 +12,3 @@ VOLUMES/
 # Environment variables
 
 /WEB/BACKEND/CODE/node_modules/
-*.sql
