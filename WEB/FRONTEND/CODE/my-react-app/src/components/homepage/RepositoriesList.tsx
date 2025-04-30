@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GitFork, Users, Code, Share2, Plus } from 'lucide-react';
+import { GitFork, Users, Code, Share2, Plus, X, Trash, Edit } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 
 interface JwtPayload {
@@ -59,6 +59,18 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
     const [repositories, setRepositories] = useState<Repository[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        is_private: false
+    });
+    const [editingRepoId, setEditingRepoId] = useState<number | null>(null);
+    const [editFormData, setEditFormData] = useState({
+        description: '',
+        is_private: false
+    });
+    const [repoToDelete, setRepoToDelete] = useState<number | null>(null);
 
     useEffect(() => {
         const fetchRepositories = async () => {
@@ -70,7 +82,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
 
                 const decoded = jwtDecode<JwtPayload>(token);
                 const response = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}?relations=repositories`, {
-                    headers: { 
+                    headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
@@ -82,15 +94,39 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                 }
 
                 const userData = await response.json();
-                const staticLanguages = ["TypeScript", "Python", "JavaScript", "Rust", "Go", "Java", "C++", "Ruby"];
-                const staticForks = [35, 87, 42, 103, 28, 56, 74, 91];
-                const staticContributors = [8, 12, 5, 15, 7, 9, 11, 14];
+                const repos = userData.data.repository || [];
 
-                const mergedRepos = (userData.data.repository || []).map((repo: any, index: number) => ({
-                    ...repo,
-                    forks: staticForks[index % staticForks.length],
-                    contributors: staticContributors[index % staticContributors.length],
-                    language: staticLanguages[index % staticLanguages.length]
+                const fetchForksAndPullRequests = async (repoId: number) => {
+                    const forksResponse = await fetch(`http://localhost:5000/v1/api/repositories/${repoId}?relations=forks,pull_requests`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!forksResponse.ok) {
+                        throw new Error(`Failed to fetch forks and pull requests for repository ${repoId}`);
+                    }
+
+                    const data = await forksResponse.json();
+                    const forkIds = new Set(data.data.forks.map((fork: any) => fork.id));
+                    const pullRequests = data.data.pull_requests || [];
+                    const contributorIds = new Set(pullRequests.map((pr: any) => pr.author.id));
+
+                    return {
+                        forks: forkIds.size,
+                        contributors: contributorIds.size
+                    };
+                };
+
+                const mergedRepos = await Promise.all(repos.map(async (repo: any) => {
+                    const { forks, contributors } = await fetchForksAndPullRequests(repo.id);
+                    return {
+                        ...repo,
+                        forks,
+                        contributors,
+                        language: repo.language || "Unknown"
+                    };
                 }));
 
                 setRepositories(mergedRepos);
@@ -116,6 +152,119 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
 
+    const handleCreateRepository = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const response = await fetch('http://localhost:5000/v1/api/repositories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to create repository');
+            }
+
+            const newRepo = await response.json();
+            const decoded = jwtDecode<JwtPayload>(token);
+
+            const forksResponse = await fetch(`http://localhost:5000/v1/api/repositories/${newRepo.data.id}?relations=forks,pull_requests`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!forksResponse.ok) {
+                throw new Error(`Failed to fetch forks and pull requests for new repository ${newRepo.data.id}`);
+            }
+
+            const data = await forksResponse.json();
+            const forkIds = new Set(data.data.forks.map((fork: any) => fork.id));
+            const pullRequests = data.data.pull_requests || [];
+            const contributorIds = new Set(pullRequests.map((pr: any) => pr.author.id));
+
+            setRepositories(prev => [{
+                ...newRepo.data,
+                forks: forkIds.size,
+                contributors: contributorIds.size,
+                language: newRepo.data.language || "Unknown"
+            }, ...prev]);
+
+            setShowCreateModal(false);
+            setFormData({ name: '', description: '', is_private: false });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create repository');
+        }
+    };
+
+    const handleDeleteRepository = async (repoId: number) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const response = await fetch(`http://localhost:5000/v1/api/repositories/${repoId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to delete repository');
+            }
+
+            setRepositories(prev => prev.filter(repo => repo.id !== repoId));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete repository');
+        }
+    };
+
+    const handleConfirmUpdate = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token || !editingRepoId) throw new Error('No authentication token found');
+
+            const response = await fetch(`http://localhost:5000/v1/api/repositories/${editingRepoId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(editFormData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update repository');
+            }
+
+            const updatedData = await response.json();
+
+            setRepositories(prev => prev.map(repo =>
+                repo.id === editingRepoId ? {
+                    ...repo,
+                    ...updatedData.data,
+                    forks: repo.forks,       // Preserve existing forks count
+                    contributors: repo.contributors // Preserve contributors count
+                } : repo
+            ));
+
+            setEditingRepoId(null);
+            setEditFormData({ description: '', is_private: false });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update repository');
+        }
+    };
+
     if (loading) {
         return (
             <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -129,7 +278,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} text-red-500`}>
                 <h2 className="text-lg font-bold mb-2">Error Loading Repositories</h2>
                 <p className="mb-4">{error}</p>
-                <button 
+                <button
                     onClick={() => window.location.reload()}
                     className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded`}
                 >
@@ -146,12 +295,220 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                     <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Your Repositories</h1>
                     <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Manage and explore your code repositories</p>
                 </div>
-                <button className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg transition-all duration-300 hover:shadow-lg ${darkMode ? 'hover:shadow-violet-500/30' : 'hover:shadow-cyan-500/30'} transform hover:-translate-y-0.5`}>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg transition-all duration-300 hover:shadow-lg ${darkMode ? 'hover:shadow-violet-500/30' : 'hover:shadow-cyan-500/30'} transform hover:-translate-y-0.5`}
+                >
                     <Plus size={18} />
                     <span>New</span>
                 </button>
             </div>
-            
+
+            {showCreateModal && (
+                <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${darkMode ? 'dark' : ''}`}>
+                    <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl p-6 w-full max-w-md border`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Create New Repository</h2>
+                            <button
+                                onClick={() => setShowCreateModal(false)}
+                                className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <X size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Repository Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className={`w-full px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 ${darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'}`}
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Description
+                                </label>
+                                <textarea
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    className={`w-full px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 ${darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'}`}
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Visibility
+                                </label>
+                                <div className="space-y-2">
+                                    <label className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <input
+                                            type="radio"
+                                            name="visibility"
+                                            checked={!formData.is_private}
+                                            onChange={() => setFormData({ ...formData, is_private: false })}
+                                            className={`rounded-full ${darkMode ? 'accent-violet-500' : 'accent-cyan-500'}`}
+                                        />
+                                        <span>Public</span>
+                                    </label>
+                                    <label className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <input
+                                            type="radio"
+                                            name="visibility"
+                                            checked={formData.is_private}
+                                            onChange={() => setFormData({ ...formData, is_private: true })}
+                                            className={`rounded-full ${darkMode ? 'accent-violet-500' : 'accent-cyan-500'}`}
+                                        />
+                                        <span>Private</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end space-x-3 pt-4">
+                                <button
+                                    onClick={() => setShowCreateModal(false)}
+                                    className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} rounded-lg`}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreateRepository}
+                                    className={`px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg`}
+                                >
+                                    Create
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {editingRepoId !== null && (
+                <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${darkMode ? 'dark' : ''}`}>
+                    <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl p-6 w-full max-w-md border`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Update Repository</h2>
+                            <button
+                                onClick={() => {
+                                    setEditingRepoId(null);
+                                    setEditFormData({ description: '', is_private: false });
+                                }}
+                                className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <X size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Description
+                                </label>
+                                <textarea
+                                    value={editFormData.description}
+                                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                                    className={`w-full px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} border focus:ring-2 ${darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'}`}
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Visibility
+                                </label>
+                                <div className="space-y-2">
+                                    <label className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <input
+                                            type="radio"
+                                            name="visibility"
+                                            checked={!editFormData.is_private}
+                                            onChange={() => setEditFormData({ ...editFormData, is_private: false })}
+                                            className={`rounded-full ${darkMode ? 'accent-violet-500' : 'accent-cyan-500'}`}
+                                        />
+                                        <span>Public</span>
+                                    </label>
+                                    <label className={`flex items-center space-x-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <input
+                                            type="radio"
+                                            name="visibility"
+                                            checked={editFormData.is_private}
+                                            onChange={() => setEditFormData({ ...editFormData, is_private: true })}
+                                            className={`rounded-full ${darkMode ? 'accent-violet-500' : 'accent-cyan-500'}`}
+                                        />
+                                        <span>Private</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end space-x-3 pt-4">
+                                <button
+                                    onClick={() => {
+                                        setEditingRepoId(null);
+                                        setEditFormData({ description: '', is_private: false });
+                                    }}
+                                    className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} rounded-lg`}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmUpdate}
+                                    className={`px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg`}
+                                >
+                                    Update
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {repoToDelete !== null && (
+                <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${darkMode ? 'dark' : ''}`}>
+                    <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl p-6 w-full max-w-md border`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Delete Repository</h2>
+                            <button
+                                onClick={() => setRepoToDelete(null)}
+                                className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <X size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                Are you sure you want to delete this repository? This action cannot be undone.
+                            </p>
+                            <div className="flex justify-end space-x-3 pt-4">
+                                <button
+                                    onClick={() => setRepoToDelete(null)}
+                                    className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} rounded-lg`}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        await handleDeleteRepository(repoToDelete);
+                                        setRepoToDelete(null);
+                                    }}
+                                    className={`px-4 py-2 ${darkMode ? 'bg-red-600 hover:bg-red-500' : 'bg-red-600 hover:bg-red-500'} text-white rounded-lg transition-colors`}
+                                >
+                                    Confirm Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {repositories.length === 0 ? (
                 <div className={`p-8 text-center rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                     <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>No repositories found. Create your first repository!</p>
@@ -176,8 +533,23 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                         </p>
                                     </div>
                                     <div className="flex space-x-2">
-                                        <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
-                                            <GitFork size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+                                        <button
+                                            onClick={() => {
+                                                setEditFormData({
+                                                    description: repository.description,
+                                                    is_private: repository.is_private
+                                                });
+                                                setEditingRepoId(repository.id);
+                                            }}
+                                            className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                                        >
+                                            <Edit size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+                                        </button>
+                                        <button
+                                            onClick={() => setRepoToDelete(repository.id)}
+                                            className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                                        >
+                                            <Trash size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
                                         </button>
                                     </div>
                                 </div>

@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { jwtDecode } from 'jwt-decode';
 import { CheckCircle } from 'lucide-react';  // Add this with other icon imports
 
-
 interface Particle {
     size: number;
     x: number;
@@ -63,7 +62,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-
     const [particles, setParticles] = useState<Particle[]>(Array(15).fill(null).map(() => ({
         size: Math.random() * 4 + 1,
         x: Math.random() * 100,
@@ -92,9 +90,14 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                 }
 
                 const userData = await response.json();
-                setUser(userData.data);
+                setUser({
+                    ...userData.data,
+                    repositories: userData.data.repository || [],
+                    issues: userData.data.issue || [],
+                    pull_requests: userData.data.pull_request || []
+                });
                 setEditForm({
-                    username: userData.data.username, // Use userData.data
+                    username: userData.data.username,
                     email: userData.data.email,
                     bio: userData.data.bio || '',
                 });
@@ -153,7 +156,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
         return `${diffYears} ${diffYears === 1 ? 'year' : 'years'} ago`;
     };
 
-    // Replace the existing handleSaveProfile function with this one
     const handleSaveProfile = async () => {
         try {
             const token = localStorage.getItem('authToken');
@@ -170,11 +172,10 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                 },
                 body: JSON.stringify(editForm)
             });
-    
+
             const responseData = await response.json();
-    
+
             if (!response.ok) {
-                // Handle conflict errors first
                 if (response.status === 409) {
                     setValidationErrors(responseData.details || [{
                         message: responseData.message || 'Conflict occurred',
@@ -182,11 +183,9 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                         code: 'custom'
                     }]);
                 }
-                // Handle validation errors
                 else if (response.status === 400 && responseData.details) {
                     setValidationErrors(responseData.details);
                 }
-                // Handle all other errors
                 else {
                     setValidationErrors([{
                         message: responseData.message || 'Failed to update profile',
@@ -201,7 +200,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             setSuccessMessage('Profile updated successfully!');
             setValidationErrors(null);
 
-            // Clear success message after 3 seconds
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             console.error('Error saving profile:', err);
@@ -245,7 +243,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
 
             const data = await response.json();
 
-
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to change password');
             }
@@ -255,7 +252,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             setSuccessMessage('Password updated successfully!');
             setValidationErrors(null);
 
-            // Clear success message after 3 seconds
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             console.error('Error changing password:', err);
@@ -341,9 +337,8 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                 throw new Error(errorData.error || 'Failed to delete account');
             }
 
-            // Clear local storage and redirect to login
             localStorage.removeItem('authToken');
-            window.location.href = '/'; // Or use your router's navigation if applicable
+            window.location.href = '/';
         } catch (err) {
             console.error('Error deleting account:', err);
             setDeleteError(err instanceof Error ? err.message : 'Failed to delete account');
@@ -372,7 +367,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
         return null;
     }
 
-    // Calculate counts from the arrays
     const repositoriesCount = user.repositories?.length || 0;
     const issuesCount = user.issues?.length || 0;
     const pullRequestsCount = user.pull_requests?.length || 0;
@@ -385,44 +379,11 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
         { type: 'issue', action: 'Commented on issue', target: 'Performance issues with large datasets', time: '3 weeks ago' },
     ];
 
-    const repositories = [
-        {
-            name: "Neural Network Visualizer",
-            description: "Interactive visualization tool for neural networks with real-time training data",
-            language: "TypeScript",
-            stars: 128,
-            forks: 35,
-            updated: "2 days ago",
-            isPrivate: false
-        },
-        {
-            name: "Code-Analysis-Engine",
-            description: "Static code analysis tool with refactoring suggestions",
-            language: "Python",
-            stars: 87,
-            forks: 21,
-            updated: "1 week ago",
-            isPrivate: false
-        },
-        {
-            name: "Personal-Dashboard",
-            description: "Customizable dashboard for tracking development metrics",
-            language: "JavaScript",
-            stars: 43,
-            forks: 12,
-            updated: "3 weeks ago",
-            isPrivate: true
-        }
-    ];
-
     const renderTabContent = () => {
         switch (activeTab) {
             case 'overview':
                 return (
                     <div className="space-y-6">
-
-
-                        {/* Success/Error Notifications */}
                         {successMessage && (
                             <div className={`p-4 rounded-lg ${darkMode
                                 ? 'bg-green-900/30 border-green-800 text-green-400'
@@ -678,7 +639,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                         </div>
 
                         <div className="grid grid-cols-1 gap-4">
-                            {repositories.map((repo, index) => (
+                            {user.repositories?.map((repo, index) => (
                                 <div
                                     key={index}
                                     className={`${darkMode ? 'bg-gray-800/60 border-gray-700 hover:border-gray-600' : 'bg-white/70 border-gray-200 hover:border-cyan-300'} backdrop-blur-sm group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
@@ -819,7 +780,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                     <button
                                         onClick={() => {
                                             setShowPasswordModal(true);
-                                            setSuccessMessage(null); // Clear any existing success messages
+                                            setSuccessMessage(null);
                                         }}
                                         className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} rounded-lg transition-colors`}
                                     >

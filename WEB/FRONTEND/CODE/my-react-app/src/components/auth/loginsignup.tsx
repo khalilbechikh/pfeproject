@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, CheckCircleIcon, Share2, Moon, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { CreateUserSchema, LoginUserSchema } from '../auth/authzod'; // Import the Zod schemas
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -36,20 +37,20 @@ export default function AuthPage() {
       setPasswordStrength(0);
       return;
     }
-    
+
     let strength = 0;
     if (password.length > 6) strength += 1;
     if (password.length > 10) strength += 1;
     if (/[A-Z]/.test(password)) strength += 1;
     if (/[0-9]/.test(password)) strength += 1;
     if (/[^A-Za-z0-9]/.test(password)) strength += 1;
-    
+
     setPasswordStrength(strength);
   }, [password]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setParticles(particles => 
+      setParticles(particles =>
         particles.map(particle => ({
           ...particle,
           x: ((particle.x + particle.speedX + 100) % 100),
@@ -57,9 +58,27 @@ export default function AuthPage() {
         }))
       );
     }, 50);
-    
+
     return () => clearInterval(interval);
   }, []);
+
+  const validateCreateUser = (data: any) => {
+    try {
+      CreateUserSchema.parse(data);
+      return { valid: true, data };
+    } catch (e: any) {
+      return { valid: false, errors: e.errors };
+    }
+  };
+
+  const validateLoginUser = (data: any) => {
+    try {
+      LoginUserSchema.parse(data);
+      return { valid: true, data };
+    } catch (e: any) {
+      return { valid: false, errors: e.errors };
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -67,14 +86,20 @@ export default function AuthPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
+    const formData = isLogin ? { email, password } : { username, email, password };
+
+    // Validate the data
+    const validationResult = isLogin ? validateLoginUser(formData) : validateCreateUser(formData);
+    if (!validationResult.valid) {
+      setErrorMessage(validationResult.errors.map((error: any) => error.message).join(', '));
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const backendBaseUrl = 'http://localhost:5000';
       const endpoint = isLogin ? 'signin' : 'signup';
       const url = `${backendBaseUrl}/v1/api/${endpoint}`;
-
-      const body = isLogin 
-        ? { email, password } 
-        : { username, email, password };
 
       const response = await fetch(url, {
         method: 'POST',
@@ -83,19 +108,19 @@ export default function AuthPage() {
           'Accept': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(formData),
       });
-      const data = await response.json();
-      
-      if (data.status === "success") {
-        const token = response.headers.get('Authorization') || data.token;
+      const responseData = await response.json();
+
+      if (responseData.status === "success") {
+        const token = response.headers.get('Authorization') || responseData.token;
         if (token) {
           localStorage.setItem('authToken', token.replace('Bearer ', ''));
         }
-        
-        setSuccessMessage(data.message || (isLogin ? "Login successful!" : "Account created successfully!"));
+
+        setSuccessMessage(responseData.message || (isLogin ? "Login successful!" : "Account created successfully!"));
         setFormSuccess(true);
-        
+
         setTimeout(() => {
           setFormSuccess(false);
           if (isLogin) {
@@ -108,8 +133,8 @@ export default function AuthPage() {
           }
         }, 1500);
       } else {
-        if (data.status === "warning" || data.status === "failed") {
-          setErrorMessage(data.message || "An error occurred");
+        if (responseData.status === "warning" || responseData.status === "failed") {
+          setErrorMessage(responseData.message || "An error occurred");
         }
       }
     } catch (error: any) {
@@ -157,7 +182,7 @@ export default function AuthPage() {
   return (
     <div className={`flex min-h-screen w-full flex-col items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} px-4 py-12 overflow-hidden transition-colors duration-500 relative`}>
       {particles.map((particle, index) => (
-        <div 
+        <div
           key={index}
           className={`absolute rounded-full ${darkMode ? 'bg-violet-500/20' : 'bg-cyan-500/20'} blur-sm`}
           style={{
@@ -169,7 +194,7 @@ export default function AuthPage() {
           }}
         />
       ))}
-      
+
       <div className="fixed top-4 left-0 right-0 flex justify-center z-50">
         <div className="w-full max-w-md px-4">
           {errorMessage && (
@@ -188,7 +213,7 @@ export default function AuthPage() {
               )}
             </div>
           )}
-          
+
           {successMessage && (
             <div className={`p-4 mb-4 rounded-lg ${darkMode ? 'bg-emerald-800/90 text-emerald-100' : 'bg-emerald-100 text-emerald-800'} shadow-lg transition-all duration-300 animate-fade-in`}>
               <div className="font-bold">Success</div>
@@ -212,14 +237,14 @@ export default function AuthPage() {
             </p>
           </div>
         )}
-        
-        <button 
+
+        <button
           onClick={toggleDarkMode}
           className={`absolute top-4 right-4 p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-blue-100 text-blue-600'} transition-all duration-300 hover:scale-110`}
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
-        
+
         <div className="mb-8 flex flex-col items-center">
           <div className={`flex items-center justify-center h-16 w-16 rounded-full ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'} mb-4 group hover:scale-110 transition-all duration-300 hover:rotate-12`}>
             <Share2 className="h-8 w-8 text-white" />
@@ -227,15 +252,15 @@ export default function AuthPage() {
           <h1 className={`text-2xl font-bold ${darkMode ? 'text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-500' : 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-teal-400'}`}>ShareCode</h1>
           <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your code, your way</p>
         </div>
-        
-        <div 
-          id="auth-form" 
+
+        <div
+          id="auth-form"
           className="transition-all duration-500 ease-in-out transform translate-x-0 opacity-100"
         >
           <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-6 text-center`}>
             {isLogin ? "Welcome back" : "Join us today"}
           </h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div className="space-y-2">
@@ -258,7 +283,7 @@ export default function AuthPage() {
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-2">
               <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Email</label>
               <div className="relative group">
@@ -276,7 +301,7 @@ export default function AuthPage() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Password</label>
               <div className="relative group">
@@ -305,26 +330,26 @@ export default function AuthPage() {
                   )}
                 </button>
               </div>
-              
+
               {!isLogin && password && (
                 <div className="mt-2">
                   <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-gray-700">
-                    <div 
+                    <div
                       className={`transition-all duration-300 ${
-                        passwordStrength < 2 ? 'bg-red-500' : 
+                        passwordStrength < 2 ? 'bg-red-500' :
                         passwordStrength < 4 ? 'bg-yellow-500' : 'bg-green-500'
-                      }`} 
+                      }`}
                       style={{ width: `${(passwordStrength / 5) * 100}%` }}
                     />
                   </div>
                   <p className="text-xs mt-1 text-gray-400">
-                    {passwordStrength < 2 ? 'Weak password' : 
+                    {passwordStrength < 2 ? 'Weak password' :
                      passwordStrength < 4 ? 'Medium password' : 'Strong password'}
                   </p>
                 </div>
               )}
             </div>
-            
+
             {isLogin && (
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center">
@@ -345,7 +370,7 @@ export default function AuthPage() {
                 </a>
               </div>
             )}
-            
+
             <button
               type="submit"
               disabled={isLoading}
@@ -363,7 +388,7 @@ export default function AuthPage() {
               )}
             </button>
           </form>
-          
+
           <p className={`mt-6 text-center text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
             {isLogin ? "Don't have an account?" : "Already have an account?"}
             <button
@@ -376,7 +401,7 @@ export default function AuthPage() {
           </p>
         </div>
       </div>
-      
+
       <p className={`mt-8 text-center text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
         &copy; 2025 ShareCode. All rights reserved.
       </p>
