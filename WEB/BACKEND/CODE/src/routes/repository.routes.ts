@@ -7,6 +7,12 @@ export const configureRepositoryRoutes = (): Router => {
     const router = Router();
     const repositoryController = container.get<RepositoryController>(RepositoryController);
 
+    // GET endpoint to retrieve all repositories (optionally filtered by name)
+    // IMPORTANT: Place this before the '/:id' route to avoid conflicts
+    router.get('/', authenticateJWT, (req, res) =>
+        repositoryController.getAllRepositories(req, res)
+    );
+
     // PUT endpoint to update a repository
     router.put('/:id', authenticateJWT, (req, res) => 
         repositoryController.updateRepository(req, res));

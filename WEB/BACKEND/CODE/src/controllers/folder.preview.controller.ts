@@ -1,0 +1,207 @@
+import { Request, Response } from 'express';
+import { FolderPreviewService } from '../services/folder.preview.service';
+import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
+
+// Helper to determine HTTP status code based on API response
+const getStatusCode = (response: ApiResponse<any>, successCode: number = 200, createdCode: number = 201): number => {
+    if (response.status === ResponseStatus.FAILED) {
+        // Basic mapping based on common error types/messages
+        const msg = response.message?.toLowerCase() || '';
+        const err = response.error?.toLowerCase() || '';
+
+        if (msg.includes('not found') || err.includes('not found') || err.includes('enoent')) return 404;
+        if (msg.includes('required') || msg.includes('invalid path') || msg.includes('parameter')) return 400;
+        if (msg.includes('access denied') || msg.includes('outside the allowed directory')) return 403;
+        if (msg.includes('already exists') || err.includes('exists')) return 409; // 409 Conflict
+        if (msg.includes('authentication required') || err.includes('unauthorized')) return 401;
+        if (msg.includes('not a file') || msg.includes('not a directory')) return 400; // Bad request if wrong type
+        return 500; // Default server error for other failures
+    }
+    // Use 201 for successful creation, 200 otherwise
+    return response.message?.toLowerCase().includes('created') ? createdCode : successCode;
+};
+
+
+export class FolderPreviewController {
+    private folderPreviewService: FolderPreviewService;
+
+    constructor() {
+        this.folderPreviewService = new FolderPreviewService();
+        // Bind methods to ensure 'this' context is correct when used as route handlers
+        this.cloneGitFolder = this.cloneGitFolder.bind(this);
+        this.getPathContent = this.getPathContent.bind(this);
+        this.modifyFileContent = this.modifyFileContent.bind(this);
+        this.createItem = this.createItem.bind(this);
+        this.removeItem = this.removeItem.bind(this);
+        this.renameItem = this.renameItem.bind(this);
+    }
+
+    /**
+     * Handles cloning a Git repository.
+     * POST /preview/clone/:repoName
+     */
+    public async cloneGitFolder(req: Request, res: Response): Promise<void> {
+        // Authentication check (assuming middleware adds 'user' to req)
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { repoName } = req.params;
+
+        // Basic input validation
+        if (!repoName) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Repository name is required in the URL path', error: 'Missing parameter' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        // Call service
+        const serviceResponse = await this.folderPreviewService.cloneRepo(username, repoName);
+
+        // Send response based on service result
+        const statusCode = getStatusCode(serviceResponse, 200); // 200 OK for successful clone
+        res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles getting content of a file or directory.
+     * GET /preview/content?relativePath=...
+     */
+    public async getPathContent(req: Request, res: Response): Promise<void> {
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { relativePath } = req.query;
+
+        if (!relativePath || typeof relativePath !== 'string') {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path query parameter is required', error: 'Missing query parameter' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        const serviceResponse = await this.folderPreviewService.getPathContent(username, relativePath);
+        const statusCode = getStatusCode(serviceResponse); // 200 OK for success
+        res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles modifying file content.
+     * PUT /preview/content
+     * Body: { "relativePath": "...", "newContent": "..." }
+     */
+    public async modifyFileContent(req: Request, res: Response): Promise<void> {
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { relativePath, newContent } = req.body;
+
+         if (!relativePath) {
+             const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path is required in the request body', error: 'Missing body parameter: relativePath' };
+             res.status(400).json(apiResponse);
+             return;
+         }
+        // Note: Allow empty string for newContent, but check for undefined/null
+        if (newContent === undefined || newContent === null) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'New content is required in the request body', error: 'Missing body parameter: newContent' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+
+        const serviceResponse = await this.folderPreviewService.modifyFile(username, relativePath, newContent);
+        const statusCode = getStatusCode(serviceResponse); // 200 OK for success
+        res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles creating a file or folder.
+     * POST /preview/item
+     * Body: { "relativePath": "...", "type": "file"|"folder", "content"?: "..." }
+     */
+    public async createItem(req: Request, res: Response): Promise<void> {
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { relativePath, type, content } = req.body; // content is optional
+
+        if (!relativePath) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path is required in the request body', error: 'Missing body parameter: relativePath' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+        if (!type || (type !== 'file' && type !== 'folder')) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Type parameter (\'file\' or \'folder\') is required in the request body', error: 'Invalid or missing body parameter: type' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        const serviceResponse = await this.folderPreviewService.createItem(username, relativePath, type, content);
+        const statusCode = getStatusCode(serviceResponse, 200, 201); // Use 201 Created for success
+        res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles removing a file or folder.
+     * DELETE /preview/item?relativePath=...
+     */
+    public async removeItem(req: Request, res: Response): Promise<void> {
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { relativePath } = req.query;
+
+        if (!relativePath || typeof relativePath !== 'string') {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path query parameter is required', error: 'Missing query parameter' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        const serviceResponse = await this.folderPreviewService.removeItem(username, relativePath);
+        const statusCode = getStatusCode(serviceResponse); // 200 OK for success
+        res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles renaming/moving a file or folder.
+     * PATCH /preview/item
+     * Body: { "oldRelativePath": "...", "newRelativePath": "..." }
+     */
+    public async renameItem(req: Request, res: Response): Promise<void> {
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { oldRelativePath, newRelativePath } = req.body;
+
+        if (!oldRelativePath) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Old relative path is required in the request body', error: 'Missing body parameter: oldRelativePath' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+        if (!newRelativePath) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'New relative path is required in the request body', error: 'Missing body parameter: newRelativePath' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        const serviceResponse = await this.folderPreviewService.renameItem(username, oldRelativePath, newRelativePath);
+        const statusCode = getStatusCode(serviceResponse); // 200 OK for success
+        res.status(statusCode).json(serviceResponse);
+    }
+}
