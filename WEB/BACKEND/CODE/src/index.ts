@@ -14,7 +14,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get('/', async (req: Request, res: Response) => {
-  res.send('Welcome User Managsdgfgdement API! Use /api routes to access the API.');
+  res.send('Welcome User Managfdggsdgfgdement API! Use /api routes to access the API.');
 });
 
 // Configure and mount API routes
