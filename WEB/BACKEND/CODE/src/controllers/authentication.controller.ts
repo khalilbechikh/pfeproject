@@ -96,7 +96,7 @@ private formatWarningResponse(message: string): {
                 const token = jwt.sign(
                     { userId: response.data.id, username: response.data.username },
                     JWT_SECRET,
-                    { expiresIn: '24h' }
+                    { expiresIn: '30d' }
                 );
                 
                 res.header('Authorization', `Bearer ${token}`);
@@ -141,7 +141,7 @@ private formatWarningResponse(message: string): {
                 const token = jwt.sign(
                     { userId: response.data.id, username: response.data.username },
                     JWT_SECRET,
-                    { expiresIn: '1h' }
+                    { expiresIn: '30d' }
                 );
                 
                 res.header('Authorization', `Bearer ${token}`);

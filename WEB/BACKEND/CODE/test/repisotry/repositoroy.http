@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:5000/v1/api/repositories
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEwLCJ1c2VybmFtZSI6Impvc2Rmc2Rmc2RmMCIsImlhdCI6MTc0NTk3MDQyNiwiZXhwIjoxNzQ2MDU2ODI2fQ.rfb7Krnj-j49NvNJOTd4hKQyk13UGOUd_t6d75zM9ew
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjExLCJ1c2VybmFtZSI6ImRmYXNqZGZrIiwiaWF0IjoxNzQ2MDIwNjE4LCJleHAiOjE3NDg2MTI2MTh9.UZXsIKplB_QC11D4ymd40W1ov6MOI7ltvGjjISyEu1Y
 @existingRepoId = 8
 @nonExistentRepoId = 999
 @repoIdToGet = 4 # Use an ID that exists for successful GET tests
@@ -39,7 +39,7 @@ Authorization: Bearer {{authToken}}
 
 {
 
-    "name": "jobjbjbojbojbobjobjbojbobjo",
+    "name": "mytestrepo",
     "description": "This is a test repository",
     "is_private": false
 }

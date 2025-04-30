@@ -1,0 +1,189 @@
+### Variables
+@baseUrl = http://localhost:5000/v1/api/preview
+# Replace with a valid token obtained from sign-in/sign-up
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjExLCJ1c2VybmFtZSI6ImRmYXNqZGZrIiwiaWF0IjoxNzQ2MDIwNjE4LCJleHAiOjE3NDg2MTI2MTh9.UZXsIKplB_QC11D4ymd40W1ov6MOI7ltvGjjISyEu1Y
+
+### Prerequisite: Clone Repository - Success
+# Clones the repository 'mytestrepo.git'. This MUST succeed for subsequent tests.
+POST {{baseUrl}}/clone/mytestrepo.git
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+### 1. Create Folder - Success
+# Creates 'mytestrepo.git/new-test-folder'.
+POST {{baseUrl}}/item
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/new-test-folder",
+    "type": "folder"
+}
+
+### 2. Create File - Success
+# Creates 'mytestrepo.git/new-test-folder/new-test-file.txt'.
+POST {{baseUrl}}/item
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/new-test-folder/new-test-file.txt",
+    "type": "file",
+    "content": "Initial content for the new file created via HTTP test."
+}
+
+### 3. Modify File Content - Success (New File)
+# Modifies 'mytestrepo.git/new-test-folder/new-test-file.txt'.
+PUT {{baseUrl}}/item/content
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/new-test-folder/new-test-file.txt",
+    "newContent": "This content has been modified by the HTTP test."
+}
+
+### 4. Rename File - Success
+# Renames file to 'mytestrepo.git/new-test-folder/renamed-test-file.txt'.
+PUT {{baseUrl}}/item/rename
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "oldRelativePath": "mytestrepo.git/new-test-folder/new-test-file.txt",
+    "newRelativePath": "mytestrepo.git/new-test-folder/renamed-test-file.txt"
+}
+
+### 5. Rename Folder - Success
+# Renames folder to 'mytestrepo.git/renamed-test-folder'.
+PUT {{baseUrl}}/item/rename
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "oldRelativePath": "mytestrepo.git/new-test-folder",
+    "newRelativePath": "mytestrepo.git/renamed-test-folder"
+}
+
+### 6. Remove File - Success
+# Removes 'mytestrepo.git/renamed-test-folder/renamed-test-file.txt'.
+DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/renamed-test-folder/renamed-test-file.txt
+Authorization: Bearer {{authToken}}
+
+### 7. Remove Folder - Success
+# Removes 'mytestrepo.git/renamed-test-folder'.
+DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/renamed-test-folder
+Authorization: Bearer {{authToken}}
+
+### Get Content - Existing File Success
+# Gets 'mytestrepo.git/README.md'.
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/README.md
+Authorization: Bearer {{authToken}}
+
+### Get Content - Existing Directory Success
+# Lists content of 'mytestrepo.git/.' (root).
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/.
+Authorization: Bearer {{authToken}}
+
+### Clone Repository - Repo Not Found
+# Attempts to clone 'non-existent-repo.git'.
+POST {{baseUrl}}/clone/non-existent-repo.git
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+### Get Content - Path Not Found
+# Attempts to get 'mytestrepo.git/non-existent-file.txt'.
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/non-existent-file.txt
+Authorization: Bearer {{authToken}}
+
+### Get Content - Missing Path Parameter
+# Attempts to get content without specifying the relativePath.
+GET {{baseUrl}}/content
+Authorization: Bearer {{authToken}}
+
+### Create Item - Already Exists (Folder)
+# Attempts to create 'mytestrepo.git/new-test-folder' again (should fail if run after step 1).
+POST {{baseUrl}}/item
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/new-test-folder",
+    "type": "folder"
+}
+
+### Create Item - Missing Type
+# Attempts to create an item without specifying the type.
+POST {{baseUrl}}/item
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/some-path",
+    "content": "some content"
+}
+
+### Modify File Content - File Not Found
+# Attempts to modify 'mytestrepo.git/non-existent-file.txt'.
+PUT {{baseUrl}}/item/content
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/non-existent-file.txt",
+    "newContent": "This won't be written"
+}
+
+### Modify File Content - Missing Parameters
+# Attempts to modify a file without providing new content.
+PUT {{baseUrl}}/item/content
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/renamed-test-folder/renamed-test-file.txt" # Path might exist depending on test progress
+    # Missing newContent
+}
+
+### Modify File Content - Path is Directory
+# Attempts to modify 'mytestrepo.git/renamed-test-folder' as if it were a file.
+PUT {{baseUrl}}/item/content
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "mytestrepo.git/renamed-test-folder", # Path might exist depending on test progress
+    "newContent": "This should fail as it's a directory"
+}
+
+### Rename Item - Target Exists
+# Attempts to rename 'mytestrepo.git/renamed-test-folder' to itself.
+PUT {{baseUrl}}/item/rename
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "oldRelativePath": "mytestrepo.git/renamed-test-folder", # Path might exist
+    "newRelativePath": "mytestrepo.git/renamed-test-folder" # Trying to rename to itself
+}
+
+### Rename Item - Source Not Found
+# Attempts to rename 'mytestrepo.git/non-existent-source'.
+PUT {{baseUrl}}/item/rename
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "oldRelativePath": "mytestrepo.git/non-existent-source",
+    "newRelativePath": "mytestrepo.git/some-new-name"
+}
+
+### Remove Item - Not Found
+# Attempts to remove 'mytestrepo.git/non-existent-path'.
+DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/non-existent-path
+Authorization: Bearer {{authToken}}
+
+### Remove Item - Missing Path
+# Attempts to remove an item without specifying the path.
+DELETE {{baseUrl}}/item
+Authorization: Bearer {{authToken}}
