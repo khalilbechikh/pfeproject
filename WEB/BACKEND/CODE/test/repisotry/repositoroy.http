@@ -56,7 +56,7 @@ Authorization: Bearer {{authToken}}
 
 {
 
-    "name": "mytestrepo",
+    "name": "mytestrepo2",
     "description": "This is a test repository",
     "is_private": false
 }
