@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { exec } from 'child_process';
 import * as fs from 'fs';
+import * as fsp from 'fs/promises'; // Import promises API
 import * as path from 'path';
 import * as util from 'util';
 
@@ -12,7 +13,6 @@ const statPromise = util.promisify(fs.stat);
 
 export class FolderPreviewController {
   private readonly sourceGitPathRoot = '/srv/git/';
-  private readonly tempWorkdirPathRoot = '/srv/git/tempworkdir/';
 
   /**
    * Get user-specific source git path
@@ -27,7 +27,38 @@ export class FolderPreviewController {
    * @param username The username from the authenticated request
    */
   private getUserTempWorkdirPath(username: string): string {
-    return path.join(this.tempWorkdirPathRoot, username);
+    // Construct the temp path inside the user's source git path
+    const userSourcePath = this.getUserSourceGitPath(username);
+    return path.join(userSourcePath, 'temp-working-directory');
+  }
+
+  /**
+   * Helper to resolve and validate path within user's temp workdir
+   */
+  private resolveAndValidatePath(username: string, relativePath: string): { fullPath: string, normalizedPath: string, userTempWorkdirPath: string } | { error: string, status: number } {
+    const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+
+    // Ensure the user's temp directory exists before proceeding
+    if (!fs.existsSync(userTempWorkdirPath)) {
+      return { error: `User temporary directory not found for ${username}`, status: 404 };
+    }
+
+    if (!relativePath || typeof relativePath !== 'string') {
+      return { error: 'Path parameter is required and must be a string', status: 400 };
+    }
+
+    // Ensure path is relative and safe (no path traversal)
+    const normalizedPath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    // Construct full path within the user's temp directory
+    const fullPath = path.resolve(userTempWorkdirPath, normalizedPath);
+
+    // Verification Step: Check if the resolved path is still within the user's allowed directory
+    const resolvedUserTempWorkdirPath = path.resolve(userTempWorkdirPath);
+    if (!fullPath.startsWith(resolvedUserTempWorkdirPath + path.sep) && fullPath !== resolvedUserTempWorkdirPath) {
+      return { error: 'Access denied: Path is outside the allowed directory.', status: 403 };
+    }
+
+    return { fullPath, normalizedPath, userTempWorkdirPath };
   }
 
   /**
@@ -192,46 +223,41 @@ export class FolderPreviewController {
         return;
       }
       const username = req.user.username;
-      const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
-
-      // Ensure the user's temp directory exists before proceeding
-      if (!fs.existsSync(userTempWorkdirPath)) {
-        res.status(404).json({ error: `User temporary directory not found for ${username}` });
-        return;
-      }
 
       const { relativePath, newContent } = req.body;
 
-      if (!relativePath || newContent === undefined) {
-        res.status(400).json({ error: 'Path and new content are required' });
+      if (newContent === undefined) { // Allow empty string content, but not undefined
+        res.status(400).json({ error: 'New content is required' });
         return;
       }
 
-      // Ensure path is relative and safe
-      const normalizedPath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
-      // Construct full path within the user's temp directory
-      const fullPath = path.resolve(userTempWorkdirPath, normalizedPath);
-
-      // Verification Step: Check if the resolved path is still within the user's allowed directory
-      if (!fullPath.startsWith(path.resolve(userTempWorkdirPath) + path.sep) && fullPath !== path.resolve(userTempWorkdirPath)) {
-        res.status(403).json({ error: 'Access denied: Path is outside the allowed directory.' });
+      // Resolve and validate path
+      const pathValidationResult = this.resolveAndValidatePath(username, relativePath);
+      if ('error' in pathValidationResult) {
+        res.status(pathValidationResult.status).json({ error: pathValidationResult.error });
         return;
       }
+      const { fullPath, normalizedPath } = pathValidationResult;
 
-      // Check if file exists
-      if (!fs.existsSync(fullPath)) {
-        res.status(404).json({ error: 'File not found' });
-        return;
+      // Check if file exists using stat to avoid race conditions slightly better than existsSync
+      let stats;
+      try {
+        stats = await statPromise(fullPath);
+      } catch (err: any) {
+        if (err.code === 'ENOENT') {
+          res.status(404).json({ error: 'File not found' });
+          return;
+        }
+        throw err; // Re-throw other errors
       }
 
-      const stats = await statPromise(fullPath);
       if (!stats.isFile()) {
         res.status(400).json({ error: 'The specified path is not a file' });
         return;
       }
 
-      // Update file content
-      await writeFilePromise(fullPath, newContent, 'utf8');
+      // Update file content using fs.promises.writeFile
+      await fsp.writeFile(fullPath, newContent, 'utf8');
 
       res.status(200).json({
         success: true,
@@ -241,6 +267,208 @@ export class FolderPreviewController {
     } catch (error) {
       console.error('Error updating file:', error);
       let errorMessage = 'Failed to update file';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+
+  /**
+   * Create a file or folder within the user's temp workdir
+   * @param req Request containing relativePath, type ('file' or 'folder'), and user info
+   * @param res Response
+   */
+  public async createItem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || !req.user.username) {
+        res.status(401).json({ error: 'Authentication required or username missing in token' });
+        return;
+      }
+      const username = req.user.username;
+      const { relativePath, type, content } = req.body; // content is optional, for files
+
+      if (!type || (type !== 'file' && type !== 'folder')) {
+        res.status(400).json({ error: 'Type parameter (\'file\' or \'folder\') is required' });
+        return;
+      }
+
+      const pathValidationResult = this.resolveAndValidatePath(username, relativePath);
+      if ('error' in pathValidationResult) {
+        res.status(pathValidationResult.status).json({ error: pathValidationResult.error });
+        return;
+      }
+      const { fullPath, normalizedPath } = pathValidationResult;
+
+      // Check if item already exists
+      try {
+        await statPromise(fullPath);
+        // If statPromise succeeds, the item exists
+        res.status(409).json({ error: `Item already exists at path: ${normalizedPath}` });
+        return;
+      } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+          throw err; // Re-throw unexpected errors
+        }
+        // ENOENT means the path does not exist, which is good, continue creation
+      }
+
+      // Ensure parent directory exists
+      const parentDir = path.dirname(fullPath);
+      await fsp.mkdir(parentDir, { recursive: true });
+
+      if (type === 'folder') {
+        await fsp.mkdir(fullPath);
+        res.status(201).json({
+          success: true,
+          message: `Folder created successfully at ${normalizedPath}`,
+          path: normalizedPath,
+          type: 'folder'
+        });
+      } else { // type === 'file'
+        await fsp.writeFile(fullPath, content || '', 'utf8'); // Create file with optional content or empty
+        res.status(201).json({
+          success: true,
+          message: `File created successfully at ${normalizedPath}`,
+          path: normalizedPath,
+          type: 'file'
+        });
+      }
+    } catch (error) {
+      console.error('Error creating item:', error);
+      let errorMessage = 'Failed to create item';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+
+  /**
+   * Remove a file or folder within the user's temp workdir
+   * @param req Request containing relativePath (query param) and user info
+   * @param res Response
+   */
+  public async removeItem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || !req.user.username) {
+        res.status(401).json({ error: 'Authentication required or username missing in token' });
+        return;
+      }
+      const username = req.user.username;
+      const { relativePath } = req.query;
+
+      const pathValidationResult = this.resolveAndValidatePath(username, relativePath as string);
+      if ('error' in pathValidationResult) {
+        res.status(pathValidationResult.status).json({ error: pathValidationResult.error });
+        return;
+      }
+      const { fullPath, normalizedPath } = pathValidationResult;
+
+      // Check if item exists before attempting removal
+      try {
+        await statPromise(fullPath);
+      } catch (err: any) {
+        if (err.code === 'ENOENT') {
+          res.status(404).json({ error: 'Item not found' });
+          return;
+        }
+        throw err; // Re-throw other errors
+      }
+
+      // Remove file or directory (recursively)
+      await fsp.rm(fullPath, { recursive: true, force: true }); // force handles non-empty dirs
+
+      res.status(200).json({
+        success: true,
+        message: `Item removed successfully from ${normalizedPath}`,
+        path: normalizedPath
+      });
+    } catch (error) {
+      console.error('Error removing item:', error);
+      let errorMessage = 'Failed to remove item';
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+
+  /**
+   * Rename/move a file or folder within the user's temp workdir
+   * @param req Request containing oldRelativePath, newRelativePath, and user info
+   * @param res Response
+   */
+  public async renameItem(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user || !req.user.username) {
+        res.status(401).json({ error: 'Authentication required or username missing in token' });
+        return;
+      }
+      const username = req.user.username;
+      const { oldRelativePath, newRelativePath } = req.body;
+
+      if (!newRelativePath) {
+        res.status(400).json({ error: 'New path parameter is required' });
+        return;
+      }
+
+      // Validate old path
+      const oldPathValidation = this.resolveAndValidatePath(username, oldRelativePath);
+      if ('error' in oldPathValidation) {
+        res.status(oldPathValidation.status).json({ error: `Old path error: ${oldPathValidation.error}` });
+        return;
+      }
+      const { fullPath: oldFullPath, normalizedPath: normalizedOldPath } = oldPathValidation;
+
+      // Validate new path
+      const newPathValidation = this.resolveAndValidatePath(username, newRelativePath);
+      if ('error' in newPathValidation) {
+        res.status(newPathValidation.status).json({ error: `New path error: ${newPathValidation.error}` });
+        return;
+      }
+      const { fullPath: newFullPath, normalizedPath: normalizedNewPath } = newPathValidation;
+
+      // Check if old item exists
+      try {
+        await statPromise(oldFullPath);
+      } catch (err: any) {
+        if (err.code === 'ENOENT') {
+          res.status(404).json({ error: `Source item not found at ${normalizedOldPath}` });
+          return;
+        }
+        throw err; // Re-throw other errors
+      }
+
+      // Check if new path already exists
+      try {
+        await statPromise(newFullPath);
+        // If stat succeeds, the target path exists
+        res.status(409).json({ error: `Target path already exists at ${normalizedNewPath}` });
+        return;
+      } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+          throw err; // Re-throw unexpected errors
+        }
+        // ENOENT means the target path does not exist, which is good
+      }
+
+      // Ensure parent directory of the new path exists
+      const newParentDir = path.dirname(newFullPath);
+      await fsp.mkdir(newParentDir, { recursive: true });
+
+      // Rename/move the item
+      await fsp.rename(oldFullPath, newFullPath);
+
+      res.status(200).json({
+        success: true,
+        message: `Item successfully renamed/moved from ${normalizedOldPath} to ${normalizedNewPath}`,
+        oldPath: normalizedOldPath,
+        newPath: normalizedNewPath
+      });
+    } catch (error) {
+      console.error('Error renaming item:', error);
+      let errorMessage = 'Failed to rename item';
       if (error instanceof Error) {
         errorMessage += `: ${error.message}`;
       }
