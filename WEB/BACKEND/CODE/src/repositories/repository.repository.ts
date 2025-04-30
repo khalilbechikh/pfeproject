@@ -29,6 +29,43 @@ export class RepositoryRepository {
     }
 
     /**
+     * Find all repositories, optionally filtering by name containing searchText
+     */
+    async findAll(searchText?: string): Promise<ApiResponse<repository[]>> {
+        try {
+            const whereClause: Prisma.repositoryWhereInput = {};
+            if (searchText) {
+                whereClause.name = {
+                    contains: searchText,
+                    mode: 'insensitive', // Case-insensitive search
+                };
+            }
+
+            const repositories = await this.prisma.repository.findMany({
+                where: whereClause,
+                include: { // Optionally include owner username for context
+                    owner: {
+                        select: { username: true }
+                    }
+                }
+            });
+
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repositories retrieved successfully",
+                data: repositories
+            };
+        } catch (error: unknown) {
+            console.error('Error in RepositoryRepository.findAll:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve repositories',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
      * Find a repository by ID with optional relations
      */
     async findById(

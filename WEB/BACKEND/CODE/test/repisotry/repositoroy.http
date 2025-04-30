@@ -4,6 +4,23 @@
 @nonExistentRepoId = 999
 @repoIdToGet = 4 # Use an ID that exists for successful GET tests
 @repoIdWithRelations = 8
+@searchTermExists = test # Adjust if needed based on your data
+@searchTermNotExists = xyznonexistentxyz
+
+### Get All Repositories - Success (No Filter)
+GET {{baseUrl}}
+Authorization: Bearer {{authToken}}
+
+### Get All Repositories - Success (With Search Filter - Found)
+GET {{baseUrl}}?search={{searchTermExists}}
+Authorization: Bearer {{authToken}}
+
+### Get All Repositories - Success (With Search Filter - Not Found)
+GET {{baseUrl}}?search={{searchTermNotExists}}
+Authorization: Bearer {{authToken}}
+
+### Get All Repositories - Unauthorized
+GET {{baseUrl}}
 
 ### Get Repository by ID - Success
 GET {{baseUrl}}/{{repoIdToGet}}

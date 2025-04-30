@@ -17,7 +17,6 @@ const GIT_REPO_BASE_PATH = '/srv/git';
  * Uses a single 'name' field for both display and filesystem path.
  */
 export const CreateRepositoryDto = z.object({
-    // repoName removed
     name: z.string().min(1, 'name is required'), // Single name field
     description: z.string().optional(),
     is_private: z.boolean().optional(),
@@ -30,14 +29,8 @@ export type CreateRepositoryDto = z.infer<typeof CreateRepositoryDto>;
  * Name is intentionally excluded to prevent updates.
  */
 export const UpdateRepositoryDto = z.object({
-    // name field removed to prevent updates
-    description: z
-        .string()
-        .optional(),
-    
-    is_private: z
-        .boolean()
-        .optional(),
+    description: z.string().optional(),
+    is_private: z.boolean().optional(),
 });
 export type UpdateRepositoryDto = z.infer<typeof UpdateRepositoryDto>;
 
@@ -50,6 +43,36 @@ export class RepositoryService {
     }
 
     /**
+     * Retrieves all repositories, optionally filtering by name.
+     * @param searchText Optional text to filter repository names
+     * @returns ApiResponse with the list of repositories or error
+     */
+    async getAllRepositories(searchText?: string): Promise<ApiResponse<repository[]>> {
+        console.log(`=== REPOSITORY SERVICE: getAllRepositories START (Search: ${searchText || 'None'}) ===`);
+        try {
+            const response = await this.repositoryRepository.findAll(searchText);
+
+            if (response.status === ResponseStatus.FAILED) {
+                console.error(`Failed to retrieve repositories:`, response.error);
+            } else {
+                console.log(`Retrieved ${response.data?.length || 0} repositories.`);
+            }
+
+            console.log(`=== REPOSITORY SERVICE: getAllRepositories END ===`);
+            return response;
+
+        } catch (error: unknown) {
+            console.error(`=== REPOSITORY SERVICE: getAllRepositories ERROR ===`);
+            console.error(`Error retrieving repositories:`, error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to retrieve repositories due to an unexpected error",
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
      * Retrieves a single repository by its ID, optionally including related data.
      * The related tables are specified via the 'relations' query parameter in the controller.
      * @param id Repository ID
@@ -57,32 +80,26 @@ export class RepositoryService {
      * @returns ApiResponse with the repository data or error
      */
     async getRepositoryById(id: number, includeTables?: string[]): Promise<ApiResponse<repository | null>> {
-        // Explicitly log the received includeTables array
         console.log(`=== REPOSITORY SERVICE: getRepositoryById START (ID: ${id}) ===`);
-        console.log(`Received includeTables parameter:`, includeTables); // Added explicit log
-        console.log(`Attempting to log joined relations: ${includeTables?.join(',')}`); // Keep original log for comparison
+        console.log(`Received includeTables parameter:`, includeTables);
+        console.log(`Attempting to log joined relations: ${includeTables?.join(',')}`);
 
         try {
-            // Pass includeTables to the repository method
             const response = await this.repositoryRepository.findById(id, includeTables);
 
             if (response.status === ResponseStatus.FAILED) {
                 console.error(`Failed to retrieve repository with ID ${id}:`, response.error);
-                return response; // Propagate the failure response
+                return response;
             }
 
             if (!response.data) {
                 console.log(`Repository with ID ${id} not found.`);
-                return {
-                    status: ResponseStatus.SUCCESS, // Still a success in terms of operation execution
-                    message: 'Repository not found',
-                    data: null,
-                };
+                return response;
             }
 
             console.log(`Repository with ID ${id} retrieved successfully.`);
             console.log(`=== REPOSITORY SERVICE: getRepositoryById END - Success ===`);
-            return response; // Return the success response with data
+            return response;
 
         } catch (error: unknown) {
             console.error(`=== REPOSITORY SERVICE: getRepositoryById ERROR (ID: ${id}) ===`);
@@ -107,7 +124,6 @@ export class RepositoryService {
             console.log("Repository ID:", id);
             console.log("Update data:", JSON.stringify(updateData));
 
-            // Validate data using Zod schema
             const validationResult = UpdateRepositoryDto.safeParse(updateData);
             if (!validationResult.success) {
                 const formattedErrors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -121,9 +137,16 @@ export class RepositoryService {
             const validatedData = validationResult.data;
             console.log("Data validation successful");
 
-            // Check if repository exists
             const existingRepoResponse = await this.repositoryRepository.findById(id);
-            if (existingRepoResponse.status === ResponseStatus.FAILED || !existingRepoResponse.data) {
+            if (existingRepoResponse.status === ResponseStatus.FAILED) {
+                console.log("Failed to check existence for repo ID:", id, existingRepoResponse.error);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: `Failed to check existence for repository ID ${id}`,
+                    error: existingRepoResponse.error,
+                };
+            }
+            if (!existingRepoResponse.data) {
                 console.log("Repository not found with ID:", id);
                 return {
                     status: ResponseStatus.FAILED,
@@ -132,28 +155,17 @@ export class RepositoryService {
                 };
             }
 
-            // Update repository
             const updatedRepositoryResponse = await this.repositoryRepository.updateRepository(id, validatedData);
 
             if (updatedRepositoryResponse.status === ResponseStatus.FAILED) {
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: 'Failed to update repository',
-                    error: updatedRepositoryResponse.error,
-                };
+                console.error("Failed to update repository in DB:", updatedRepositoryResponse.error);
+            } else {
+                console.log("Repository updated successfully:", JSON.stringify(updatedRepositoryResponse.data));
+                console.log("=== REPOSITORY SERVICE: updateRepository END - Success ===");
             }
+            return updatedRepositoryResponse;
 
-            const updatedRepository = updatedRepositoryResponse.data;
-
-            console.log("Repository updated successfully:", JSON.stringify(updatedRepository));
-            console.log("=== REPOSITORY SERVICE: updateRepository END - Success ===");
-
-            return {
-                status: ResponseStatus.SUCCESS,
-                message: 'Repository updated successfully',
-                data: updatedRepository,
-            };
-        } catch (error) { // Catch unexpected errors (e.g., DB connection issues)
+        } catch (error) {
             console.error("=== REPOSITORY SERVICE: updateRepository ERROR ===");
             console.error("Error updating repository:", error);
             return {
@@ -178,7 +190,6 @@ export class RepositoryService {
         console.log('createData:', JSON.stringify(createData));
 
         try {
-            // Validate input data using the updated schema
             const validationResult = CreateRepositoryDto.safeParse(createData);
             if (!validationResult.success) {
                 const formattedErrors = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -192,20 +203,18 @@ export class RepositoryService {
             const validatedData = validationResult.data;
             console.log("Data validation successful");
 
-            // Username is required for path construction
             if (!username) {
-                 console.log('Username not provided');
-                 return {
-                     status: ResponseStatus.FAILED,
-                     message: "Username is required",
-                     error: "Username is required"
-                 };
+                console.log('Username not provided');
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Username is required",
+                    error: "Username is required"
+                };
             }
 
             const scriptPath = path.join(process.cwd(), 'src', 'git', 'initGitRepo.sh');
             console.log('Using script at path:', scriptPath);
 
-            // Check if script exists and is executable
             try {
                 fs.accessSync(scriptPath, fs.constants.X_OK);
                 console.log('Script exists and is executable');
@@ -219,7 +228,6 @@ export class RepositoryService {
                 };
             }
 
-            // Execute the script to create the repository on disk
             const execPromise = (cmd: string) => new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
                 exec(cmd, (error, stdout, stderr) => {
                     if (error) return reject(error);
@@ -227,18 +235,25 @@ export class RepositoryService {
                 });
             });
 
-            // Use validatedData.name for the script argument
             const command = `bash "${scriptPath}" "${validatedData.name}" "${username}"`;
             console.log('Executing command:', command);
 
-            await execPromise(command);
-            console.log('Git repository created successfully on filesystem');
+            try {
+                await execPromise(command);
+                console.log('Git repository created successfully on filesystem');
+            } catch (scriptError) {
+                console.error('Error executing git init script:', scriptError);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Failed to initialize repository on filesystem",
+                    error: scriptError instanceof Error ? scriptError.message : String(scriptError)
+                };
+            }
 
-            // Create repository entry in database with owner
             const repoData = {
-                name: validatedData.name, // Use validated name for DB
+                name: validatedData.name,
                 description: validatedData.description ||
-                    `Repository for ${username}/${validatedData.name}.git`, // Use validated name in description
+                    `Repository for ${username}/${validatedData.name}.git`,
                 is_private: validatedData.is_private || false,
                 owner: {
                     connect: {
@@ -252,28 +267,20 @@ export class RepositoryService {
 
             if (response.status === ResponseStatus.FAILED) {
                 console.error("DB creation failed after filesystem repo creation:", response.error);
-                return response;
-            }
-
-            if (!response.data) {
-                console.error('Repository creation failed, no data returned from DB');
+            } else if (!response.data) {
+                console.error('Repository creation reported success but no data returned from DB');
                 return {
                     status: ResponseStatus.FAILED,
-                    message: "Failed to create repository",
-                    error: "Repository creation failed, no data returned from DB"
+                    message: "Repository creation failed",
+                    error: "Inconsistent state: Repository creation succeeded but no data returned."
                 };
+            } else {
+                console.log('Repository created in database with ID:', response.data.id);
+                console.log('=== REPOSITORY SERVICE: createBareRepo END - Success ===');
             }
+            return response;
 
-            console.log('Repository created in database with ID:', response.data.id);
-            console.log('=== REPOSITORY SERVICE: createBareRepo END - Success ===');
-
-            return {
-                status: ResponseStatus.SUCCESS,
-                message: "Repository created successfully",
-                data: response.data
-            };
-
-        } catch (error: unknown) { // Catch unexpected errors
+        } catch (error: unknown) {
             console.error('=== REPOSITORY SERVICE: createBareRepo ERROR ===');
             console.error('Error creating repository:', error);
             return {
@@ -293,36 +300,34 @@ export class RepositoryService {
         console.log(`=== REPOSITORY SERVICE: deleteBareRepo START (ID: ${id}) ===`);
         
         try {
-            // Get repository path details from database
             const repoDetailsResponse = await this.repositoryRepository.findRepositoryPathDetails(id);
             
+            // Handle failure from findRepositoryPathDetails
             if (repoDetailsResponse.status === ResponseStatus.FAILED) {
+                console.error(`Failed to retrieve repository details for ID ${id}:`, repoDetailsResponse.error);
+                // Create a new ApiResponse with the correct type <repository | null>
                 return {
                     status: ResponseStatus.FAILED,
-                    message: "Failed to retrieve repository details",
-                    error: repoDetailsResponse.error
+                    message: repoDetailsResponse.message, // Preserve original message
+                    error: repoDetailsResponse.error,     // Preserve original error
+                    data: null                           // Set data to null as expected by the return type
                 };
             }
             
             if (!repoDetailsResponse.data) {
-                console.error(`Repository path details not found for ID: ${id}`);
+                console.warn(`Repository path details not found for ID: ${id}`);
                 return {
                     status: ResponseStatus.FAILED,
                     message: "Repository not found",
-                    error: `Repository with ID ${id} not found or owner details missing`
+                    error: `Repository with ID ${id} not found`,
+                    data: null // Ensure data is null
                 };
             }
 
             const { ownerUsername, repoName } = repoDetailsResponse.data;
-            // Construct the correct path including the username
             const repoFullPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
             console.log(`Constructed path for deletion: ${repoFullPath}`);
 
-            // Construct deletion command using the full path
-            const command = `rm -rf "${repoFullPath}"`;
-            console.log(`Executing deletion command: ${command}`);
-
-            // Execute the command to delete the repo from the filesystem
             const execPromise = (cmd: string) => new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
                 exec(cmd, (error, stdout, stderr) => {
                     if (error) return reject(error);
@@ -330,25 +335,31 @@ export class RepositoryService {
                 });
             });
 
-            await execPromise(command);
-            console.log(`Filesystem repository deleted successfully: ${repoFullPath}`);
+            try {
+                const command = `rm -rf "${repoFullPath}"`;
+                console.log(`Executing deletion command: ${command}`);
+                await execPromise(command);
+                console.log(`Filesystem repository deleted successfully: ${repoFullPath}`);
+            } catch (fsError) {
+                console.error(`Error deleting filesystem repository ${repoFullPath}:`, fsError);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Failed to delete repository from filesystem",
+                    error: fsError instanceof Error ? fsError.message : String(fsError),
+                    data: null // Ensure data is null
+                };
+            }
 
-            // Delete repository entry from database
             console.log(`Deleting repository entry from database for ID: ${id}`);
             const deleteResponse = await this.repositoryRepository.deleteRepository(id);
             
             if (deleteResponse.status === ResponseStatus.FAILED) {
-                return deleteResponse;
+                console.error(`Database deletion failed for ID ${id}:`, deleteResponse.error);
+            } else {
+                console.log(`Database entry deleted successfully for ID: ${id}`);
+                console.log(`=== REPOSITORY SERVICE: deleteBareRepo END - Success (ID: ${id}) ===`);
             }
-            
-            console.log(`Database entry deleted successfully for ID: ${id}`);
-            console.log(`=== REPOSITORY SERVICE: deleteBareRepo END - Success (ID: ${id}) ===`);
-            
-            return {
-                status: ResponseStatus.SUCCESS,
-                message: "Repository deleted successfully",
-                data: deleteResponse.data
-            };
+            return deleteResponse;
             
         } catch (error: unknown) {
             console.error(`=== REPOSITORY SERVICE: deleteBareRepo ERROR (ID: ${id}) ===`);
@@ -356,7 +367,8 @@ export class RepositoryService {
             return {
                 status: ResponseStatus.FAILED,
                 message: "Failed to delete repository",
-                error: error instanceof Error ? error.message : String(error)
+                error: error instanceof Error ? error.message : String(error),
+                data: null // Ensure data is null
             };
         }
     }
@@ -370,40 +382,61 @@ export class RepositoryService {
      */
     async forkRepository(repoId: number, userId: number, username: string): Promise<ApiResponse<repository | null>> {
         console.log(`=== REPOSITORY SERVICE: forkRepository START (RepoID: ${repoId}, UserID: ${userId}, Username: ${username}) ===`);
-        let destPath: string | null = null; // Keep track of destination path for potential cleanup
+        let destPath: string | null = null;
 
         try {
-            // 1. Get source repo details (owner username, repo name)
             const sourceDetailsResponse = await this.repositoryRepository.findRepositoryPathDetails(repoId);
-            if (sourceDetailsResponse.status === ResponseStatus.FAILED || !sourceDetailsResponse.data) {
+            
+            // Handle failure from findRepositoryPathDetails
+            if (sourceDetailsResponse.status === ResponseStatus.FAILED) {
+                console.error(`Failed to get source repo details for fork (RepoID: ${repoId}):`, sourceDetailsResponse.error);
+                 // Create a new ApiResponse with the correct type <repository | null>
                 return {
                     status: ResponseStatus.FAILED,
-                    message: 'Source repository not found or details missing.',
-                    error: sourceDetailsResponse.error || 'Could not retrieve source repository details.'
+                    message: sourceDetailsResponse.message, // Preserve original message
+                    error: sourceDetailsResponse.error,     // Preserve original error
+                    data: null                           // Set data to null as expected by the return type
                 };
             }
-            const { ownerUsername, repoName } = sourceDetailsResponse.data;
-            console.log(`Source repo details found: Owner=${ownerUsername}, Name=${repoName}`);
-
-            // 2. Get full source repo (for is_private, description)
-            const sourceRepoResponse = await this.repositoryRepository.findById(repoId);
-            if (sourceRepoResponse.status === ResponseStatus.FAILED || !sourceRepoResponse.data) {
+            
+            if (!sourceDetailsResponse.data) {
+                console.warn(`Source repository not found for fork (RepoID: ${repoId})`);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Source repository not found.',
-                    error: sourceRepoResponse.error || 'Could not retrieve full source repository data.'
+                    error: `Repository with ID ${repoId} not found.`,
+                    data: null // Ensure data is null
+                };
+            }
+
+            const { ownerUsername, repoName } = sourceDetailsResponse.data;
+            console.log(`Source repo details found: Owner=${ownerUsername}, Name=${repoName}`);
+
+            const sourceRepoResponse = await this.repositoryRepository.findById(repoId);
+            if (sourceRepoResponse.status === ResponseStatus.FAILED) {
+                console.error(`Failed to get full source repo data for fork (RepoID: ${repoId}):`, sourceRepoResponse.error);
+                return sourceRepoResponse;
+            }
+            if (!sourceRepoResponse.data) {
+                console.error(`Inconsistency: Source repository details found but full data missing (RepoID: ${repoId})`);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Source repository data inconsistent.',
+                    error: `Full data for repository ID ${repoId} missing.`,
+                    data: null // Ensure data is null
                 };
             }
             const sourceRepo = sourceRepoResponse.data;
             console.log(`Full source repo data retrieved.`);
 
-            // 3. Check for name conflict for the target user
             const userReposResponse = await this.repositoryRepository.findByOwnerId(userId);
             if (userReposResponse.status === ResponseStatus.FAILED) {
+                console.error(`Failed to check for name conflicts for user ${userId}:`, userReposResponse.error);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Failed to check for repository name conflicts.',
-                    error: userReposResponse.error
+                    error: userReposResponse.error,
+                    data: null // Ensure data is null
                 };
             }
             if (userReposResponse.data && userReposResponse.data.some(r => r.name === repoName)) {
@@ -411,27 +444,27 @@ export class RepositoryService {
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Repository with this name already exists for this user.',
-                    error: 'Name conflict.'
+                    error: 'Name conflict.',
+                    data: null // Ensure data is null
                 };
             }
             console.log(`No name conflict found for user ${username}.`);
 
-            // 4. Prepare paths and shell script to clone repo
             const srcPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
             const destDir = path.join(GIT_REPO_BASE_PATH, username);
-            destPath = path.join(destDir, `${repoName}.git`); // Assign destPath for potential cleanup
+            destPath = path.join(destDir, `${repoName}.git`);
             const shellScript = `mkdir -p "${destDir}" && git clone --bare "${srcPath}" "${destPath}"`;
             console.log(`Source path: ${srcPath}`);
             console.log(`Destination path: ${destPath}`);
             console.log(`Executing shell script: ${shellScript}`);
 
-            // 5. Execute shell script
             const execPromise = (cmd: string) => new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
                 exec(cmd, (error, stdout, stderr) => {
                     if (error) return reject(error);
                     resolve({ stdout, stderr });
                 });
             });
+
             try {
                 const { stdout, stderr } = await execPromise(shellScript);
                 console.log(`Filesystem clone stdout: ${stdout}`);
@@ -442,11 +475,11 @@ export class RepositoryService {
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Failed to clone repository on filesystem.',
-                    error: err?.message || String(err)
+                    error: err?.message || String(err),
+                    data: null // Ensure data is null
                 };
             }
 
-            // 6. Create DB record for fork
             console.log(`Creating database record for the fork.`);
             const forkData: Prisma.repositoryCreateInput = {
                 name: repoName,
@@ -461,7 +494,6 @@ export class RepositoryService {
 
             if (createDbResponse.status === ResponseStatus.FAILED) {
                 console.error('Failed to create database record for fork:', createDbResponse.error);
-                // Attempt to clean up the forked repo from disk
                 if (destPath) {
                     try {
                         console.log(`Attempting to clean up filesystem directory: ${destPath}`);
@@ -470,23 +502,15 @@ export class RepositoryService {
                         console.log(`Filesystem cleanup successful.`);
                     } catch (cleanupErr: any) {
                         console.error(`CRITICAL: Failed to cleanup filesystem directory ${destPath} after DB error:`, cleanupErr);
-                        // Log this critical error, as we now have an orphaned directory
                     }
                 }
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: 'Failed to create forked repository in database. Filesystem changes attempted to be reverted.',
-                    error: createDbResponse.error
-                };
+                createDbResponse.message = 'Failed to create forked repository in database. Filesystem cleanup attempted.';
+                return createDbResponse;
             }
 
             console.log(`Database record created successfully. Fork ID: ${createDbResponse.data?.id}`);
             console.log(`=== REPOSITORY SERVICE: forkRepository END - Success ===`);
-            return {
-                status: ResponseStatus.SUCCESS,
-                message: 'Repository forked successfully.',
-                data: createDbResponse.data
-            };
+            return createDbResponse;
 
         } catch (err: any) {
             console.error(`=== REPOSITORY SERVICE: forkRepository ERROR ===`);
@@ -494,7 +518,8 @@ export class RepositoryService {
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Unexpected error during fork operation.',
-                error: err?.message || String(err)
+                error: err?.message || String(err),
+                data: null // Ensure data is null
             };
         }
     }
