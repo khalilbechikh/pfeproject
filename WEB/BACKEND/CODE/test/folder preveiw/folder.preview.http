@@ -1,0 +1,88 @@
+### Variables
+@baseUrl = http://localhost:5000/v1/api/preview
+# Replace with a valid token if authentication is needed for these routes
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE3NDYwMDAwMDAsImV4cCI6MTc0NjA4NjQwMH0.some_dummy_signature_replace_me
+# Replace with a repository name that exists in /srv/git/
+@repoNameToClone = test.git
+# Replace with a relative path to a file within the cloned repo
+@pathToFile = test.git/README.md
+# Replace with a relative path to a directory within the cloned repo
+@pathToDirectory = test.git/
+@nonExistentRepo = non-existent-repo.git
+@nonExistentPath = test.git/non-existent-file.txt
+
+### Clone Repository - Success
+# Clones the specified repository into the temporary working directory
+POST {{baseUrl}}/clone/{{repoNameToClone}}
+Content-Type: application/json
+# Authorization: Bearer {{authToken}} # Uncomment if auth is required
+
+### Clone Repository - Missing Repo Name
+# This request will likely result in a 404 or route not found, as the repoName parameter is missing from the path.
+POST {{baseUrl}}/clone/
+Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+
+### Clone Repository - Repo Not Found
+POST {{baseUrl}}/clone/{{nonExistentRepo}}
+Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+
+### Get Path Content - File Success
+# Gets the content of a specific file within the cloned repo
+GET {{baseUrl}}/content?relativePath={{pathToFile}}
+# Authorization: Bearer {{authToken}}
+
+### Get Path Content - Directory Success
+# Lists the content of a specific directory within the cloned repo
+GET {{baseUrl}}/content?relativePath={{pathToDirectory}}
+# Authorization: Bearer {{authToken}}
+
+### Get Path Content - Path Not Found
+GET {{baseUrl}}/content?relativePath={{nonExistentPath}}
+# Authorization: Bearer {{authToken}}
+
+### Get Path Content - Missing Path Parameter
+GET {{baseUrl}}/content
+# Authorization: Bearer {{authToken}}
+
+### Modify File Content - Success
+# Modifies the content of a specific file
+PUT {{baseUrl}}/modify
+Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "{{pathToFile}}",
+    "newContent": "This is the new content written by the test at {{$$datetime iso8601}}"
+}
+
+### Modify File Content - File Not Found
+PUT {{baseUrl}}/modify
+Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "{{nonExistentPath}}",
+    "newContent": "This won't be written"
+}
+
+### Modify File Content - Missing Parameters
+PUT {{baseUrl}}/modify
+Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "{{pathToFile}}"
+    # Missing newContent
+}
+
+### Modify File Content - Path is Directory
+PUT {{baseUrl}}/modify
+Content-Type: application/json
+# Authorization: Bearer {{authToken}}
+
+{
+    "relativePath": "{{pathToDirectory}}",
+    "newContent": "This should fail as it's a directory"
+}

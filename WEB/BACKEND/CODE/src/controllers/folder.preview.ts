@@ -11,35 +11,65 @@ const readdirPromise = util.promisify(fs.readdir);
 const statPromise = util.promisify(fs.stat);
 
 export class FolderPreviewController {
-  private readonly sourceGitPath = '/srv/git/';
-  private readonly tempWorkdirPath = '/srv/git/tempworkdir/';
+  private readonly sourceGitPathRoot = '/srv/git/';
+  private readonly tempWorkdirPathRoot = '/srv/git/tempworkdir/';
+
+  /**
+   * Get user-specific source git path
+   * @param username The username from the authenticated request
+   */
+  private getUserSourceGitPath(username: string): string {
+    return path.join(this.sourceGitPathRoot, username);
+  }
+
+  /**
+   * Get user-specific temporary workdir path
+   * @param username The username from the authenticated request
+   */
+  private getUserTempWorkdirPath(username: string): string {
+    return path.join(this.tempWorkdirPathRoot, username);
+  }
 
   /**
    * Clone a Git repository from source location to tempworkdir
-   * @param req Request containing repository name
+   * @param req Request containing repository name in URL parameters and user info
    * @param res Response
    */
   public async cloneGitFolder(req: Request, res: Response): Promise<void> {
     try {
-      const { repoName } = req.body;
+      // Check for authenticated user
+      if (!req.user || !req.user.username) {
+        res.status(401).json({ error: 'Authentication required or username missing in token' });
+        return;
+      }
+      const username = req.user.username;
+      const userSourceGitPath = this.getUserSourceGitPath(username);
+      const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+
+      const { repoName } = req.params;
 
       if (!repoName) {
-        res.status(400).json({ error: 'Repository name is required' });
+        res.status(400).json({ error: 'Repository name is required in the URL path' });
         return;
       }
 
-      const sourcePath = path.join(this.sourceGitPath, repoName);
-      const targetPath = path.join(this.tempWorkdirPath, repoName);
+      const sourcePath = path.join(userSourceGitPath, repoName);
+      const targetPath = path.join(userTempWorkdirPath, repoName);
 
       // Check if source exists
       if (!fs.existsSync(sourcePath)) {
-        res.status(404).json({ error: `Repository ${repoName} not found` });
+        res.status(404).json({ error: `Repository ${repoName} not found for user ${username}` });
         return;
       }
 
-      // Create target directory if it doesn't exist
-      if (!fs.existsSync(this.tempWorkdirPath)) {
-        fs.mkdirSync(this.tempWorkdirPath, { recursive: true });
+      // Create user-specific target directory if it doesn't exist
+      if (!fs.existsSync(userTempWorkdirPath)) {
+        fs.mkdirSync(userTempWorkdirPath, { recursive: true });
+      }
+
+      // Remove existing target directory if it exists, before cloning
+      if (fs.existsSync(targetPath)) {
+        await execPromise(`rm -rf ${targetPath}`);
       }
 
       // Clone the repository using Git
@@ -48,7 +78,7 @@ export class FolderPreviewController {
       res.status(200).json({
         success: true,
         message: `Repository ${repoName} successfully cloned to ${targetPath}`,
-        path: targetPath
+        path: targetPath // Consider returning a relative path if needed by the frontend
       });
     } catch (error) {
       console.error('Error cloning repository:', error);
@@ -61,14 +91,28 @@ export class FolderPreviewController {
   }
 
   /**
-   * Get content of a file or directory
-   * @param req Request containing path
+   * Get content of a file or directory within the user's temp workdir
+   * @param req Request containing path and user info
    * @param res Response
    */
   public async getPathContent(req: Request, res: Response): Promise<void> {
     try {
+      // Check for authenticated user
+      if (!req.user || !req.user.username) {
+        res.status(401).json({ error: 'Authentication required or username missing in token' });
+        return;
+      }
+      const username = req.user.username;
+      const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+
+      // Ensure the user's temp directory exists before proceeding
+      if (!fs.existsSync(userTempWorkdirPath)) {
+        res.status(404).json({ error: `User temporary directory not found for ${username}` });
+        return;
+      }
+
       const { relativePath } = req.query;
-      
+
       if (!relativePath) {
         res.status(400).json({ error: 'Path parameter is required' });
         return;
@@ -76,7 +120,14 @@ export class FolderPreviewController {
 
       // Ensure path is relative and safe (no path traversal)
       const normalizedPath = path.normalize(relativePath as string).replace(/^(\.\.(\/|\\|$))+/, '');
-      const fullPath = path.join(this.tempWorkdirPath, normalizedPath);
+      // Construct full path within the user's temp directory
+      const fullPath = path.resolve(userTempWorkdirPath, normalizedPath);
+
+      // Verification Step: Check if the resolved path is still within the user's allowed directory
+      if (!fullPath.startsWith(path.resolve(userTempWorkdirPath) + path.sep) && fullPath !== path.resolve(userTempWorkdirPath)) {
+        res.status(403).json({ error: 'Access denied: Path is outside the allowed directory.' });
+        return;
+      }
 
       // Check if path exists
       if (!fs.existsSync(fullPath)) {
@@ -87,7 +138,6 @@ export class FolderPreviewController {
       const stats = await statPromise(fullPath);
 
       if (stats.isDirectory()) {
-        // List directory contents like "ls" command
         const items = await readdirPromise(fullPath);
         const contentDetails = await Promise.all(
           items.map(async (item) => {
@@ -101,18 +151,17 @@ export class FolderPreviewController {
             };
           })
         );
-        
+
         res.status(200).json({
           type: 'folder',
-          path: normalizedPath,
+          path: normalizedPath, // Return the relative path
           content: contentDetails
         });
       } else if (stats.isFile()) {
-        // Return file content
         const fileContent = await readFilePromise(fullPath, 'utf8');
         res.status(200).json({
           type: 'file',
-          path: normalizedPath,
+          path: normalizedPath, // Return the relative path
           content: fileContent,
           size: stats.size,
           lastModified: stats.mtime
@@ -131,14 +180,28 @@ export class FolderPreviewController {
   }
 
   /**
-   * Modify file content
-   * @param req Request containing path and new content
+   * Modify file content within the user's temp workdir
+   * @param req Request containing path, new content, and user info
    * @param res Response
    */
   public async modifyFileContent(req: Request, res: Response): Promise<void> {
     try {
+      // Check for authenticated user
+      if (!req.user || !req.user.username) {
+        res.status(401).json({ error: 'Authentication required or username missing in token' });
+        return;
+      }
+      const username = req.user.username;
+      const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+
+      // Ensure the user's temp directory exists before proceeding
+      if (!fs.existsSync(userTempWorkdirPath)) {
+        res.status(404).json({ error: `User temporary directory not found for ${username}` });
+        return;
+      }
+
       const { relativePath, newContent } = req.body;
-      
+
       if (!relativePath || newContent === undefined) {
         res.status(400).json({ error: 'Path and new content are required' });
         return;
@@ -146,7 +209,14 @@ export class FolderPreviewController {
 
       // Ensure path is relative and safe
       const normalizedPath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
-      const fullPath = path.join(this.tempWorkdirPath, normalizedPath);
+      // Construct full path within the user's temp directory
+      const fullPath = path.resolve(userTempWorkdirPath, normalizedPath);
+
+      // Verification Step: Check if the resolved path is still within the user's allowed directory
+      if (!fullPath.startsWith(path.resolve(userTempWorkdirPath) + path.sep) && fullPath !== path.resolve(userTempWorkdirPath)) {
+        res.status(403).json({ error: 'Access denied: Path is outside the allowed directory.' });
+        return;
+      }
 
       // Check if file exists
       if (!fs.existsSync(fullPath)) {
@@ -162,11 +232,11 @@ export class FolderPreviewController {
 
       // Update file content
       await writeFilePromise(fullPath, newContent, 'utf8');
-      
+
       res.status(200).json({
         success: true,
         message: 'File updated successfully',
-        path: normalizedPath
+        path: normalizedPath // Return the relative path
       });
     } catch (error) {
       console.error('Error updating file:', error);
