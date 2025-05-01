@@ -43,7 +43,4 @@ app.listen(port, async () => {
   console.log(`API Documentation available at http://localhost:${port}/api-docs`);
 });
 
-
 export default app;
-
-
