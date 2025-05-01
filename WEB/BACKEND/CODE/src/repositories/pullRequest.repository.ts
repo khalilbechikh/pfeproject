@@ -91,4 +91,54 @@ export class PullRequestRepository {
             };
         }
     }
+
+    /**
+     * Retrieves pull requests based on optional filtering criteria
+     */
+    async getAllPullRequests(
+        ownerUserId?: number,
+        sourceRepoId?: number,
+        targetRepoId?: number
+    ): Promise<ApiResponse<pull_request[]>> {
+        try {
+            // Build where clause dynamically based on provided parameters
+            const whereClause: Prisma.pull_requestWhereInput = {};
+            
+            if (ownerUserId !== undefined) {
+                whereClause.repository = {
+                    owner_user_id: ownerUserId
+                };
+            }
+            
+            if (sourceRepoId !== undefined) {
+                whereClause.source_repository_id = sourceRepoId;
+            }
+            
+            if (targetRepoId !== undefined) {
+                whereClause.target_repository_id = targetRepoId;
+            }
+            
+            const pullRequests = await this.prisma.pull_request.findMany({
+                where: whereClause,
+                include: {
+                    author: true,
+                    repository: true,
+                    source_repository: true,
+                    target_repository: true
+                }
+            });
+            
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: 'Pull requests retrieved successfully',
+                data: pullRequests
+            };
+        } catch (error) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve pull requests',
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
 }

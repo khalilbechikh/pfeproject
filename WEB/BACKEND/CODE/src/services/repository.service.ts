@@ -464,7 +464,7 @@ export class RepositoryService {
             // Filesystem path still uses the *forking* user's username
             const srcPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
             const destDir = path.join(GIT_REPO_BASE_PATH, username); // Forking user's directory
-            destPath = path.join(destDir, `${repoName}.git`); // Repo name remains the same in the path
+            destPath = path.join(destDir,`${ownerUsername}`,`${repoName}.git`); // Repo name remains the same in the path
             const shellScript = `mkdir -p "${destDir}" && git clone --bare "${srcPath}" "${destPath}"`;
             console.log(`Source path: ${srcPath}`);
             console.log(`Destination path: ${destPath}`);
