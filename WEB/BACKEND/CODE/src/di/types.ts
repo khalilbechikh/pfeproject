@@ -21,6 +21,10 @@ const TYPES = {
     IssueCommentService: Symbol.for('IssueCommentService'),
     IssueCommentController: Symbol.for('IssueCommentController'),
     GitService: Symbol.for('GitService'), // Add this line
+
+    // Add new types for Folder Preview
+    FolderPreviewService: Symbol.for('FolderPreviewService'),
+    FolderPreviewController: Symbol.for('FolderPreviewController'),
 };
 
 export { TYPES };

@@ -23,6 +23,9 @@ import { IssueCommentService } from '../services/issue_comment.service';
 import { IssueCommentController } from '../controllers/issue_comment.controller';
 // Import PullRequestRepository
 import { PullRequestRepository } from '../repositories/pullRequest.repository';
+// Import Folder Preview components
+import { FolderPreviewService } from '../services/folder.preview.service';
+import { FolderPreviewController } from '../controllers/folder.preview.controller';
 // Import GitService
 //import { GitService } from '../services/git.service';
 
@@ -87,6 +90,12 @@ container.bind<IssueService>(IssueService)
 container.bind<IssueCommentService>(TYPES.IssueCommentService)
     .to(IssueCommentService)
     .inSingletonScope();
+
+// Bind FolderPreviewService
+container.bind<FolderPreviewService>(TYPES.FolderPreviewService)
+    .to(FolderPreviewService)
+    .inSingletonScope();
+
 /*
 container.bind<GitCrud>(GitCrud)
     .toSelf()
@@ -120,5 +129,10 @@ container.bind<RepositoryAccessController>(RepositoryAccessController)
 container.bind<IssueCommentController>(TYPES.IssueCommentController)
     .to(IssueCommentController)
     .inSingletonScope(); // Or .inRequestScope() depending on preference
+
+// Bind FolderPreviewController
+container.bind<FolderPreviewController>(TYPES.FolderPreviewController)
+    .to(FolderPreviewController)
+    .inRequestScope();
 
 export default container;
