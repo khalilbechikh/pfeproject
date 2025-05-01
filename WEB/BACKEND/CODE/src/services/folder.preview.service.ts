@@ -1,3 +1,4 @@
+import { injectable } from 'inversify'; // Added import
 import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
@@ -39,8 +40,13 @@ interface RenameResult {
     newPath: string;
 }
 
+@injectable() // Added decorator
 export class FolderPreviewService {
     private readonly sourceGitPathRoot = '/srv/git/';
+
+    constructor() {
+        // Initialization logic for the service, if any, would go here.
+    }
 
     /**
      * Get user-specific source git path
@@ -133,6 +139,67 @@ export class FolderPreviewService {
         } catch (error: any) {
             console.error('Error cloning repository in service:', error);
             return { status: ResponseStatus.FAILED, message: 'Failed to clone repository', error: error.stderr || error.message || 'Unknown error during clone' };
+        }
+    }
+
+    /**
+     * Pushes changes from the temp workdir back to the source repository.
+     */
+    public async pushRepo(username: string, repoName: string, commitMessage: string = 'Update from web editor'): Promise<ApiResponse<string | null>> {
+        const userSourceGitPath = this.getUserSourceGitPath(username);
+        const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+        const tempRepoPath = path.join(userTempWorkdirPath, repoName);
+        const sourceRepoPath = path.join(userSourceGitPath, repoName);
+
+        try {
+            // Check if the temp repo directory exists
+            try {
+                await fsp.access(tempRepoPath);
+            } catch (error) {
+                return { 
+                    status: ResponseStatus.FAILED, 
+                    message: `Temporary repository ${repoName} not found for user ${username}`, 
+                    error: 'Temporary repository not found' 
+                };
+            }
+
+            // Check if the source repo directory exists
+            try {
+                await fsp.access(sourceRepoPath);
+            } catch (error) {
+                return { 
+                    status: ResponseStatus.FAILED, 
+                    message: `Source repository ${repoName} not found for user ${username}`, 
+                    error: 'Source repository not found' 
+                };
+            }
+
+            // Stage all changes
+            await execPromise(`cd "${tempRepoPath}" && git add --all`);
+
+            // Commit changes with provided message or default
+            await execPromise(`cd "${tempRepoPath}" && git commit -m "${commitMessage.replace(/"/g, '\\"')}"`).catch(err => {
+                // If no changes to commit, we can still try to push (in case of unpushed commits)
+                if (!err.stderr.includes('nothing to commit')) {
+                    throw err;
+                }
+            });
+
+            // Push changes back to the source repository
+            await execPromise(`cd "${tempRepoPath}" && git push origin HEAD:master --force`);
+
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: `Repository ${repoName} successfully pushed to source`,
+                data: path.join('temp-working-directory', repoName)
+            };
+        } catch (error: any) {
+            console.error('Error pushing repository in service:', error);
+            return { 
+                status: ResponseStatus.FAILED, 
+                message: 'Failed to push repository', 
+                error: error.stderr || error.message || 'Unknown error during push' 
+            };
         }
     }
 

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { FolderPreviewService } from '../services/folder.preview.service';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
+import { injectable, inject } from 'inversify'; // Added imports
+import { TYPES } from '../di/types'; // Added import (assuming types file exists)
 
 // Helper to determine HTTP status code based on API response
 const getStatusCode = (response: ApiResponse<any>, successCode: number = 200, createdCode: number = 201): number => {
@@ -21,12 +23,13 @@ const getStatusCode = (response: ApiResponse<any>, successCode: number = 200, cr
     return response.message?.toLowerCase().includes('created') ? createdCode : successCode;
 };
 
-
+@injectable() // Added decorator
 export class FolderPreviewController {
     private folderPreviewService: FolderPreviewService;
 
-    constructor() {
-        this.folderPreviewService = new FolderPreviewService();
+    // Inject FolderPreviewService via the constructor using TYPES
+    constructor(@inject(TYPES.FolderPreviewService) folderPreviewService: FolderPreviewService) {
+        this.folderPreviewService = folderPreviewService;
         // Bind methods to ensure 'this' context is correct when used as route handlers
         this.cloneGitFolder = this.cloneGitFolder.bind(this);
         this.getPathContent = this.getPathContent.bind(this);
@@ -34,6 +37,7 @@ export class FolderPreviewController {
         this.createItem = this.createItem.bind(this);
         this.removeItem = this.removeItem.bind(this);
         this.renameItem = this.renameItem.bind(this);
+        this.pushGitFolder = this.pushGitFolder.bind(this);
     }
 
     /**
@@ -202,6 +206,48 @@ export class FolderPreviewController {
 
         const serviceResponse = await this.folderPreviewService.renameItem(username, oldRelativePath, newRelativePath);
         const statusCode = getStatusCode(serviceResponse); // 200 OK for success
+        res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles pushing changes from the temporary working directory back to the source repository.
+     * POST /preview/push/:repoName
+     */
+    public async pushGitFolder(req: Request, res: Response): Promise<void> {
+        // Authentication check
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { 
+                status: ResponseStatus.FAILED, 
+                message: 'Authentication required or username missing in token', 
+                error: 'Unauthorized' 
+            };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { repoName } = req.params;
+        const { commitMessage } = req.body; // Optional commit message
+
+        // Basic input validation
+        if (!repoName) {
+            const apiResponse: ApiResponse<null> = { 
+                status: ResponseStatus.FAILED, 
+                message: 'Repository name is required in the URL path', 
+                error: 'Missing parameter' 
+            };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        // Call service
+        const serviceResponse = await this.folderPreviewService.pushRepo(
+            username, 
+            repoName, 
+            commitMessage || 'Update from web editor'
+        );
+
+        // Send response based on service result
+        const statusCode = getStatusCode(serviceResponse, 200); // 200 OK for successful push
         res.status(statusCode).json(serviceResponse);
     }
 }

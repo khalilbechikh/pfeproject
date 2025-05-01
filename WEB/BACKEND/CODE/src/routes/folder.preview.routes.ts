@@ -1,9 +1,12 @@
 import { Router } from 'express';
-import { FolderPreviewController } from '../controllers/folder.preview.controller'; // Updated import path
+import { FolderPreviewController } from '../controllers/folder.preview.controller'; 
 import { authenticateJWT } from '../middlewares/auth.middleware'; 
+import  container  from '../di/inversify.config'; // Added import for DI container
+import { TYPES } from '../di/types'; // Added import for DI types
 
 const router = Router();
-const folderPreviewController = new FolderPreviewController();
+// Use dependency injection instead of direct instantiation
+const folderPreviewController = container.get<FolderPreviewController>(TYPES.FolderPreviewController);
 
 // Route to clone a git repository into the temporary working directory
 router.post('/clone/:repoName', authenticateJWT, folderPreviewController.cloneGitFolder);
@@ -25,5 +28,9 @@ router.delete('/item', authenticateJWT, folderPreviewController.removeItem);
 // Route to rename/move a file or folder
 // PATCH /item - Body: { "oldRelativePath": "path/old", "newRelativePath": "path/new" }
 router.patch('/item', authenticateJWT, folderPreviewController.renameItem);
+
+// Add missing route for pushing changes to git repository
+// POST /push/:repoName - Body: { "commitMessage"?: "..." }
+router.post('/push/:repoName', authenticateJWT, folderPreviewController.pushGitFolder);
 
 export default router;

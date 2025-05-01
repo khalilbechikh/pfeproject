@@ -141,4 +141,42 @@ export class PullRequestRepository {
             };
         }
     }
+
+    /**
+     * Retrieves a single pull request by its ID
+     */
+    async getPullRequestById(id: number): Promise<ApiResponse<pull_request | null>> {
+        try {
+            const pullRequest = await this.prisma.pull_request.findUnique({
+                where: { id },
+                include: {
+                    author: true,
+                    repository: true, // Assuming this is the target repo relation
+                    source_repository: true,
+                    target_repository: true
+                }
+            });
+
+            if (!pullRequest) {
+                return {
+                    status: ResponseStatus.SUCCESS, // Or FAILED depending on how you want to handle not found
+                    message: 'Pull request not found',
+                    data: null
+                };
+            }
+
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: 'Pull request retrieved successfully',
+                data: pullRequest
+            };
+        } catch (error) {
+            console.error(`Error fetching pull request with ID ${id}:`, error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve pull request',
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
 }
