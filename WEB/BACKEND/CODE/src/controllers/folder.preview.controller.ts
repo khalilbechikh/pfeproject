@@ -42,7 +42,7 @@ export class FolderPreviewController {
 
     /**
      * Handles cloning a Git repository.
-     * POST /preview/clone/:repoName
+     * POST /preview/clone/:repoName?ownername=...
      */
     public async cloneGitFolder(req: Request, res: Response): Promise<void> {
         // Authentication check (assuming middleware adds 'user' to req)
@@ -51,8 +51,9 @@ export class FolderPreviewController {
             res.status(401).json(apiResponse);
             return;
         }
-        const username = req.user.username;
+        const username = req.user.username; // User performing the action
         const { repoName } = req.params;
+        const { ownername } = req.query; // Extract optional ownername from query
 
         // Basic input validation
         if (!repoName) {
@@ -61,8 +62,21 @@ export class FolderPreviewController {
             return;
         }
 
-        // Call service
-        const serviceResponse = await this.folderPreviewService.cloneRepo(username, repoName);
+        // Validate ownername if provided (must be a string)
+        if (ownername !== undefined && typeof ownername !== 'string') {
+             const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Optional ownername query parameter must be a string if provided', error: 'Invalid query parameter type' };
+             res.status(400).json(apiResponse);
+             return;
+        }
+
+        // Determine the effective owner/user for the clone operation
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
+        // Call service, passing the effective owner and repo name.
+        const serviceResponse = await this.folderPreviewService.cloneRepo(
+            effectiveOwner,
+            repoName
+        );
 
         // Send response based on service result
         const statusCode = getStatusCode(serviceResponse, 200); // 200 OK for successful clone
