@@ -33,7 +33,10 @@ export class RepositoryRepository {
      */
     async findAll(searchText?: string): Promise<ApiResponse<repository[]>> {
         try {
-            const whereClause: Prisma.repositoryWhereInput = {};
+            const whereClause: Prisma.repositoryWhereInput = {
+                is_private: false,
+                parent_id: null,
+            };
             if (searchText) {
                 whereClause.name = {
                     contains: searchText,

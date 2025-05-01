@@ -1,16 +1,11 @@
-### Variables
 @baseUrl = http://localhost:5000/v1/api/preview
-# Replace with a valid token obtained from sign-in/sign-up
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjExLCJ1c2VybmFtZSI6ImRmYXNqZGZrIiwiaWF0IjoxNzQ2MDIwNjE4LCJleHAiOjE3NDg2MTI2MTh9.UZXsIKplB_QC11D4ymd40W1ov6MOI7ltvGjjISyEu1Y
-
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoia2hhbGlsIiwiaWF0IjoxNzQ2MDk5OTA5LCJleHAiOjE3NDg2OTE5MDl9.FryYa6qiAmKumY5cZ3Z1ONKW7vjz1XloP0AgVcgZOkg
 ### Prerequisite: Clone Repository - Success
-# Clones the repository 'mytestrepo.git'. This MUST succeed for subsequent tests.
 POST {{baseUrl}}/clone/mytestrepo.git
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 ### 1. Create Folder - Success
-# Creates 'mytestrepo.git/new-test-folder'.
 POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
@@ -21,7 +16,6 @@ Authorization: Bearer {{authToken}}
 }
 
 ### 2. Create File - Success
-# Creates 'mytestrepo.git/new-test-folder/new-test-file.txt'.
 POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
@@ -33,8 +27,7 @@ Authorization: Bearer {{authToken}}
 }
 
 ### 3. Modify File Content - Success (New File)
-# Modifies 'mytestrepo.git/new-test-folder/new-test-file.txt'.
-PUT {{baseUrl}}/item/content
+PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -44,8 +37,7 @@ Authorization: Bearer {{authToken}}
 }
 
 ### 4. Rename File - Success
-# Renames file to 'mytestrepo.git/new-test-folder/renamed-test-file.txt'.
-PUT {{baseUrl}}/item/rename
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -55,8 +47,7 @@ Authorization: Bearer {{authToken}}
 }
 
 ### 5. Rename Folder - Success
-# Renames folder to 'mytestrepo.git/renamed-test-folder'.
-PUT {{baseUrl}}/item/rename
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -66,43 +57,35 @@ Authorization: Bearer {{authToken}}
 }
 
 ### 6. Remove File - Success
-# Removes 'mytestrepo.git/renamed-test-folder/renamed-test-file.txt'.
 DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/renamed-test-folder/renamed-test-file.txt
 Authorization: Bearer {{authToken}}
 
 ### 7. Remove Folder - Success
-# Removes 'mytestrepo.git/renamed-test-folder'.
 DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/renamed-test-folder
 Authorization: Bearer {{authToken}}
 
 ### Get Content - Existing File Success
-# Gets 'mytestrepo.git/README.md'.
-GET {{baseUrl}}/content?relativePath=mytestrepo.git/README.md
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/new-test-folder/new-test-file.txt
 Authorization: Bearer {{authToken}}
 
 ### Get Content - Existing Directory Success
-# Lists content of 'mytestrepo.git/.' (root).
-GET {{baseUrl}}/content?relativePath=mytestrepo.git/.
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/new-test-folder
 Authorization: Bearer {{authToken}}
 
 ### Clone Repository - Repo Not Found
-# Attempts to clone 'non-existent-repo.git'.
 POST {{baseUrl}}/clone/non-existent-repo.git
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 ### Get Content - Path Not Found
-# Attempts to get 'mytestrepo.git/non-existent-file.txt'.
 GET {{baseUrl}}/content?relativePath=mytestrepo.git/non-existent-file.txt
 Authorization: Bearer {{authToken}}
 
 ### Get Content - Missing Path Parameter
-# Attempts to get content without specifying the relativePath.
 GET {{baseUrl}}/content
 Authorization: Bearer {{authToken}}
 
 ### Create Item - Already Exists (Folder)
-# Attempts to create 'mytestrepo.git/new-test-folder' again (should fail if run after step 1).
 POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
@@ -113,7 +96,6 @@ Authorization: Bearer {{authToken}}
 }
 
 ### Create Item - Missing Type
-# Attempts to create an item without specifying the type.
 POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
@@ -124,8 +106,7 @@ Authorization: Bearer {{authToken}}
 }
 
 ### Modify File Content - File Not Found
-# Attempts to modify 'mytestrepo.git/non-existent-file.txt'.
-PUT {{baseUrl}}/item/content
+PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -135,41 +116,39 @@ Authorization: Bearer {{authToken}}
 }
 
 ### Modify File Content - Missing Parameters
-# Attempts to modify a file without providing new content.
-PUT {{baseUrl}}/item/content
+PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "mytestrepo.git/renamed-test-folder/renamed-test-file.txt" # Path might exist depending on test progress
-    # Missing newContent
+    "relativePath": "mytestrepo.git/renamed-test-folder/renamed-test-file.txt"
 }
 
 ### Modify File Content - Path is Directory
 # Attempts to modify 'mytestrepo.git/renamed-test-folder' as if it were a file.
-PUT {{baseUrl}}/item/content
+PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "mytestrepo.git/renamed-test-folder", # Path might exist depending on test progress
+    "relativePath": "mytestrepo.git/renamed-test-folder",
     "newContent": "This should fail as it's a directory"
 }
 
 ### Rename Item - Target Exists
 # Attempts to rename 'mytestrepo.git/renamed-test-folder' to itself.
-PUT {{baseUrl}}/item/rename
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "oldRelativePath": "mytestrepo.git/renamed-test-folder", # Path might exist
-    "newRelativePath": "mytestrepo.git/renamed-test-folder" # Trying to rename to itself
+    "oldRelativePath": "mytestrepo.git/renamed-test-folder",
+    "newRelativePath": "mytestrepo.git/renamed-test-folder"
 }
 
 ### Rename Item - Source Not Found
 # Attempts to rename 'mytestrepo.git/non-existent-source'.
-PUT {{baseUrl}}/item/rename
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 

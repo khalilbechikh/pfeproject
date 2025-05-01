@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Settings, Edit, Camera, Save, X, Key, Github, Mail, Calendar, MapPin, Clock, FileText, GitFork, Star, AlertCircle, RefreshCw, Shield, Code, MessageSquare, Trash2, Sun, Moon } from 'lucide-react';
+import { User, Settings, Edit, Camera, Save, X, Key, Github, Mail, Calendar, MapPin, Clock, FileText, GitFork, Star, AlertCircle, RefreshCw, Shield, Code, MessageSquare, Trash2, Sun, Moon, CheckCircle } from 'lucide-react';
 import { z } from 'zod';
 import { jwtDecode } from 'jwt-decode';
-import { CheckCircle } from 'lucide-react';  // Add this with other icon imports
 
 interface Particle {
     size: number;

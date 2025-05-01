@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, AlertCircle, Check, Clock, Filter, ChevronDown, Tag, User } from 'lucide-react';
 import Profile from './profile';
 import RepositoriesList from './RepositoriesList';
+import ExplorerRepo from './explorerepo'; // Add this import
 import { jwtDecode } from 'jwt-decode';
 
 const languageColors = {
@@ -13,8 +14,6 @@ const languageColors = {
     CSS: "bg-purple-500",
     HTML: "bg-red-500"
 };
-
-
 
 const labelColors = {
     "bug": {
@@ -90,11 +89,11 @@ const labelColors = {
         darkText: "text-amber-400"
     }
 };
+
 interface JwtPayload {
     userId: string;
     // Add other fields if needed, e.g. exp, iat, etc.
 }
-
 
 interface UserProfile {
     id: number;
@@ -160,6 +159,7 @@ export default function EnhancedSharecodeDashboard() {
         speedY: (Math.random() - 0.5) * 0.3
     })));
     const [user, setUser] = useState<UserProfile | null>(null);
+
     // Add this useEffect to fetch user data
     useEffect(() => {
         const fetchUserData = async () => {
@@ -185,7 +185,6 @@ export default function EnhancedSharecodeDashboard() {
 
         fetchUserData();
     }, [])
-
 
     const issues: Issue[] = [
         {
@@ -507,7 +506,8 @@ export default function EnhancedSharecodeDashboard() {
                 );
             case 'repositories':
                 return <RepositoriesList darkMode={darkMode} />;
-                ;
+            case 'explore':
+                return <ExplorerRepo darkMode={darkMode} />;
             case 'activity':
                 return (
                     <div className="space-y-6">
@@ -567,6 +567,7 @@ export default function EnhancedSharecodeDashboard() {
     const menuItems: MenuItem[] = [
         { icon: <User size={20} />, label: 'Profile', id: 'profile' },
         { icon: <Code size={20} />, label: 'Repositories', id: 'repositories' },
+        { icon: <GitFork size={20} />, label: 'Explore Repositories', id: 'explore' }, // Add new menu item
         { icon: <AlertCircle size={20} />, label: 'Issues', id: 'issues' },
         { icon: <Clock size={20} />, label: 'Activity', id: 'activity' },
         { icon: <FileText size={20} />, label: 'Documentation', id: 'docs' },
@@ -704,6 +705,6 @@ export default function EnhancedSharecodeDashboard() {
                     </footer>
                 </div>
             </main>
-        </div >
+        </div>
     );
 }

@@ -4,6 +4,7 @@ import LoginSignup from './components/auth/loginsignup';
 import StyledPage from './components/StyledPage';
 import Dashboard from './components/homepage/dashboard';
 import Profile from './components/homepage/profile';
+import Preview from './components/homepage/preview'; // Import the Preview component
 import { JSX, useState } from 'react';
 
 function App() {
@@ -35,6 +36,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile darkMode={darkMode} setDarkMode={setDarkMode} />
+            </ProtectedRoute>
+          } 
+        />
+        {/* New protected route for repository preview */}
+        <Route 
+          path="/repositories/:id" 
+          element={
+            <ProtectedRoute>
+              <Preview darkMode={darkMode} />
             </ProtectedRoute>
           } 
         />

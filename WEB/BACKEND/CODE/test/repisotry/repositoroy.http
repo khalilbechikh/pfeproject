@@ -1,6 +1,6 @@
 @baseUrl = http://localhost:5000/v1/api/repositories
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjExLCJ1c2VybmFtZSI6ImRmYXNqZGZrIiwiaWF0IjoxNzQ2MDIwNjE4LCJleHAiOjE3NDg2MTI2MTh9.UZXsIKplB_QC11D4ymd40W1ov6MOI7ltvGjjISyEu1Y
-@existingRepoId = 8
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiam9iIiwiaWF0IjoxNzQ2MDU0NjQyLCJleHAiOjE3NDg2NDY2NDJ9.12cEP63V0IpvVkiwUQYUUFBKafswsNE8H877AhcrwQY
+@existingRepoId = 3
 @nonExistentRepoId = 999
 @repoIdToGet = 4 # Use an ID that exists for successful GET tests
 @repoIdWithRelations = 8
