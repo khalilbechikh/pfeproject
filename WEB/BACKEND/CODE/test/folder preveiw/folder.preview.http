@@ -4,7 +4,7 @@
 # The token below might be expired. Generate a fresh one before running tests.
 @authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjExLCJ1c2VybmFtZSI6ImRmYXNqZGZrIiwiaWF0IjoxNzQ2MDIwNjE4LCJleHAiOjE3NDg2MTI2MTh9.UZXsIKplB_QC11D4ymd40W1ov6MOI7ltvGjjISyEu1Y
 @invalidAuthToken = invalid.token.value
-@repoName = mytestrepo.git
+@repoName = myte1.git
 @sourceFolder = new-test-folder
 @sourceFile = {{sourceFolder}}/new-test-file.txt
 @renamedFolder = renamed-test-folder
@@ -18,8 +18,6 @@
 ### ==================================================
 
 ### Clone Repository - Success
-# Clones the repository '{{repoName}}'. This MUST succeed for subsequent tests.
-# Make sure the source repository exists for the user associated with the token.
 POST {{baseUrl}}/clone/{{repoName}}
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
