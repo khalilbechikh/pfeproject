@@ -1,7 +1,7 @@
 @baseUrl = http://localhost:5000/v1/api/preview
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoia2hhbGlsIiwiaWF0IjoxNzQ2MDk5OTA5LCJleHAiOjE3NDg2OTE5MDl9.FryYa6qiAmKumY5cZ3Z1ONKW7vjz1XloP0AgVcgZOkg
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoia2hhbGlsIiwiaWF0IjoxNzQ2MTE4NTIxLCJleHAiOjE3NDg3MTA1MjF9.nqc6NhjewizcGfuIfCHr6kpJmuAR1TaKzE2mWecseKE
 ### Prerequisite: Clone Repository - Success
-POST {{baseUrl}}/clone/mytestrepo.git
+POST {{baseUrl}}/clone/teeeest.git
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -11,7 +11,7 @@ Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "mytestrepo.git/new-test-folder",
+    "relativePath": "teeeest.git/new-test-folder",
     "type": "folder"
 }
 
@@ -21,7 +21,7 @@ Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "mytestrepo.git/new-test-folder/new-test-file.txt",
+    "relativePath": "teeeest.git/new-test-folder/new-test-file.txt",
     "type": "file",
     "content": "Initial content for the new file created via HTTP test."
 }
@@ -32,7 +32,7 @@ Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "mytestrepo.git/new-test-folder/new-test-file.txt",
+    "relativePath": "teeeest.git/new-test-folder/new-test-file.txt",
     "newContent": "This content has been modified by the HTTP test."
 }
 

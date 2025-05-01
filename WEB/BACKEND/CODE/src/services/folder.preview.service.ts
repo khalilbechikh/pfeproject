@@ -87,6 +87,8 @@ export class FolderPreviewService {
         const normalizedPath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
         // Construct full path within the user's temp directory
         const fullPath = path.resolve(userTempWorkdirPath, normalizedPath);
+        console.log("===========================================================================================================");
+        console.log(`Resolved full path: ${fullPath}`);
 
         // Verification Step: Check if the resolved path is still within the user's allowed directory
         const resolvedUserTempWorkdirPath = path.resolve(userTempWorkdirPath);

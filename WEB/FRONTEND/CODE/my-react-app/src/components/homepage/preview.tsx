@@ -128,9 +128,11 @@ const Preview = () => {
                     throw new Error(errorData.message || 'Failed to fetch directory contents');
                 }
 
-                const data: DirectoryContent = await response.json();
-                if (data.type === 'folder') {
-                    setDirectoryContents(data.content);
+                const responseData = await response.json();
+
+                // Handle the API response structure correctly
+                if (responseData.data.type === 'folder') {
+                    setDirectoryContents(responseData.data.content);
                 } else {
                     throw new Error('Expected folder content');
                 }

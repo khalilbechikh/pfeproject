@@ -107,6 +107,7 @@ export class FolderPreviewController {
         const username = req.user.username;
         const { relativePath, newContent } = req.body;
 
+
          if (!relativePath) {
              const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path is required in the request body', error: 'Missing body parameter: relativePath' };
              res.status(400).json(apiResponse);
