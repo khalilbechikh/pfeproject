@@ -375,6 +375,8 @@ export class RepositoryService {
 
     /**
      * Forks a repository: clones it to the new user's namespace and creates a DB record.
+     * The database name for the fork will be stored as 'originalOwnerUsername/reponame'.
+     * The filesystem path will be '/srv/git/forkingUsername/reponame.git'.
      * @param repoId - ID of the repository to fork
      * @param userId - ID of the user who will own the fork
      * @param username - Username of the new owner (for filesystem path)
@@ -429,6 +431,14 @@ export class RepositoryService {
             const sourceRepo = sourceRepoResponse.data;
             console.log(`Full source repo data retrieved.`);
 
+            // --- Name Generation Modification ---
+            // Use the original owner's username for the database name
+            const desiredForkName = `${ownerUsername}/${repoName}`; 
+            console.log(`Desired DB name for fork (based on original owner): ${desiredForkName}`);
+            // --- End Name Generation Modification ---
+
+            console.log(`Checking for name conflict with: ${desiredForkName} for user ID ${userId}`);
+
             const userReposResponse = await this.repositoryRepository.findByOwnerId(userId);
             if (userReposResponse.status === ResponseStatus.FAILED) {
                 console.error(`Failed to check for name conflicts for user ${userId}:`, userReposResponse.error);
@@ -439,8 +449,9 @@ export class RepositoryService {
                     data: null // Ensure data is null
                 };
             }
-            if (userReposResponse.data && userReposResponse.data.some(r => r.name === repoName)) {
-                console.log(`Name conflict detected: User ${username} already has a repo named ${repoName}`);
+            // Check against the 'originalOwnerUsername/reponame' format for the *current* user
+            if (userReposResponse.data && userReposResponse.data.some(r => r.name === desiredForkName)) {
+                console.log(`Name conflict detected: User ${username} (ID: ${userId}) already has a repo named ${desiredForkName}`);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Repository with this name already exists for this user.',
@@ -448,11 +459,12 @@ export class RepositoryService {
                     data: null // Ensure data is null
                 };
             }
-            console.log(`No name conflict found for user ${username}.`);
+            console.log(`No name conflict found for user ${username} with name ${desiredForkName}.`);
 
+            // Filesystem path still uses the *forking* user's username
             const srcPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
-            const destDir = path.join(GIT_REPO_BASE_PATH, username);
-            destPath = path.join(destDir, `${repoName}.git`);
+            const destDir = path.join(GIT_REPO_BASE_PATH, username); // Forking user's directory
+            destPath = path.join(destDir, `${repoName}.git`); // Repo name remains the same in the path
             const shellScript = `mkdir -p "${destDir}" && git clone --bare "${srcPath}" "${destPath}"`;
             console.log(`Source path: ${srcPath}`);
             console.log(`Destination path: ${destPath}`);
@@ -482,12 +494,12 @@ export class RepositoryService {
 
             console.log(`Creating database record for the fork.`);
             const forkData: Prisma.repositoryCreateInput = {
-                name: repoName,
+                name: desiredForkName, // Use 'originalOwnerUsername/reponame' for the database name field
                 description: `Forked from ${ownerUsername}/${repoName}. ${sourceRepo.description || ''}`.trim(),
                 is_private: sourceRepo.is_private,
                 parent: { connect: { id: repoId } },
                 forked_at: new Date(),
-                owner: { connect: { id: userId } }
+                owner: { connect: { id: userId } } // Owner is the user performing the fork
             };
 
             const createDbResponse = await this.repositoryRepository.createRepository(forkData);
