@@ -130,37 +130,28 @@ export class RepositoryRepository {
     }
 
     /**
-     * Create a new repository with correct owner relationship
+     * Create a new repository with correct owner relationship and repoPath
      */
     async createRepository(data: Prisma.repositoryCreateInput): Promise<ApiResponse<repository>> {
         console.log('=== REPOSITORY REPOSITORY: createRepository START ===');
         console.log('Received data:', JSON.stringify(data, null, 2));
-        
+
         try {
-            // Handle path field which isn't part of the Prisma schema but useful for our application
-            let dataToSave: any = { ...data };
-            
-            // Store path as a custom property if provided
-            const path = dataToSave.path;
-            if (path) {
-                delete dataToSave.path;
-                dataToSave.description = dataToSave.description || 
-                    `Repository available at ${path}`;
-                console.log('Custom path property processed:', path);
-            }
-            
-            console.log('Data to save after processing:', JSON.stringify(dataToSave, null, 2));
+            // Directly use the provided data, assuming repoPath is included if available
+            const dataToSave: Prisma.repositoryCreateInput = { ...data };
+
+            console.log('Data to save:', JSON.stringify(dataToSave, null, 2));
             console.log('Checking owner connection data:', JSON.stringify(dataToSave.owner));
-            
+
             // Ensure owner_user_id is being set correctly
             if (dataToSave.owner && dataToSave.owner.connect && dataToSave.owner.connect.id) {
                 console.log('Owner ID to connect:', dataToSave.owner.connect.id);
-                
+
                 // Verify the user exists before attempting to create the repository
                 const userExists = await this.prisma.users.findUnique({
                     where: { id: dataToSave.owner.connect.id }
                 });
-                
+
                 if (!userExists) {
                     console.error(`User with ID ${dataToSave.owner.connect.id} does not exist`);
                     return {
@@ -169,20 +160,22 @@ export class RepositoryRepository {
                         error: 'User not found'
                     };
                 }
-                
+
                 console.log('User exists check passed');
             } else {
                 console.warn('No owner connection specified or missing ID');
+                // Depending on requirements, you might want to return an error here
+                // if owner is always required.
             }
-            
+
             console.log('Calling prisma.repository.create');
             const newRepository = await this.prisma.repository.create({
                 data: dataToSave,
             });
-            
+
             console.log('Repository created successfully:', JSON.stringify(newRepository));
             console.log('=== REPOSITORY REPOSITORY: createRepository END - Success ===');
-            
+
             return {
                 status: ResponseStatus.SUCCESS,
                 message: 'Repository created successfully',
@@ -191,22 +184,23 @@ export class RepositoryRepository {
         } catch (error: unknown) {
             console.error('=== REPOSITORY REPOSITORY: createRepository ERROR ===');
             console.error('Error in RepositoryRepository.createRepository:', error);
-            
+
             let errorMessage = 'Failed to create repository';
-            
+
             if (error instanceof Prisma.PrismaClientKnownRequestError) {
                 console.error('Prisma error code:', error.code);
                 console.error('Prisma error message:', error.message);
-                
+
                 if (error.code === 'P2003') {
-                    errorMessage = 'Foreign key constraint failed - likely invalid owner_user_id';
+                    errorMessage = 'Foreign key constraint failed - likely invalid owner_user_id or parent_id';
                 } else if (error.code === 'P2002') {
-                    errorMessage = 'Unique constraint failed - repository name might already exist';
+                    // Check if the error is related to the unique constraint on name/owner if you add one
+                    errorMessage = 'Unique constraint failed - repository name might already exist for this owner';
                 }
             }
-            
+
             console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
-            
+
             return {
                 status: ResponseStatus.FAILED,
                 message: errorMessage,
