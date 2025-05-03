@@ -23,11 +23,17 @@ import { IssueCommentService } from '../services/issue_comment.service';
 import { IssueCommentController } from '../controllers/issue_comment.controller';
 // Import PullRequestRepository
 import { PullRequestRepository } from '../repositories/pullRequest.repository';
+// Import PullRequestService
+import { PullRequestService } from '../services/pullRequest.services';
+// Import PullRequestController
+import { PullRequestController } from '../controllers/pullRequest.controller';
 // Import Folder Preview components
 import { FolderPreviewService } from '../services/folder.preview.service';
 import { FolderPreviewController } from '../controllers/folder.preview.controller';
 // Import GitService
 //import { GitService } from '../services/git.service';
+// Import IssueController
+import { IssueController } from '../controllers/issue.controller';
 
 // Create a single InversifyJS Container
 const container = new Container();
@@ -86,6 +92,11 @@ container.bind<IssueService>(IssueService)
     .toSelf()
     .inSingletonScope();
 
+// Bind PullRequestService
+container.bind<PullRequestService>(TYPES.PullRequestService)
+    .to(PullRequestService)
+    .inSingletonScope();
+
 // Bind IssueCommentService
 container.bind<IssueCommentService>(TYPES.IssueCommentService)
     .to(IssueCommentService)
@@ -125,10 +136,20 @@ container.bind<RepositoryAccessController>(RepositoryAccessController)
     .toSelf()
     .inSingletonScope();
 
+// Bind PullRequestController
+container.bind<PullRequestController>(TYPES.PullRequestController)
+    .to(PullRequestController)
+    .inSingletonScope(); // Or .inRequestScope() if preferred
+
 // Bind IssueCommentController
 container.bind<IssueCommentController>(TYPES.IssueCommentController)
     .to(IssueCommentController)
     .inSingletonScope(); // Or .inRequestScope() depending on preference
+
+// Bind IssueController
+container.bind<IssueController>(IssueController)
+    .toSelf()
+    .inSingletonScope();
 
 // Bind FolderPreviewController
 container.bind<FolderPreviewController>(TYPES.FolderPreviewController)
