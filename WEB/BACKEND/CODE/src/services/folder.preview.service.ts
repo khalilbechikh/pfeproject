@@ -69,6 +69,7 @@ export class FolderPreviewService {
      */
     private async resolveAndValidatePath(username: string, relativePath: string | undefined | null): Promise<ApiResponse<PathValidationSuccess | null>> {
         const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+        console.log(`User temp wo------------------------------------------------------rkdir path: ${userTempWorkdirPath}`);
 
         // Ensure the user's temp directory exists before proceeding
         try {
@@ -107,13 +108,14 @@ export class FolderPreviewService {
         const userSourceGitPath = this.getUserSourceGitPath(username);
         const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
         const sourcePath = path.join(userSourceGitPath, repoName);
-        const targetPath = path.join(userTempWorkdirPath, repoName); // Target is repo inside temp dir
+        const targetPath = path.join(userTempWorkdirPath, repoName);
 
         try {
             // Check if source exists
             try {
                 await fsp.access(sourcePath);
             } catch (error) {
+                console.error('Error in source existence check:', error);
                 return { status: ResponseStatus.FAILED, message: `Repository ${repoName} not found for user ${username}`, error: 'Source repository not found' };
             }
 
@@ -124,23 +126,48 @@ export class FolderPreviewService {
             try {
                 await fsp.rm(targetPath, { recursive: true, force: true });
             } catch (error: any) {
-                // Ignore ENOENT (file not found), rethrow others
+                console.error('Error while removing existing target directory:', error);
                 if (error.code !== 'ENOENT') throw error;
             }
 
-
             // Clone the repository using Git
-            // Ensure sourcePath is treated as a local path by git clone
-            await execPromise(`git clone "file://${sourcePath}" "${targetPath}"`);
+            try {
+                const exists = await fsp.access(targetPath).then(() => true).catch(() => false);
+                console.log(`Source path: ${sourcePath}`);
+                console.log(`User source git path: ${userSourceGitPath}`);
+                console.log(`Target path: ${targetPath}`);
+                console.log(`11111111111122222222222222Target path exists: ${exists}`);
+
+                if (exists) {
+                    return {
+                        status: ResponseStatus.SUCCESS,
+                        message: `Repository ${repoName} already exists at ${targetPath}`,
+                        data: path.join('temp-working-directory', repoName)
+                    };
+                }
+                // First, remove the target directory if it exists
+                const rmResult = await execPromise(`rm -rf "${targetPath}"`).catch(err => {
+                    console.log('Remove directory output:', err.stdout);
+                    return { stdout: '', stderr: '' }; // Continue even if directory doesn't exist
+                });
+                console.log('Remove directory output:', rmResult.stdout);
+
+                // Then perform the clone operation
+                const cloneResult = await execPromise(`git clone "${sourcePath}" "${targetPath}"`);
+                console.log('Clone operation output:', cloneResult.stdout);
+            } catch (error) {
+                console.error('Error during git clone operation:', error);
+                throw error;
+            }
 
             return {
                 status: ResponseStatus.SUCCESS,
                 message: `Repository ${repoName} successfully cloned to ${targetPath}`,
-                data: path.join('temp-working-directory', repoName) // Return relative path from user source root
+                data: path.join('temp-working-directory', repoName)
             };
         } catch (error: any) {
-            console.error('Error cloning repository in service:', error);
-            return { status: ResponseStatus.FAILED, message: 'Failed to clone repository', error: error.stderr || error.message || 'Unknown error during clone' };
+            console.error('Error in main cloneRepo try block:', error);
+            return { status: ResponseStatus.FAILED, message: 'Failed to clone repository error from service ', error: error.stderr || error.message || 'Unknown error during clone' };
         }
     }
 
@@ -210,6 +237,8 @@ export class FolderPreviewService {
      */
     public async getPathContent(username: string, relativePath: string): Promise<ApiResponse<FolderContent | FileContent | null>> {
         const pathValidationResult = await this.resolveAndValidatePath(username, relativePath);
+        console.log(`Checking existence ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++of path: ${relativePath}`);
+
         if (pathValidationResult.status === ResponseStatus.FAILED || !pathValidationResult.data) {
             return { status: ResponseStatus.FAILED, message: pathValidationResult.message, error: pathValidationResult.error };
         }

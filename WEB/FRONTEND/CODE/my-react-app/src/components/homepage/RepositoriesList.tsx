@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { GitFork, Users, Code, Share2, Plus, X, Trash, Edit } from 'lucide-react';
+import { Plus, X, Trash, Edit, Code, Share2, Users } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
+import { useNavigate } from 'react-router-dom';
+import UserOwnRepoPreview from './UserOwnRepoPreview';
 
 interface JwtPayload {
     userId: number;
@@ -14,7 +16,6 @@ interface Repository {
     is_private: boolean;
     created_at: string;
     updated_at: string;
-    forks: number;
     contributors: number;
     language: string;
 }
@@ -71,6 +72,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
         is_private: false
     });
     const [repoToDelete, setRepoToDelete] = useState<number | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchRepositories = async () => {
@@ -96,34 +98,35 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                 const userData = await response.json();
                 const repos = userData.data.repository || [];
 
-                const fetchForksAndPullRequests = async (repoId: number) => {
-                    const forksResponse = await fetch(`http://localhost:5000/v1/api/repositories/${repoId}?relations=forks,pull_requests`, {
+                const fetchContributors = async (repoId: number) => {
+                    const pullRequestsResponse = await fetch(`http://localhost:5000/v1/api/repositories/${repoId}?relations=pull_requests`, {
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json'
                         }
                     });
 
-                    if (!forksResponse.ok) {
-                        throw new Error(`Failed to fetch forks and pull requests for repository ${repoId}`);
+                    if (!pullRequestsResponse.ok) {
+                        throw new Error(`Failed to fetch pull requests for repository ${repoId}`);
                     }
 
-                    const data = await forksResponse.json();
-                    const forkIds = new Set(data.data.forks.map((fork: any) => fork.id));
-                    const pullRequests = data.data.pull_requests || [];
-                    const contributorIds = new Set(pullRequests.map((pr: any) => pr.author.id));
+                    const data = await pullRequestsResponse.json();
+                    if (!data.data || !data.data.pull_request) {
+                        console.error(`Invalid data structure for repository ${repoId}:`, data);
+                        return { contributors: 0 };
+                    }
+
+                    const contributorIds = new Set(data.data.pull_request.map((pr: any) => pr.author.id));
 
                     return {
-                        forks: forkIds.size,
                         contributors: contributorIds.size
                     };
                 };
 
                 const mergedRepos = await Promise.all(repos.map(async (repo: any) => {
-                    const { forks, contributors } = await fetchForksAndPullRequests(repo.id);
+                    const { contributors } = await fetchContributors(repo.id);
                     return {
                         ...repo,
-                        forks,
                         contributors,
                         language: repo.language || "Unknown"
                     };
@@ -131,6 +134,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
 
                 setRepositories(mergedRepos);
             } catch (err) {
+                console.error("Error fetching repositories:", err);
                 setError(err instanceof Error ? err.message : 'Failed to load repositories');
             } finally {
                 setLoading(false);
@@ -174,25 +178,27 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             const newRepo = await response.json();
             const decoded = jwtDecode<JwtPayload>(token);
 
-            const forksResponse = await fetch(`http://localhost:5000/v1/api/repositories/${newRepo.data.id}?relations=forks,pull_requests`, {
+            const pullRequestsResponse = await fetch(`http://localhost:5000/v1/api/repositories/${newRepo.data.id}?relations=pull_requests`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
 
-            if (!forksResponse.ok) {
-                throw new Error(`Failed to fetch forks and pull requests for new repository ${newRepo.data.id}`);
+            if (!pullRequestsResponse.ok) {
+                throw new Error(`Failed to fetch pull requests for new repository ${newRepo.data.id}`);
             }
 
-            const data = await forksResponse.json();
-            const forkIds = new Set(data.data.forks.map((fork: any) => fork.id));
-            const pullRequests = data.data.pull_requests || [];
-            const contributorIds = new Set(pullRequests.map((pr: any) => pr.author.id));
+            const data = await pullRequestsResponse.json();
+            if (!data.data || !data.data.pull_request) {
+                console.error(`Invalid data structure for new repository ${newRepo.data.id}:`, data);
+                return;
+            }
+
+            const contributorIds = new Set(data.data.pull_request.map((pr: any) => pr.author.id));
 
             setRepositories(prev => [{
                 ...newRepo.data,
-                forks: forkIds.size,
                 contributors: contributorIds.size,
                 language: newRepo.data.language || "Unknown"
             }, ...prev]);
@@ -200,6 +206,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             setShowCreateModal(false);
             setFormData({ name: '', description: '', is_private: false });
         } catch (err) {
+            console.error("Error creating repository:", err);
             setError(err instanceof Error ? err.message : 'Failed to create repository');
         }
     };
@@ -224,6 +231,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
 
             setRepositories(prev => prev.filter(repo => repo.id !== repoId));
         } catch (err) {
+            console.error("Error deleting repository:", err);
             setError(err instanceof Error ? err.message : 'Failed to delete repository');
         }
     };
@@ -253,7 +261,6 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                 repo.id === editingRepoId ? {
                     ...repo,
                     ...updatedData.data,
-                    forks: repo.forks,       // Preserve existing forks count
                     contributors: repo.contributors // Preserve contributors count
                 } : repo
             ));
@@ -261,6 +268,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             setEditingRepoId(null);
             setEditFormData({ description: '', is_private: false });
         } catch (err) {
+            console.error("Error updating repository:", err);
             setError(err instanceof Error ? err.message : 'Failed to update repository');
         }
     };
@@ -521,7 +529,11 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <div className="flex items-center space-x-3">
-                                            <h3 className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline`}>
+                                            <h3
+                                                className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline cursor-pointer`}
+                                                // Pass darkMode in the navigate state
+                                                onClick={() => navigate(`/userownrepopreview/${repository.id}`, { state: { darkMode } })}
+                                            >
                                                 {repository.name}
                                             </h3>
                                             <span className={`text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded-full`}>
@@ -559,10 +571,6 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                         <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{repository.language}</span>
                                     </div>
                                     <div className="flex items-center mr-5">
-                                        <GitFork size={16} className="mr-1.5 text-gray-400" />
-                                        <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{repository.forks}</span>
-                                    </div>
-                                    <div className="flex items-center mr-5">
                                         <Users size={16} className="mr-1.5 text-gray-400" />
                                         <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{repository.contributors} contributors</span>
                                     </div>
@@ -585,7 +593,11 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                     )}
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <button className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}>
+                                    <button
+                                        // Pass darkMode in the navigate state
+                                        onClick={() => navigate(`/userownrepopreview/${repository.id}`, { state: { darkMode } })}
+                                        className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
+                                    >
                                         <Code size={14} className="inline-block mr-1.5" />
                                         Code
                                     </button>

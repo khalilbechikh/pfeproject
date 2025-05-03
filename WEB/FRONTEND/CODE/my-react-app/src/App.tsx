@@ -5,6 +5,7 @@ import StyledPage from './components/StyledPage';
 import Dashboard from './components/homepage/dashboard';
 import Profile from './components/homepage/profile';
 import Preview from './components/homepage/preview'; // Import the Preview component
+import UserOwnRepoPreview from './components/homepage/UserOwnRepoPreview'; // Import the UserOwnRepoPreview component
 import { JSX, useState } from 'react';
 
 function App() {
@@ -21,32 +22,41 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginSignup />} />
         <Route path="/styled" element={<StyledPage />} />
-        
+
         {/* Protected Routes */}
-        <Route 
-          path="/dashboard" 
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/profile" 
+        <Route
+          path="/profile"
           element={
             <ProtectedRoute>
               <Profile darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
-          } 
+          }
         />
-        {/* New protected route for repository preview */}
-        <Route 
-          path="/repositories/:id" 
+        {/* Existing protected route for repository preview */}
+        <Route
+          path="/repositories/:id"
           element={
             <ProtectedRoute>
               <Preview darkMode={darkMode} />
             </ProtectedRoute>
-          } 
+          }
+        />
+        {/* New protected route for user-owned repository preview */}
+        <Route
+          path="/userownrepopreview/:id"
+          element={
+            <ProtectedRoute>
+              <UserOwnRepoPreview darkMode={darkMode} />
+            </ProtectedRoute>
+          }
         />
       </Routes>
     </Router>

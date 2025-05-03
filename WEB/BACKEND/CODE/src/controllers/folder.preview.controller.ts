@@ -94,7 +94,7 @@ export class FolderPreviewController {
             return;
         }
         const username = req.user.username;
-        const { relativePath } = req.query;
+        const { relativePath, ownername } = req.query;
 
         if (!relativePath || typeof relativePath !== 'string') {
             const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path query parameter is required', error: 'Missing query parameter' };
@@ -102,7 +102,17 @@ export class FolderPreviewController {
             return;
         }
 
-        const serviceResponse = await this.folderPreviewService.getPathContent(username, relativePath);
+        // Validate ownername if provided (must be a string)
+        if (ownername !== undefined && typeof ownername !== 'string') {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Optional ownername query parameter must be a string if provided', error: 'Invalid query parameter type' };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        // Use ownername if provided, otherwise use username
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
+        const serviceResponse = await this.folderPreviewService.getPathContent(effectiveOwner, relativePath);
         const statusCode = getStatusCode(serviceResponse); // 200 OK for success
         res.status(statusCode).json(serviceResponse);
     }

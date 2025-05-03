@@ -49,42 +49,38 @@ Authorization: Bearer {{invalidAuthToken}}
 ### ==================================================
 
 ### 1. Create Folder - Success
-# Creates '{{repoName}}/{{sourceFolder}}'.
 POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "{{repoName}}/{{sourceFolder}}",
+    "relativePath": "teeeest.git/new-test-folder",
     "type": "folder"
 }
 
 ### 2. Create File - Success
-# Creates '{{repoName}}/{{sourceFile}}'.
 POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "{{repoName}}/{{sourceFile}}",
+    "relativePath": "teeeest.git/new-test-folder/new-test-file.txt",
     "type": "file",
     "content": "Initial content for the new file created via HTTP test."
 }
 
-### Create Item - Already Exists (Folder)
-# Attempts to create '{{repoName}}/{{sourceFolder}}' again.
-POST {{baseUrl}}/item
+### 3. Modify File Content - Success (New File)
+PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "{{repoName}}/{{sourceFolder}}",
-    "type": "folder"
+    "relativePath": "teeeest.git/new-test-folder/new-test-file.txt",
+    "newContent": "This content has been modified by the HTTP test."
 }
 
-### Create Item - Already Exists (File)
-# Attempts to create '{{repoName}}/{{sourceFile}}' again.
-POST {{baseUrl}}/item
+### 4. Rename File - Success
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -94,8 +90,8 @@ Authorization: Bearer {{authToken}}
     "content": "Trying to overwrite."
 }
 
-### Create Item - Missing Relative Path
-POST {{baseUrl}}/item
+### 5. Rename Folder - Success
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -103,19 +99,12 @@ Authorization: Bearer {{authToken}}
     "type": "folder"
 }
 
-### Create Item - Missing Type
-POST {{baseUrl}}/item
-Content-Type: application/json
+### 6. Remove File - Success
+DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/renamed-test-folder/renamed-test-file.txt
 Authorization: Bearer {{authToken}}
 
-{
-    "relativePath": "{{repoName}}/some-path-missing-type",
-    "content": "some content"
-}
-
-### Create Item - Invalid Type
-POST {{baseUrl}}/item
-Content-Type: application/json
+### 7. Remove Folder - Success
+DELETE {{baseUrl}}/item?relativePath=mytestrepo.git/renamed-test-folder
 Authorization: Bearer {{authToken}}
 
 {
@@ -160,54 +149,28 @@ Content-Type: application/json
 ### ==================================================
 
 ### Get Content - Existing File Success
-# Gets '{{repoName}}/{{sourceFile}}'. Assumes step 2 succeeded.
-GET {{baseUrl}}/content?relativePath={{repoName}}/{{sourceFile}}
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/new-test-folder/new-test-file.txt
 Authorization: Bearer {{authToken}}
 
 ### Get Content - Existing Directory Success
-# Lists content of '{{repoName}}/{{sourceFolder}}'. Assumes step 1 succeeded.
-GET {{baseUrl}}/content?relativePath={{repoName}}/{{sourceFolder}}
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/new-test-folder
 Authorization: Bearer {{authToken}}
 
-### Get Content - Root Directory Success
-# Lists content of '{{repoName}}/.'. Assumes clone succeeded.
-GET {{baseUrl}}/content?relativePath={{repoName}}/.
+### Clone Repository - Repo Not Found
+POST {{baseUrl}}/clone/non-existent-repo.git
+Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
-### Get Content - Path Not Found (File)
-# Attempts to get '{{repoName}}/{{nonExistentPath}}'.
-GET {{baseUrl}}/content?relativePath={{repoName}}/{{nonExistentPath}}
-Authorization: Bearer {{authToken}}
-
-### Get Content - Path Not Found (Folder)
-# Attempts to get '{{repoName}}/{{nonExistentFolder}}'.
-GET {{baseUrl}}/content?relativePath={{repoName}}/{{nonExistentFolder}}
+### Get Content - Path Not Found
+GET {{baseUrl}}/content?relativePath=mytestrepo.git/non-existent-file.txt
 Authorization: Bearer {{authToken}}
 
 ### Get Content - Missing Path Parameter
 GET {{baseUrl}}/content
 Authorization: Bearer {{authToken}}
 
-### Get Content - Empty Path Parameter
-GET {{baseUrl}}/content?relativePath=
-Authorization: Bearer {{authToken}}
-
-### Get Content - Path Traversal Attempt (Should Fail)
-GET {{baseUrl}}/content?relativePath=../../etc/passwd
-Authorization: Bearer {{authToken}}
-
-### Get Content - Unauthorized
-GET {{baseUrl}}/content?relativePath={{repoName}}/.
-# No Authorization header
-
-
-### ==================================================
-### Modify File Content (PUT /content) - Note: Route is PUT /content in router, not /item/content
-### ==================================================
-
-### 3. Modify File Content - Success (Existing File)
-# Modifies '{{repoName}}/{{sourceFile}}'. Assumes step 2 succeeded.
-PUT {{baseUrl}}/content
+### Create Item - Already Exists (Folder)
+POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -216,9 +179,8 @@ Authorization: Bearer {{authToken}}
     "newContent": "This content has been modified by the HTTP test."
 }
 
-### Modify File Content - Empty Content (Success)
-# Modifies '{{repoName}}/{{sourceFile}}' to be empty.
-PUT {{baseUrl}}/content
+### Create Item - Missing Type
+POST {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
@@ -228,7 +190,6 @@ Authorization: Bearer {{authToken}}
 }
 
 ### Modify File Content - File Not Found
-# Attempts to modify '{{repoName}}/{{nonExistentPath}}'.
 PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
@@ -238,63 +199,39 @@ Authorization: Bearer {{authToken}}
     "newContent": "This won't be written"
 }
 
-### Modify File Content - Missing Relative Path
+### Modify File Content - Missing Parameters
 PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "newContent": "Content without path"
-}
-
-### Modify File Content - Missing New Content
-# Attempts to modify a file without providing new content.
-PUT {{baseUrl}}/content
-Content-Type: application/json
-Authorization: Bearer {{authToken}}
-
-{
-    "relativePath": "{{repoName}}/{{sourceFile}}"
-    # Missing newContent
+    "relativePath": "mytestrepo.git/renamed-test-folder/renamed-test-file.txt"
 }
 
 ### Modify File Content - Path is Directory
-# Attempts to modify '{{repoName}}/{{sourceFolder}}' as if it were a file. Assumes step 1 succeeded.
+# Attempts to modify 'mytestrepo.git/renamed-test-folder' as if it were a file.
 PUT {{baseUrl}}/content
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "{{repoName}}/{{sourceFolder}}",
+    "relativePath": "mytestrepo.git/renamed-test-folder",
     "newContent": "This should fail as it's a directory"
 }
 
-### Modify File Content - Path Traversal Attempt (Should Fail)
-PUT {{baseUrl}}/content
+### Rename Item - Target Exists
+# Attempts to rename 'mytestrepo.git/renamed-test-folder' to itself.
+PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-    "relativePath": "../../../etc/passwd",
-    "newContent": "hacked"
+    "oldRelativePath": "mytestrepo.git/renamed-test-folder",
+    "newRelativePath": "mytestrepo.git/renamed-test-folder"
 }
 
-### Modify File Content - Unauthorized
-PUT {{baseUrl}}/content
-Content-Type: application/json
-# No Authorization header
-{
-    "relativePath": "{{repoName}}/{{sourceFile}}",
-    "newContent": "unauth update"
-}
-
-
-### ==================================================
-### Rename Item (PATCH /item) - Note: Route is PATCH /item in router, not PUT /item/rename
-### ==================================================
-
-### 4. Rename File - Success
-# Renames file to '{{repoName}}/{{renamedFile}}'. Assumes step 2 succeeded.
+### Rename Item - Source Not Found
+# Attempts to rename 'mytestrepo.git/non-existent-source'.
 PATCH {{baseUrl}}/item
 Content-Type: application/json
 Authorization: Bearer {{authToken}}

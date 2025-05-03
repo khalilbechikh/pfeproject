@@ -1,0 +1,896 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, Save, GitBranch, GitCommit, Search, Terminal } from 'lucide-react';
+import { jwtDecode } from 'jwt-decode';
+import { motion, AnimatePresence } from 'framer-motion';
+
+
+interface JwtPayload {
+    userId: number;
+    email: string;
+}
+
+interface Repository {
+    id: number;
+    name: string;
+    description: string;
+    is_private: boolean;
+    created_at: string;
+    updated_at: string;
+    language: string;
+    owner: {
+        username: string;
+    };
+}
+
+interface DirectoryItem {
+    name: string;
+    type: 'file' | 'folder';
+    size?: number;
+    lastModified?: string;
+}
+
+const UserOwnRepoPreview = () => {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const [repo, setRepo] = useState<Repository | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const location = useLocation();
+    const [darkMode, setDarkMode] = useState(location.state?.darkMode ?? true);
+    const [currentPath, setCurrentPath] = useState<string>('');
+    const [displayPath, setDisplayPath] = useState<string>('');
+    const [directoryContents, setDirectoryContents] = useState<DirectoryItem[]>([]);
+    const [directoryLoading, setDirectoryLoading] = useState(true);
+    const [directoryError, setDirectoryError] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
+    const [newItemName, setNewItemName] = useState<string>('');
+    const [newItemType, setNewItemType] = useState<'file' | 'folder'>('folder');
+    const [newFileContent, setNewFileContent] = useState<string>('');
+    const [renameItem, setRenameItem] = useState<{ oldPath: string; newPath: string } | null>(null);
+    const [commitMessage, setCommitMessage] = useState<string>('');
+    const [isCreating, setIsCreating] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [terminalOpen, setTerminalOpen] = useState(false);
+    const [headerScrolled, setHeaderScrolled] = useState(false);
+
+    const filteredContents = directoryContents.filter(item =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const handleScroll = useCallback(() => {
+        setHeaderScrolled(window.scrollY > 50);
+    }, []);
+
+    useEffect(() => {
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [handleScroll]);
+
+    useEffect(() => {
+        const fetchRepo = async () => {
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) throw new Error('No authentication token found');
+
+                const repoResponse = await fetch(`http://localhost:5000/v1/api/repositories/${id}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!repoResponse.ok) throw new Error('Failed to fetch repository');
+                const repoData = await repoResponse.json();
+
+                const userResponse = await fetch(
+                    `http://localhost:5000/v1/api/users/${repoData.data.owner_user_id}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                if (!userResponse.ok) throw new Error('Failed to fetch user details');
+                const userData = await userResponse.json();
+
+                setRepo({
+                    ...repoData.data,
+                    owner: { username: userData.data.username }
+                });
+
+                const cloneResponse = await fetch(
+                    `http://localhost:5000/v1/api/preview/clone/${repoData.data.name}.git?ownername=${userData.data.username}`,
+                    { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }
+                );
+
+                const cloneResult = await cloneResponse.json();
+
+                if (cloneResult.status === 'success') {
+                    setCurrentPath(cloneResult.data);
+                    setDisplayPath(cloneResult.data.replace('temp-working-directory/', ''));
+                } else if (cloneResult.error?.includes('File exists')) {
+                    const path = `temp-working-directory/${repoData.data.name}.git`;
+                    setCurrentPath(path);
+                    setDisplayPath(path.replace('temp-working-directory/', ''));
+                } else {
+                    throw new Error(cloneResult.message || 'Clone failed');
+                }
+
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to load repository');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRepo();
+    }, [id]);
+
+    useEffect(() => {
+        const fetchDirectoryContents = async () => {
+            if (!repo || !currentPath) return;
+
+            setDirectoryLoading(true);
+            setDirectoryError(null);
+
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) throw new Error('No authentication token found');
+
+                const cleanPath = currentPath.replace('temp-working-directory/', '');
+
+                const response = await fetch(
+                    `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo.owner.username)}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to fetch directory contents');
+                }
+
+                const responseData = await response.json();
+
+                if (responseData.data.type === 'folder') {
+                    setDirectoryContents(responseData.data.content);
+                } else {
+                    throw new Error('Expected folder content');
+                }
+            } catch (err) {
+                setDirectoryError(err instanceof Error ? err.message : 'Failed to load directory contents');
+            } finally {
+                setDirectoryLoading(false);
+            }
+        };
+
+        fetchDirectoryContents();
+    }, [currentPath, repo]);
+
+    const handleFolderClick = (folderName: string) => {
+        const newPath = `${currentPath}/${folderName}`;
+        setCurrentPath(newPath);
+        setDisplayPath(newPath.replace('temp-working-directory/', ''));
+    };
+
+    const handleBackClick = () => {
+        const pathSegments = currentPath.split('/');
+        if (pathSegments.length > 1) {
+            pathSegments.pop();
+            const newPath = pathSegments.join('/');
+            setCurrentPath(newPath);
+            setDisplayPath(newPath.replace('temp-working-directory/', ''));
+        }
+    };
+
+    const handleFileClick = async (fileName: string) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const cleanPath = `${currentPath}/${fileName}`.replace('temp-working-directory/', '');
+            const response = await fetch(
+                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+
+            if (!response.ok) throw new Error('Failed to fetch file content');
+            const data = await response.json();
+
+            if (data.data.type === 'file') {
+                setSelectedFile({ path: `${currentPath}/${fileName}`, content: data.data.content });
+                setNewFileContent(data.data.content);
+            }
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to load file content');
+        }
+    };
+
+    const handleCreateItem = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const cleanPath = `${currentPath}/${newItemName}`.replace('temp-working-directory/', '');
+            const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    relativePath: cleanPath,
+                    type: newItemType,
+                    ...(newItemType === 'file' && { content: newFileContent })
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to create item');
+
+            setNewItemName('');
+            setNewFileContent('');
+            setIsCreating(false);
+            setDirectoryContents([...directoryContents, { name: newItemName, type: newItemType }]);
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to create item');
+        }
+    };
+
+    const handleModifyFileContent = async () => {
+        if (!selectedFile) return;
+
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const cleanPath = selectedFile.path.replace('temp-working-directory/', '');
+            const response = await fetch(`http://localhost:5000/v1/api/preview/content`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    relativePath: cleanPath,
+                    newContent: newFileContent
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to modify file content');
+
+            setSelectedFile({ ...selectedFile, content: newFileContent });
+            setNewFileContent('');
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to modify file content');
+        }
+    };
+
+    const handleRenameItem = async () => {
+        if (!renameItem) return;
+
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    oldRelativePath: renameItem.oldPath.replace('temp-working-directory/', ''),
+                    newRelativePath: renameItem.newPath.replace('temp-working-directory/', '')
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to rename item');
+
+            setDirectoryContents(directoryContents.map(item =>
+                item.name === renameItem.oldPath.split('/').pop()
+                    ? { ...item, name: renameItem.newPath.split('/').pop() || item.name }
+                    : item
+            ));
+            setRenameItem(null);
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to rename item');
+        }
+    };
+
+    const handleDeleteItem = async (itemName: string) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const cleanPath = `${currentPath}/${itemName}`.replace('temp-working-directory/', '');
+            const response = await fetch(`http://localhost:5000/v1/api/preview/item?relativePath=${encodeURIComponent(cleanPath)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to delete item');
+
+            setDirectoryContents(directoryContents.filter(item => item.name !== itemName));
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to delete item');
+        }
+    };
+
+    const handleCommitChanges = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const response = await fetch(`http://localhost:5000/v1/api/preview/push/${repo?.name}.git`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ commitMessage })
+            });
+
+            if (!response.ok) throw new Error('Failed to commit changes');
+
+            alert('Changes committed successfully!');
+            setCommitMessage('');
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to commit changes');
+        }
+    };
+
+    const FileIcon = ({ type, name }: { type: 'file' | 'folder', name: string }) => {
+        const extension = name.split('.').pop();
+        const getColor = () => {
+            if (type === 'folder') return 'text-amber-400';
+            switch (extension) {
+                case 'js': return 'text-yellow-400';
+                case 'ts': return 'text-blue-400';
+                case 'css': return 'text-purple-400';
+                case 'json': return 'text-green-400';
+                case 'md': return 'text-pink-400';
+                default: return 'text-gray-400';
+            }
+        };
+
+        return (
+            <motion.div whileHover={{ scale: 1.1 }} className="mr-2">
+                {type === 'folder' ? (
+                    <Folder className={`h-6 w-6 ${getColor()}`} />
+                ) : (
+                    <File className={`h-6 w-6 ${getColor()}`} />
+                )}
+            </motion.div>
+        );
+    };
+
+    const DirectoryItemCard = ({ item }: { item: DirectoryItem }) => (
+        <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            className={`group relative flex items-center p-3 rounded-xl ${darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-200'
+                } transition-all duration-200 shadow-sm ${darkMode ? 'bg-gray-800/30' : 'bg-white'
+                }`}
+        >
+            <div className="flex items-center flex-1" onClick={() => item.type === 'folder'
+                ? handleFolderClick(item.name)
+                : handleFileClick(item.name)}>
+                <FileIcon type={item.type} name={item.name} />
+                <span className="font-mono text-sm">{item.name}</span>
+                {item.size && (
+                    <span className="ml-2 text-xs opacity-60">
+                        {(item.size / 1024).toFixed(2)} KB
+                    </span>
+                )}
+            </div>
+            <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                    onClick={() => setRenameItem({
+                        oldPath: `${currentPath}/${item.name}`,
+                        newPath: `${currentPath}/${item.name}`
+                    })}
+                    className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-300'
+                        }`}
+                >
+                    <Edit size={16} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
+                </button>
+                <button
+                    onClick={() => handleDeleteItem(item.name)}
+                    className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-300'
+                        }`}
+                >
+                    <Trash size={16} className={darkMode ? 'text-red-400' : 'text-red-600'} />
+                </button>
+            </div>
+        </motion.div>
+    );
+
+    if (loading) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-500"></div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                <div className={`p-6 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} text-red-500`}>
+                    <h2 className="text-lg font-bold mb-2">Error Loading Repository</h2>
+                    <p className="mb-4">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded`}
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`min-h-screen flex flex-col ${darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
+                : 'bg-gradient-to-br from-gray-50 to-white text-gray-800'
+            } transition-all duration-300`}>
+            <header className={`fixed top-0 left-0 right-0 z-50 ${darkMode ? 'bg-gray-900/90 border-gray-800' : 'bg-white/95 border-gray-200'
+                } backdrop-blur-xl border-b transition-all duration-300 ${headerScrolled ? 'py-3' : 'py-4'
+                }`}>
+                <div className="container mx-auto px-6 flex justify-between items-center">
+                    <div className="flex items-center space-x-4">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className={`p-2 rounded-xl ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                                } transition-colors`}
+                        >
+                            <ChevronLeft size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                        </button>
+                        <div className="flex items-center space-x-3">
+                            <motion.div
+                                whileHover={{ rotate: 12, scale: 1.1 }}
+                                className={`p-2 rounded-lg ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'
+                                    }`}
+                            >
+                                <GitBranch size={24} className="text-white" />
+                            </motion.div>
+                            <div className="flex flex-col">
+                                <h1 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'
+                                    }`}>
+                                    {repo?.owner.username}/<span className="text-violet-400">{repo?.name}</span>
+                                </h1>
+                                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
+                                    }`}>
+                                    {repo?.description || 'No description provided'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                        <div className={`relative transition-all duration-300 ${headerScrolled ? 'w-64' : 'w-96'
+                            }`}>
+                            <input
+                                type="text"
+                                placeholder="Search files..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className={`w-full px-4 py-2 rounded-xl ${darkMode
+                                        ? 'bg-gray-800 text-white placeholder-gray-500'
+                                        : 'bg-gray-100 text-gray-800 placeholder-gray-400'
+                                    } pr-10 transition-all`}
+                            />
+                            <Search size={18} className={`absolute right-3 top-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'
+                                }`} />
+                        </div>
+
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setTerminalOpen(!terminalOpen)}
+                                className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                    }`}
+                            >
+                                <Terminal size={20} className={darkMode ? 'text-green-400' : 'text-green-600'} />
+                            </button>
+                            <button
+                                onClick={() => setDarkMode(!darkMode)}
+                                className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                    }`}
+                            >
+                                {darkMode ? (
+                                    <Sun size={20} className="text-amber-400" />
+                                ) : (
+                                    <Moon size={20} className="text-indigo-600" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="flex flex-1 pt-20">
+                {sidebarOpen && (
+                    <motion.aside
+                        initial={{ x: -300 }}
+                        animate={{ x: 0 }}
+                        className={`w-80 fixed left-0 h-full p-6 border-r ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white/50'
+                            } backdrop-blur-lg`}
+                    >
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-800'
+                                }`}>
+                                Repository Structure
+                            </h2>
+                            <button
+                                onClick={() => setSidebarOpen(false)}
+                                className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                                    }`}
+                            >
+                                <X size={18} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                            </button>
+                        </div>
+                        <div className="space-y-1">
+                            {directoryContents
+                                .filter(item => item.type === 'folder')
+                                .map((folder) => (
+                                    <div
+                                        key={folder.name}
+                                        className={`flex items-center p-2 rounded-lg cursor-pointer ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'
+                                            }`}
+                                        onClick={() => handleFolderClick(folder.name)}
+                                    >
+                                        <Folder className="h-5 w-5 mr-2 text-amber-400" />
+                                        <span>{folder.name}</span>
+                                    </div>
+                                ))}
+                        </div>
+                    </motion.aside>
+                )}
+
+                <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'
+                    }`}>
+                    <div className="container mx-auto px-8 py-6">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center space-x-4">
+                                {!sidebarOpen && (
+                                    <button
+                                        onClick={() => setSidebarOpen(true)}
+                                        className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        <Folder size={20} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                                    </button>
+                                )}
+                                <div className={`flex items-center space-x-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
+                                    }`}>
+                                    {displayPath.split('/').map((segment, index) => (
+                                        <React.Fragment key={index}>
+                                            <span
+                                                className="hover:text-violet-400 cursor-pointer"
+                                                onClick={() => {
+                                                    const newPath = displayPath.split('/').slice(0, index + 1).join('/');
+                                                    setCurrentPath(`temp-working-directory/${newPath}`);
+                                                    setDisplayPath(newPath);
+                                                }}
+                                            >
+                                                {segment}
+                                            </span>
+                                            {index < displayPath.split('/').length - 1 && (
+                                                <span className="mx-1">/</span>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setIsCreating(true)}
+                                className={`flex items-center space-x-2 px-4 py-2 rounded-xl ${darkMode
+                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                    } transition-colors`}
+                            >
+                                <Plus size={18} />
+                                <span>New</span>
+                            </button>
+                        </div>
+
+                        <AnimatePresence>
+                            {isCreating && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -20 }}
+                                    className={`mb-6 p-6 rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'
+                                        } backdrop-blur-lg shadow-xl`}
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-semibold">Create New Item</h3>
+                                        <button
+                                            onClick={() => setIsCreating(false)}
+                                            className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                                                }`}
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Item name"
+                                            value={newItemName}
+                                            onChange={(e) => setNewItemName(e.target.value)}
+                                            className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                    ? 'bg-gray-700 text-white placeholder-gray-500'
+                                                    : 'bg-gray-100 text-gray-800 placeholder-gray-400'
+                                                }`}
+                                        />
+                                        <select
+                                            value={newItemType}
+                                            onChange={(e) => setNewItemType(e.target.value as 'file' | 'folder')}
+                                            className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                    ? 'bg-gray-700 text-white'
+                                                    : 'bg-gray-100 text-gray-800'
+                                                }`}
+                                        >
+                                            <option value="folder">Folder</option>
+                                            <option value="file">File</option>
+                                        </select>
+                                        {newItemType === 'file' && (
+                                            <textarea
+                                                placeholder="File content"
+                                                value={newFileContent}
+                                                onChange={(e) => setNewFileContent(e.target.value)}
+                                                className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-gray-700 text-white placeholder-gray-500'
+                                                        : 'bg-gray-100 text-gray-800 placeholder-gray-400'
+                                                    } min-h-[100px]`}
+                                            />
+                                        )}
+                                        <button
+                                            onClick={handleCreateItem}
+                                            className={`w-full py-2.5 rounded-lg ${darkMode
+                                                    ? 'bg-violet-600 hover:bg-violet-700'
+                                                    : 'bg-cyan-600 hover:bg-cyan-700'
+                                                } text-white transition-colors`}
+                                        >
+                                            Create Item
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {directoryLoading && (
+                            <div className="flex justify-center p-8">
+                                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500"></div>
+                            </div>
+                        )}
+
+                        {directoryError && (
+                            <div className={`p-4 mb-6 rounded-xl ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                                }`}>
+                                {directoryError}
+                            </div>
+                        )}
+
+                        {!directoryLoading && !directoryError && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <AnimatePresence>
+                                    {filteredContents.length > 0 ? (
+                                        filteredContents.map((item) => (
+                                            <DirectoryItemCard key={item.name} item={item} />
+                                        ))
+                                    ) : (
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className={`col-span-full p-8 text-center rounded-xl ${darkMode ? 'bg-gray-800/30' : 'bg-white'
+                                                }`}
+                                        >
+                                            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                                {searchQuery
+                                                    ? 'No files match your search'
+                                                    : 'This directory is empty'}
+                                            </p>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
+                        <AnimatePresence>
+                            {renameItem && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center`}
+                                >
+                                    <motion.div
+                                        initial={{ y: 50, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        exit={{ y: -50, opacity: 0 }}
+                                        className={`w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-lg font-semibold">Rename Item</h3>
+                                            <button
+                                                onClick={() => setRenameItem(null)}
+                                                className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                                                    }`}
+                                            >
+                                                <X size={20} />
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={renameItem.newPath.split('/').pop() || ''}
+                                            onChange={(e) => setRenameItem({
+                                                ...renameItem,
+                                                newPath: `${renameItem.newPath.split('/').slice(0, -1).join('/')}/${e.target.value}`
+                                            })}
+                                            className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                    ? 'bg-gray-700 text-white'
+                                                    : 'bg-gray-100 text-gray-800'
+                                                } mb-4`}
+                                        />
+                                        <div className="flex justify-end space-x-2">
+                                            <button
+                                                onClick={() => setRenameItem(null)}
+                                                className={`px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                                    }`}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleRenameItem}
+                                                className={`px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                                    }`}
+                                            >
+                                                Rename
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <AnimatePresence>
+                            {selectedFile && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center`}
+                                >
+                                    <motion.div
+                                        initial={{ y: 50, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        exit={{ y: -50, opacity: 0 }}
+                                        className={`w-full max-w-4xl rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'
+                                            }`}
+                                    >
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="flex items-center space-x-2">
+                                                <FileIcon
+                                                    type="file"
+                                                    name={selectedFile.path.split('.').pop() || 'file'}
+                                                />
+                                                <span className="font-mono text-sm">
+                                                    {selectedFile.path.split('/').pop()}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedFile(null)}
+                                                className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                                                    }`}
+                                            >
+                                                <X size={20} />
+                                            </button>
+                                        </div>
+                                        <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-gray-100'
+                                            }`}>
+                                            <textarea
+                                                value={newFileContent}
+                                                onChange={(e) => setNewFileContent(e.target.value)}
+                                                className={`w-full h-96 p-4 font-mono text-sm ${darkMode
+                                                        ? 'bg-gray-900 text-gray-300 caret-violet-400'
+                                                        : 'bg-gray-100 text-gray-800 caret-cyan-600'
+                                                    } outline-none resize-none`}
+                                            />
+                                        </div>
+                                        <div className="flex justify-end space-x-2 mt-4">
+                                            <button
+                                                onClick={() => setSelectedFile(null)}
+                                                className={`px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                                    }`}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleModifyFileContent}
+                                                className={`px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                                    }`}
+                                            >
+                                                Save Changes
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <AnimatePresence>
+                            {terminalOpen && (
+                                <motion.div
+                                    initial={{ y: 100, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    exit={{ y: 100, opacity: 0 }}
+                                    className={`fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-800' : 'bg-white'
+                                        } border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'
+                                        } shadow-2xl rounded-t-2xl`}
+                                >
+                                    <div className="flex items-center justify-between p-4">
+                                        <div className="flex items-center space-x-2">
+                                            <Terminal size={18} className="text-green-400" />
+                                            <span className="font-mono text-sm">Terminal</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setTerminalOpen(false)}
+                                            className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                                                }`}
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+                                    <div className={`h-48 p-4 font-mono text-sm overflow-auto ${darkMode ? 'bg-gray-900 text-green-400' : 'bg-gray-100 text-green-800'
+                                        }`}>
+                                        <div className="mb-2">$ git status</div>
+                                        <div className="text-gray-400">On branch main</div>
+                                        <div className="text-gray-400">Your branch is up to date.</div>
+                                        <div className="mt-4 mb-2">$ git add .</div>
+                                        <div className="mt-4 mb-2">$ git commit -m "{commitMessage || 'Update files'}"</div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <div className={`fixed bottom-6 right-6 p-4 rounded-2xl shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'
+                            }`}>
+                            <div className="flex items-center space-x-4">
+                                <input
+                                    type="text"
+                                    placeholder="Commit message"
+                                    value={commitMessage}
+                                    onChange={(e) => setCommitMessage(e.target.value)}
+                                    className={`px-4 py-2 rounded-xl ${darkMode
+                                            ? 'bg-gray-700 text-white placeholder-gray-500'
+                                            : 'bg-gray-100 text-gray-800 placeholder-gray-400'
+                                        } w-64`}
+                                />
+                                <button
+                                    onClick={handleCommitChanges}
+                                    className={`px-4 py-2 rounded-xl flex items-center space-x-2 ${darkMode
+                                            ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                            : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                        }`}
+                                >
+                                    <GitCommit size={18} />
+                                    <span>Commit Changes</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+};
+
+export default UserOwnRepoPreview;

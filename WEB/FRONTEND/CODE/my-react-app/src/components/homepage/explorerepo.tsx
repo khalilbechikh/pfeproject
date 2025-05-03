@@ -159,7 +159,10 @@ const ExplorerRepo = ({ darkMode }: { darkMode: boolean }) => {
                                     <div>
                                         <div className="flex items-center space-x-3">
                                             <h3 className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline`}>
-                                                <Link to={`/repositories/${repository.id}`}>
+                                                <Link 
+                                                    to={`/repositories/${repository.id}`}
+                                                    state={{ darkMode }} // Pass darkMode as state
+                                                >
                                                     {repository.owner.username}/{repository.name}
                                                 </Link>
                                             </h3>
@@ -209,6 +212,7 @@ const ExplorerRepo = ({ darkMode }: { darkMode: boolean }) => {
                                 <div className="flex items-center space-x-2">
                                     <Link
                                         to={`/repositories/${repository.id}`}
+                                        state={{ darkMode }} // Pass darkMode as state
                                         className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
                                     >
                                         <Code size={14} className="inline-block mr-1.5" />
