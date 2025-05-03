@@ -32,6 +32,8 @@ import { FolderPreviewService } from '../services/folder.preview.service';
 import { FolderPreviewController } from '../controllers/folder.preview.controller';
 // Import GitService
 //import { GitService } from '../services/git.service';
+// Import IssueController
+import { IssueController } from '../controllers/issue.controller';
 
 // Create a single InversifyJS Container
 const container = new Container();
@@ -143,6 +145,11 @@ container.bind<PullRequestController>(TYPES.PullRequestController)
 container.bind<IssueCommentController>(TYPES.IssueCommentController)
     .to(IssueCommentController)
     .inSingletonScope(); // Or .inRequestScope() depending on preference
+
+// Bind IssueController
+container.bind<IssueController>(IssueController)
+    .toSelf()
+    .inSingletonScope();
 
 // Bind FolderPreviewController
 container.bind<FolderPreviewController>(TYPES.FolderPreviewController)
