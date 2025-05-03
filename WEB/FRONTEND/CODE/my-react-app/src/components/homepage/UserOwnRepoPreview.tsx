@@ -3,7 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, Save, GitBranch, GitCommit, Search, Terminal } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import { CheckCircle, Rocket } from 'lucide-react';
+import Confetti from 'react-dom-confetti';
 
 interface JwtPayload {
     userId: number;
@@ -21,6 +22,8 @@ interface Repository {
     owner: {
         username: string;
     };
+    actualName?: string;
+    parent_id?: number;
 }
 
 interface DirectoryItem {
@@ -54,6 +57,8 @@ const UserOwnRepoPreview = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [terminalOpen, setTerminalOpen] = useState(false);
     const [headerScrolled, setHeaderScrolled] = useState(false);
+    const [hasChanges, setHasChanges] = useState(false);
+    const [showCommitSuccess, setShowCommitSuccess] = useState(false); // Add new state variable
 
     const filteredContents = directoryContents.filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -87,18 +92,44 @@ const UserOwnRepoPreview = () => {
                 if (!userResponse.ok) throw new Error('Failed to fetch user details');
                 const userData = await userResponse.json();
 
+                let originalOwner = "";
+                let originalRepoName = "";
+                if (repoData.data.parent_id) {
+                    // Fetch parent repository details
+                    const parentRepoResponse = await fetch(
+                        `http://localhost:5000/v1/api/repositories/${repoData.data.parent_id}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } }
+                    );
+                    if (!parentRepoResponse.ok) throw new Error('Failed to fetch parent repository');
+                    const parentRepoData = await parentRepoResponse.json();
+
+                    const parentUserResponse = await fetch(
+                        `http://localhost:5000/v1/api/users/${parentRepoData.data.owner_user_id}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } }
+                    );
+                    if (!parentUserResponse.ok) throw new Error('Failed to fetch parent user details');
+                    const parentUserData = await parentUserResponse.json();
+
+                    originalOwner = parentUserData.data.username;
+                    originalRepoName = parentRepoData.data.name;
+                }
+
                 setRepo({
                     ...repoData.data,
-                    owner: { username: userData.data.username }
+                    owner: {
+                        username: userData.data.username // Current repo owner (fork owner)
+                    },
+                    originalOwner: originalOwner,
+                    originalRepoName: originalRepoName
                 });
 
+                // Clone using the fork owner's username and current repo name
                 const cloneResponse = await fetch(
-                    `http://localhost:5000/v1/api/preview/clone/${repoData.data.name}.git?ownername=${userData.data.username}`,
+                    `http://localhost:5000/v1/api/preview/clone/${encodeURIComponent(repoData.data.name)}.git?ownername=${encodeURIComponent(userData.data.username)}`,
                     { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }
                 );
 
                 const cloneResult = await cloneResponse.json();
-
                 if (cloneResult.status === 'success') {
                     setCurrentPath(cloneResult.data);
                     setDisplayPath(cloneResult.data.replace('temp-working-directory/', ''));
@@ -109,7 +140,6 @@ const UserOwnRepoPreview = () => {
                 } else {
                     throw new Error(cloneResult.message || 'Clone failed');
                 }
-
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load repository');
             } finally {
@@ -132,7 +162,6 @@ const UserOwnRepoPreview = () => {
                 if (!token) throw new Error('No authentication token found');
 
                 const cleanPath = currentPath.replace('temp-working-directory/', '');
-
                 const response = await fetch(
                     `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo.owner.username)}`,
                     { headers: { 'Authorization': `Bearer ${token}` } }
@@ -204,7 +233,8 @@ const UserOwnRepoPreview = () => {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
-            const cleanPath = `${currentPath}/${newItemName}`.replace('temp-working-directory/', '');
+            const rawPath = `${currentPath}/${newItemName}`.replace('temp-working-directory/', '');
+
             const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
                 method: 'POST',
                 headers: {
@@ -212,7 +242,7 @@ const UserOwnRepoPreview = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    relativePath: cleanPath,
+                    relativePath: rawPath,
                     type: newItemType,
                     ...(newItemType === 'file' && { content: newFileContent })
                 })
@@ -224,6 +254,9 @@ const UserOwnRepoPreview = () => {
             setNewFileContent('');
             setIsCreating(false);
             setDirectoryContents([...directoryContents, { name: newItemName, type: newItemType }]);
+            if (newItemType === 'file') {
+                setHasChanges(true); // Set hasChanges(true) after successful operation
+            }
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to create item');
         }
@@ -253,6 +286,7 @@ const UserOwnRepoPreview = () => {
 
             setSelectedFile({ ...selectedFile, content: newFileContent });
             setNewFileContent('');
+            setHasChanges(true); // Set hasChanges(true) after successful operation
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to modify file content');
         }
@@ -265,6 +299,9 @@ const UserOwnRepoPreview = () => {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
+            const oldCleanPath = renameItem.oldPath.replace('temp-working-directory/', '');
+            const newCleanPath = renameItem.newPath.replace('temp-working-directory/', '');
+
             const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
                 method: 'PATCH',
                 headers: {
@@ -272,8 +309,8 @@ const UserOwnRepoPreview = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    oldRelativePath: renameItem.oldPath.replace('temp-working-directory/', ''),
-                    newRelativePath: renameItem.newPath.replace('temp-working-directory/', '')
+                    oldRelativePath: oldCleanPath,
+                    newRelativePath: newCleanPath
                 })
             });
 
@@ -285,6 +322,7 @@ const UserOwnRepoPreview = () => {
                     : item
             ));
             setRenameItem(null);
+            setHasChanges(true); // Set hasChanges(true) after successful operation
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to rename item');
         }
@@ -295,7 +333,21 @@ const UserOwnRepoPreview = () => {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
+            const item = directoryContents.find(item => item.name === itemName);
+            if (!item) throw new Error('Item not found');
+
             const cleanPath = `${currentPath}/${itemName}`.replace('temp-working-directory/', '');
+
+            // Check if the item contains files before deletion
+            let containsFiles = false;
+            if (item.type === 'file') {
+                containsFiles = true;
+            } else {
+                // Check if folder contains any files recursively
+                containsFiles = await checkIfContainsFiles(cleanPath);
+            }
+
+            // Proceed with deletion
             const response = await fetch(`http://localhost:5000/v1/api/preview/item?relativePath=${encodeURIComponent(cleanPath)}`, {
                 method: 'DELETE',
                 headers: {
@@ -306,8 +358,45 @@ const UserOwnRepoPreview = () => {
             if (!response.ok) throw new Error('Failed to delete item');
 
             setDirectoryContents(directoryContents.filter(item => item.name !== itemName));
+
+            // If the deleted item or its contents had files, enable commit
+            if (containsFiles) {
+                setHasChanges(true);
+            }
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to delete item');
+        }
+    };
+
+    const checkIfContainsFiles = async (path: string): Promise<boolean> => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const response = await fetch(`http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch directory contents');
+
+            const data = await response.json();
+
+            if (data.data.type === 'file') {
+                return true;
+            }
+
+            if (data.data.type === 'folder') {
+                for (const item of data.data.content) {
+                    if (item.type === 'file' || await checkIfContainsFiles(`${path}/${item.name}`)) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        } catch (err) {
+            console.error(err);
+            return false;
         }
     };
 
@@ -316,21 +405,35 @@ const UserOwnRepoPreview = () => {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
-            const response = await fetch(`http://localhost:5000/v1/api/preview/push/${repo?.name}.git`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ commitMessage })
-            });
+            // Add ownername query parameter
+            const response = await fetch(
+                `http://localhost:5000/v1/api/preview/push/${encodeURIComponent(repo?.name)}.git?ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ commitMessage })
+                }
+            );
 
             if (!response.ok) throw new Error('Failed to commit changes');
 
-            alert('Changes committed successfully!');
+            // Replace alert with this
+            setShowCommitSuccess(true);
             setCommitMessage('');
+            setHasChanges(false);
+
+            setTimeout(() => setShowCommitSuccess(false), 3000);
+
         } catch (err) {
-            setDirectoryError(err instanceof Error ? err.message : 'Failed to commit changes');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to commit changes';
+            if (errorMessage.includes('nothing to commit') || errorMessage.includes('No changes')) {
+                setDirectoryError('No changes to any files to commit. Make file modifications to enable commit.');
+            } else {
+                setDirectoryError(errorMessage);
+            }
         }
     };
 
@@ -453,7 +556,7 @@ const UserOwnRepoPreview = () => {
                             <div className="flex flex-col">
                                 <h1 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'
                                     }`}>
-                                    {repo?.owner.username}/<span className="text-violet-400">{repo?.name}</span>
+                                    {repo?.owner.username}/<span className="text-violet-400">{repo?.actualName || repo?.name}</span>
                                 </h1>
                                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
                                     }`}>
@@ -874,18 +977,116 @@ const UserOwnRepoPreview = () => {
                                             : 'bg-gray-100 text-gray-800 placeholder-gray-400'
                                         } w-64`}
                                 />
-                                <button
-                                    onClick={handleCommitChanges}
-                                    className={`px-4 py-2 rounded-xl flex items-center space-x-2 ${darkMode
-                                            ? 'bg-violet-600 hover:bg-violet-700 text-white'
-                                            : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                <div className="relative group">
+                                    <button
+                                        onClick={handleCommitChanges}
+                                        disabled={!hasChanges}
+                                        className={`px-4 py-2 rounded-xl flex items-center space-x-2 ${
+                                            darkMode
+                                                ? hasChanges
+                                                    ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                                    : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                                                : hasChanges
+                                                    ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         }`}
-                                >
-                                    <GitCommit size={18} />
-                                    <span>Commit Changes</span>
-                                </button>
+                                    >
+                                        <GitCommit size={18} />
+                                        <span>Commit Changes</span>
+                                    </button>
+                                    {!hasChanges && (
+                                        <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg ${
+                                            darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-900 text-white'
+                                        } opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none`}>
+                                            Git tracks only file modifications. Make changes to files to enable commit.
+                                            <div className={`absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 ${
+                                                darkMode ? 'bg-gray-800' : 'bg-gray-900'
+                                            } rotate-45`} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
+
+                        <AnimatePresence>
+                            {showCommitSuccess && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -20 }}
+                                    className={`fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 p-6 rounded-2xl backdrop-blur-lg ${
+                                        darkMode
+                                            ? 'bg-violet-700/30 border border-violet-600/50'
+                                            : 'bg-cyan-500/20 border border-cyan-400/30'
+                                        } shadow-xl overflow-hidden`}
+                                >
+                                    <div className="flex items-center space-x-4">
+                                        <motion.div
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            className={`p-3 rounded-full ${
+                                                darkMode ? 'bg-violet-600/80' : 'bg-cyan-500/80'
+                                            }`}
+                                        >
+                                            <CheckCircle
+                                                size={32}
+                                                className={`${darkMode ? 'text-white' : 'text-white'} animate-pop-in`}
+                                            />
+                                        </motion.div>
+
+                                        <div className="flex-1">
+                                            <h3 className={`text-lg font-semibold ${
+                                                darkMode ? 'text-violet-100' : 'text-cyan-900'
+                                            }`}>
+                                                Commit Successful!
+                                            </h3>
+                                            <p className={`text-sm ${
+                                                darkMode ? 'text-violet-300/90' : 'text-cyan-800/90'
+                                            }`}>
+                                                Changes to <span className="font-mono">{repo?.name}</span> have been securely stored
+                                            </p>
+                                            <div className={`mt-2 text-xs ${
+                                                darkMode ? 'text-violet-400' : 'text-cyan-700'
+                                            }`}>
+                                                <span className="font-mono">"{commitMessage || 'Update files'}"</span>
+                                            </div>
+                                        </div>
+
+                                        <Confetti
+                                            active={showCommitSuccess}
+                                            config={{
+                                                elementCount: 200,
+                                                spread: 90,
+                                                startVelocity: 30,
+                                                dragFriction: 0.12,
+                                                duration: 3000,
+                                                stagger: 3,
+                                                colors: darkMode
+                                                    ? ['#7c3aed', '#a78bfa', '#c4b5fd']
+                                                    : ['#0891b2', '#06b6d4', '#67e8f9']
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Progress bar */}
+                                    <motion.div
+                                        initial={{ width: '100%' }}
+                                        animate={{ width: '0%' }}
+                                        transition={{ duration: 3, ease: 'linear' }}
+                                        className={`absolute bottom-0 left-0 h-1 ${
+                                            darkMode ? 'bg-violet-500/80' : 'bg-cyan-400/80'
+                                        }`}
+                                    />
+
+                                    <Rocket
+                                        size={20}
+                                        className={`absolute -top-4 -right-4 opacity-20 ${
+                                            darkMode ? 'text-violet-300' : 'text-cyan-400'
+                                        } transform rotate-45`}
+                                    />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </main>
             </div>
