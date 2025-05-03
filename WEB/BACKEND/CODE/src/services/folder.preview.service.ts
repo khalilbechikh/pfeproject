@@ -186,7 +186,7 @@ export class FolderPreviewService {
 
         try {
             // Get user's email from repository
-            const userResult = await this.userRepository.findByUsername(username);
+            const userResult = await this.userRepository.findByUsername2(username);
             if (userResult.status === ResponseStatus.FAILED || !userResult.data) {
                 return { 
                     status: ResponseStatus.FAILED, 

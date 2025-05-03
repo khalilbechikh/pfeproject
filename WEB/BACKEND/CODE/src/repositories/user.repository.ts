@@ -67,7 +67,7 @@ export class UserRepository {
         }
     }
 
-    async findByUsername(
+    async findByUsername2(
         username: string,
         tableNamesToInclude?: string[]
     ): Promise<ApiResponse<users | null>> {
