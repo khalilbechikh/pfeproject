@@ -67,6 +67,53 @@ export class UserRepository {
         }
     }
 
+    async findByUsername(
+        username: string,
+        tableNamesToInclude?: string[]
+    ): Promise<ApiResponse<users | null>> {
+        try {
+            let includeRelations: Prisma.usersInclude | undefined = undefined;
+
+            if (tableNamesToInclude && tableNamesToInclude.length > 0) {
+                includeRelations = {};
+                for (const tableName of tableNamesToInclude) {
+                    const relationName = this.userRelationMap[tableName];
+                    if (relationName) {
+                        includeRelations[relationName] = true;
+                    } else {
+                        console.warn(`Warning: Table name "${tableName}" is not a valid relation for users model and will be ignored.`);
+                    }
+                }
+            }
+
+            const user = await this.prisma.users.findUnique({
+                where: { username: username },
+                include: includeRelations,
+            });
+            
+            if (user) {
+                return {
+                    status: ResponseStatus.SUCCESS,
+                    message: 'User found',
+                    data: user,
+                };
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'User not found',
+                    data: null,
+                };
+            }
+        } catch (error) {
+            console.error('Error in UserRepository.findByUsername:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Error fetching user by username',
+                error: (error as Error).message,
+            };
+        }
+    }
+
     /**
      * Finds a user by ID and includes specified related data based on the userRelationMap.
      * @param id User ID
