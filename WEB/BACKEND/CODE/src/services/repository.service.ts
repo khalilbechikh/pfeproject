@@ -6,7 +6,7 @@ import { TYPES } from '../di/types';
 import { z } from 'zod';
 import { exec } from 'child_process';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs/promises'; // Use promises version of fs
 
 // TODO: Move this to configuration/environment variables, ensure consistency with GitService
 const GIT_REPO_BASE_PATH = '/srv/git';
@@ -188,6 +188,7 @@ export class RepositoryService {
         console.log('userId:', userId);
         console.log('username:', username);
         console.log('createData:', JSON.stringify(createData));
+        let repoFullPath: string | null = null; // Track path for potential cleanup
 
         try {
             const validationResult = CreateRepositoryDto.safeParse(createData);
@@ -212,11 +213,14 @@ export class RepositoryService {
                 };
             }
 
+            repoFullPath = path.join(GIT_REPO_BASE_PATH, username, `${validatedData.name}.git`);
+            console.log(`Calculated repository path: ${repoFullPath}`);
+
             const scriptPath = path.join(process.cwd(), 'src', 'git', 'initGitRepo.sh');
             console.log('Using script at path:', scriptPath);
 
             try {
-                fs.accessSync(scriptPath, fs.constants.X_OK);
+                await fs.access(scriptPath, fs.constants.X_OK);
                 console.log('Script exists and is executable');
             } catch (error: unknown) {
                 console.error('Script access error:', error);
@@ -240,7 +244,7 @@ export class RepositoryService {
 
             try {
                 await execPromise(command);
-                console.log('Git repository created successfully on filesystem');
+                console.log('Git repository created successfully on filesystem at:', repoFullPath);
             } catch (scriptError) {
                 console.error('Error executing git init script:', scriptError);
                 return {
@@ -255,6 +259,7 @@ export class RepositoryService {
                 description: validatedData.description ||
                     `Repository for ${username}/${validatedData.name}.git`,
                 is_private: validatedData.is_private || false,
+                repoPath: repoFullPath,
                 owner: {
                     connect: {
                         id: userId
@@ -267,8 +272,26 @@ export class RepositoryService {
 
             if (response.status === ResponseStatus.FAILED) {
                 console.error("DB creation failed after filesystem repo creation:", response.error);
+                if (repoFullPath) {
+                    try {
+                        console.log(`Attempting cleanup of filesystem repo: ${repoFullPath}`);
+                        await fs.rm(repoFullPath, { recursive: true, force: true });
+                        console.log(`Filesystem cleanup successful for: ${repoFullPath}`);
+                    } catch (cleanupError) {
+                        console.error(`CRITICAL: Failed to cleanup filesystem repo ${repoFullPath} after DB error:`, cleanupError);
+                    }
+                }
             } else if (!response.data) {
                 console.error('Repository creation reported success but no data returned from DB');
+                if (repoFullPath) {
+                    try {
+                        console.log(`Attempting cleanup of filesystem repo due to inconsistent DB state: ${repoFullPath}`);
+                        await fs.rm(repoFullPath, { recursive: true, force: true });
+                        console.log(`Filesystem cleanup successful for: ${repoFullPath}`);
+                    } catch (cleanupError) {
+                        console.error(`CRITICAL: Failed to cleanup filesystem repo ${repoFullPath} after inconsistent DB state:`, cleanupError);
+                    }
+                }
                 return {
                     status: ResponseStatus.FAILED,
                     message: "Repository creation failed",
@@ -283,6 +306,18 @@ export class RepositoryService {
         } catch (error: unknown) {
             console.error('=== REPOSITORY SERVICE: createBareRepo ERROR ===');
             console.error('Error creating repository:', error);
+            if (repoFullPath) {
+                try {
+                    await fs.access(repoFullPath);
+                    console.log(`Attempting cleanup due to unexpected error: ${repoFullPath}`);
+                    await fs.rm(repoFullPath, { recursive: true, force: true });
+                    console.log(`Filesystem cleanup successful.`);
+                } catch (cleanupErr: any) {
+                    if (cleanupErr.code !== 'ENOENT') {
+                        console.error(`CRITICAL: Failed to cleanup filesystem repo ${repoFullPath} after unexpected error:`, cleanupErr);
+                    }
+                }
+            }
             return {
                 status: ResponseStatus.FAILED,
                 message: "Failed to create repository due to an unexpected error",
@@ -293,40 +328,71 @@ export class RepositoryService {
 
     /**
      * Deletes a bare Git repository from the filesystem and the database.
+     * Uses the stored repoPath if available, otherwise falls back to reconstructing it.
      * @param id - Repository ID
      * @returns ApiResponse with success/failure status
      */
     async deleteBareRepo(id: number): Promise<ApiResponse<repository | null>> {
         console.log(`=== REPOSITORY SERVICE: deleteBareRepo START (ID: ${id}) ===`);
-        
+        let repoFullPath: string | null = null;
+
         try {
-            const repoDetailsResponse = await this.repositoryRepository.findRepositoryPathDetails(id);
-            
-            // Handle failure from findRepositoryPathDetails
-            if (repoDetailsResponse.status === ResponseStatus.FAILED) {
-                console.error(`Failed to retrieve repository details for ID ${id}:`, repoDetailsResponse.error);
-                // Create a new ApiResponse with the correct type <repository | null>
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: repoDetailsResponse.message, // Preserve original message
-                    error: repoDetailsResponse.error,     // Preserve original error
-                    data: null                           // Set data to null as expected by the return type
-                };
+            type RepositoryWithOwner = repository & { owner?: { username: string } };
+            const repoResponse = await this.repositoryRepository.findById(id, ['owner']) as ApiResponse<RepositoryWithOwner | null>;
+
+            if (repoResponse.status === ResponseStatus.FAILED) {
+                console.error(`Failed to retrieve repository data for ID ${id}:`, repoResponse.error);
+                return repoResponse;
             }
-            
-            if (!repoDetailsResponse.data) {
-                console.warn(`Repository path details not found for ID: ${id}`);
+
+            if (!repoResponse.data) {
+                console.warn(`Repository not found for ID: ${id}`);
                 return {
-                    status: ResponseStatus.FAILED,
-                    message: "Repository not found",
-                    error: `Repository with ID ${id} not found`,
-                    data: null // Ensure data is null
+                    status: ResponseStatus.SUCCESS,
+                    message: "Repository not found or already deleted",
+                    data: null
                 };
             }
 
-            const { ownerUsername, repoName } = repoDetailsResponse.data;
-            const repoFullPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
-            console.log(`Constructed path for deletion: ${repoFullPath}`);
+            const repositoryData = repoResponse.data;
+
+            if (repositoryData.repoPath) {
+                repoFullPath = repositoryData.repoPath;
+                console.log(`Using stored repoPath: ${repoFullPath}`);
+            } else {
+                console.warn(`repoPath not found in DB for ID ${id}. Falling back to reconstruction.`);
+                if (!repositoryData.owner?.username) {
+                    console.error(`Fallback failed: Owner details missing for repo ID ${id}. Cannot reconstruct path.`);
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: "Failed to determine repository path for deletion",
+                        error: "Owner details missing for path reconstruction.",
+                        data: null
+                    };
+                }
+
+                const ownerUsername = repositoryData.owner.username;
+                const repoName = repositoryData.name;
+
+                if (repositoryData.parent_id && repoName.includes('/')) {
+                    const [originalOwner, actualRepoName] = repoName.split('/');
+                    repoFullPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, originalOwner, `${actualRepoName}.git`);
+                    console.log(`Reconstructed FORK path for deletion: ${repoFullPath}`);
+                } else {
+                    repoFullPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
+                    console.log(`Reconstructed NORMAL path for deletion: ${repoFullPath}`);
+                }
+            }
+
+            if (!repoFullPath) {
+                console.error(`Could not determine a valid path for deletion for repo ID ${id}. Aborting filesystem delete.`);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Failed to determine repository path",
+                    error: "Path could not be determined from DB or reconstruction.",
+                    data: null
+                };
+            }
 
             const execPromise = (cmd: string) => new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
                 exec(cmd, (error, stdout, stderr) => {
@@ -336,39 +402,46 @@ export class RepositoryService {
             });
 
             try {
+                await fs.access(repoFullPath);
+                console.log(`Filesystem repository exists at: ${repoFullPath}`);
                 const command = `rm -rf "${repoFullPath}"`;
                 console.log(`Executing deletion command: ${command}`);
                 await execPromise(command);
                 console.log(`Filesystem repository deleted successfully: ${repoFullPath}`);
-            } catch (fsError) {
-                console.error(`Error deleting filesystem repository ${repoFullPath}:`, fsError);
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: "Failed to delete repository from filesystem",
-                    error: fsError instanceof Error ? fsError.message : String(fsError),
-                    data: null // Ensure data is null
-                };
+            } catch (fsError: any) {
+                if (fsError.code === 'ENOENT') {
+                    console.warn(`Filesystem repository not found at ${repoFullPath}, proceeding with DB deletion.`);
+                } else {
+                    console.error(`Error deleting filesystem repository ${repoFullPath}:`, fsError);
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: "Failed to delete repository from filesystem",
+                        error: fsError instanceof Error ? fsError.message : String(fsError),
+                        data: null
+                    };
+                }
             }
 
             console.log(`Deleting repository entry from database for ID: ${id}`);
             const deleteResponse = await this.repositoryRepository.deleteRepository(id);
-            
+
             if (deleteResponse.status === ResponseStatus.FAILED) {
                 console.error(`Database deletion failed for ID ${id}:`, deleteResponse.error);
+                console.warn(`Potential inconsistency: Filesystem repo at ${repoFullPath} may have been deleted, but DB deletion failed.`);
             } else {
                 console.log(`Database entry deleted successfully for ID: ${id}`);
                 console.log(`=== REPOSITORY SERVICE: deleteBareRepo END - Success (ID: ${id}) ===`);
             }
             return deleteResponse;
-            
+
         } catch (error: unknown) {
             console.error(`=== REPOSITORY SERVICE: deleteBareRepo ERROR (ID: ${id}) ===`);
             console.error(`Error deleting repository:`, error);
             return {
                 status: ResponseStatus.FAILED,
-                message: "Failed to delete repository",
+                message: "Failed to delete repository due to an unexpected error",
                 error: error instanceof Error ? error.message : String(error),
-                data: null // Ensure data is null
+                data: null
             };
         }
     }
@@ -376,7 +449,7 @@ export class RepositoryService {
     /**
      * Forks a repository: clones it to the new user's namespace and creates a DB record.
      * The database name for the fork will be stored as 'originalOwnerUsername/reponame'.
-     * The filesystem path will be '/srv/git/forkingUsername/reponame.git'.
+     * The filesystem path will be '/srv/git/forkingUsername/originalOwnerUsername/reponame.git'.
      * @param repoId - ID of the repository to fork
      * @param userId - ID of the user who will own the fork
      * @param username - Username of the new owner (for filesystem path)
@@ -387,58 +460,36 @@ export class RepositoryService {
         let destPath: string | null = null;
 
         try {
-            const sourceDetailsResponse = await this.repositoryRepository.findRepositoryPathDetails(repoId);
-            
-            // Handle failure from findRepositoryPathDetails
-            if (sourceDetailsResponse.status === ResponseStatus.FAILED) {
-                console.error(`Failed to get source repo details for fork (RepoID: ${repoId}):`, sourceDetailsResponse.error);
-                 // Create a new ApiResponse with the correct type <repository | null>
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: sourceDetailsResponse.message, // Preserve original message
-                    error: sourceDetailsResponse.error,     // Preserve original error
-                    data: null                           // Set data to null as expected by the return type
-                };
-            }
-            
-            if (!sourceDetailsResponse.data) {
-                console.warn(`Source repository not found for fork (RepoID: ${repoId})`);
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: 'Source repository not found.',
-                    error: `Repository with ID ${repoId} not found.`,
-                    data: null // Ensure data is null
-                };
-            }
+            type RepositoryWithOwner = repository & { owner?: { username: string } };
+            const sourceRepoResponse = await this.repositoryRepository.findById(repoId, ['owner']) as ApiResponse<RepositoryWithOwner | null>;
 
-            const { ownerUsername, repoName } = sourceDetailsResponse.data;
-            console.log(`Source repo details found: Owner=${ownerUsername}, Name=${repoName}`);
-
-            const sourceRepoResponse = await this.repositoryRepository.findById(repoId);
             if (sourceRepoResponse.status === ResponseStatus.FAILED) {
-                console.error(`Failed to get full source repo data for fork (RepoID: ${repoId}):`, sourceRepoResponse.error);
+                console.error(`Failed to get source repo data for fork (RepoID: ${repoId}):`, sourceRepoResponse.error);
                 return sourceRepoResponse;
             }
-            if (!sourceRepoResponse.data) {
-                console.error(`Inconsistency: Source repository details found but full data missing (RepoID: ${repoId})`);
+            if (!sourceRepoResponse.data || !sourceRepoResponse.data.owner?.username) {
+                console.error(`Source repository or its owner details not found (RepoID: ${repoId})`);
                 return {
                     status: ResponseStatus.FAILED,
-                    message: 'Source repository data inconsistent.',
-                    error: `Full data for repository ID ${repoId} missing.`,
-                    data: null // Ensure data is null
+                    message: 'Source repository or owner details not found.',
+                    error: `Repository or owner details missing for ID ${repoId}.`,
+                    data: null
                 };
             }
-            const sourceRepo = sourceRepoResponse.data;
-            console.log(`Full source repo data retrieved.`);
+            const sourceRepo = sourceRepoResponse.data!;
+            const ownerUsername = sourceRepo.owner!.username;
+            const repoName = sourceRepo.name;
+            console.log(`Source repo details found: Owner=${ownerUsername}, Name=${repoName}`);
 
-            // --- Name Generation Modification ---
-            // Use the original owner's username for the database name
-            const desiredForkName = `${ownerUsername}/${repoName}`; 
-            console.log(`Desired DB name for fork (based on original owner): ${desiredForkName}`);
-            // --- End Name Generation Modification ---
+            const desiredForkName = `${ownerUsername}/${repoName}`;
+            const srcPath = sourceRepo.repoPath ? sourceRepo.repoPath : path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
+            const destDir = path.join(GIT_REPO_BASE_PATH, username);
+            destPath = path.join(destDir, ownerUsername, `${repoName}.git`);
+            console.log(`Desired DB name for fork: ${desiredForkName}`);
+            console.log(`Source filesystem path: ${srcPath}`);
+            console.log(`Destination filesystem path: ${destPath}`);
 
             console.log(`Checking for name conflict with: ${desiredForkName} for user ID ${userId}`);
-
             const userReposResponse = await this.repositoryRepository.findByOwnerId(userId);
             if (userReposResponse.status === ResponseStatus.FAILED) {
                 console.error(`Failed to check for name conflicts for user ${userId}:`, userReposResponse.error);
@@ -446,30 +497,22 @@ export class RepositoryService {
                     status: ResponseStatus.FAILED,
                     message: 'Failed to check for repository name conflicts.',
                     error: userReposResponse.error,
-                    data: null // Ensure data is null
+                    data: null
                 };
             }
-            // Check against the 'originalOwnerUsername/reponame' format for the *current* user
             if (userReposResponse.data && userReposResponse.data.some(r => r.name === desiredForkName)) {
                 console.log(`Name conflict detected: User ${username} (ID: ${userId}) already has a repo named ${desiredForkName}`);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Repository with this name already exists for this user.',
                     error: 'Name conflict.',
-                    data: null // Ensure data is null
+                    data: null
                 };
             }
             console.log(`No name conflict found for user ${username} with name ${desiredForkName}.`);
 
-            // Filesystem path still uses the *forking* user's username
-            const srcPath = path.join(GIT_REPO_BASE_PATH, ownerUsername, `${repoName}.git`);
-            const destDir = path.join(GIT_REPO_BASE_PATH, username); // Forking user's directory
-            destPath = path.join(destDir,`${ownerUsername}`,`${repoName}.git`); // Repo name remains the same in the path
-            const shellScript = `mkdir -p "${destDir}" && git clone --bare "${srcPath}" "${destPath}"`;
-            console.log(`Source path: ${srcPath}`);
-            console.log(`Destination path: ${destPath}`);
+            const shellScript = `mkdir -p "${path.dirname(destPath)}" && git clone --bare "${srcPath}" "${destPath}"`;
             console.log(`Executing shell script: ${shellScript}`);
-
             const execPromise = (cmd: string) => new Promise<{ stdout: string, stderr: string }>((resolve, reject) => {
                 exec(cmd, (error, stdout, stderr) => {
                     if (error) return reject(error);
@@ -481,25 +524,26 @@ export class RepositoryService {
                 const { stdout, stderr } = await execPromise(shellScript);
                 console.log(`Filesystem clone stdout: ${stdout}`);
                 if (stderr) console.warn(`Filesystem clone stderr: ${stderr}`);
-                console.log(`Filesystem clone successful.`);
+                console.log(`Filesystem clone successful to: ${destPath}`);
             } catch (err: any) {
                 console.error('Error executing filesystem clone:', err);
                 return {
                     status: ResponseStatus.FAILED,
                     message: 'Failed to clone repository on filesystem.',
                     error: err?.message || String(err),
-                    data: null // Ensure data is null
+                    data: null
                 };
             }
 
             console.log(`Creating database record for the fork.`);
             const forkData: Prisma.repositoryCreateInput = {
-                name: desiredForkName, // Use 'originalOwnerUsername/reponame' for the database name field
+                name: desiredForkName,
                 description: `Forked from ${ownerUsername}/${repoName}. ${sourceRepo.description || ''}`.trim(),
                 is_private: sourceRepo.is_private,
+                repoPath: destPath,
                 parent: { connect: { id: repoId } },
                 forked_at: new Date(),
-                owner: { connect: { id: userId } } // Owner is the user performing the fork
+                owner: { connect: { id: userId } }
             };
 
             const createDbResponse = await this.repositoryRepository.createRepository(forkData);
@@ -509,8 +553,7 @@ export class RepositoryService {
                 if (destPath) {
                     try {
                         console.log(`Attempting to clean up filesystem directory: ${destPath}`);
-                        const cleanupCmd = `rm -rf "${destPath}"`;
-                        await execPromise(cleanupCmd);
+                        await fs.rm(destPath, { recursive: true, force: true });
                         console.log(`Filesystem cleanup successful.`);
                     } catch (cleanupErr: any) {
                         console.error(`CRITICAL: Failed to cleanup filesystem directory ${destPath} after DB error:`, cleanupErr);
@@ -527,11 +570,23 @@ export class RepositoryService {
         } catch (err: any) {
             console.error(`=== REPOSITORY SERVICE: forkRepository ERROR ===`);
             console.error('Unexpected error during fork operation:', err);
+            if (destPath) {
+                try {
+                    await fs.access(destPath);
+                    console.log(`Attempting cleanup due to unexpected error: ${destPath}`);
+                    await fs.rm(destPath, { recursive: true, force: true });
+                    console.log(`Filesystem cleanup successful.`);
+                } catch (cleanupErr: any) {
+                    if (cleanupErr.code !== 'ENOENT') {
+                        console.error(`CRITICAL: Failed to cleanup filesystem directory ${destPath} after unexpected error:`, cleanupErr);
+                    }
+                }
+            }
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Unexpected error during fork operation.',
                 error: err?.message || String(err),
-                data: null // Ensure data is null
+                data: null
             };
         }
     }
