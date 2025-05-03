@@ -46,9 +46,7 @@ interface RenameResult {
 export class FolderPreviewService {
     private readonly sourceGitPathRoot = '/srv/git/';
 
-    constructor(
-        @inject(TYPES.UserRepository) private userRepository: UserRepository
-    ) {
+    constructor(@inject(UserRepository) private userRepository: UserRepository) {
         // Initialization logic for the service, if any, would go here.
     }
 
