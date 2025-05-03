@@ -25,6 +25,10 @@ const TYPES = {
     // Add new types for Folder Preview
     FolderPreviewService: Symbol.for('FolderPreviewService'),
     FolderPreviewController: Symbol.for('FolderPreviewController'),
+
+    // Add new types for Pull Request
+    PullRequestService: Symbol.for('PullRequestService'),
+    PullRequestController: Symbol.for('PullRequestController'),
 };
 
 export { TYPES };

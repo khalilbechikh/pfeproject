@@ -23,6 +23,10 @@ import { IssueCommentService } from '../services/issue_comment.service';
 import { IssueCommentController } from '../controllers/issue_comment.controller';
 // Import PullRequestRepository
 import { PullRequestRepository } from '../repositories/pullRequest.repository';
+// Import PullRequestService
+import { PullRequestService } from '../services/pullRequest.services';
+// Import PullRequestController
+import { PullRequestController } from '../controllers/pullRequest.controller';
 // Import Folder Preview components
 import { FolderPreviewService } from '../services/folder.preview.service';
 import { FolderPreviewController } from '../controllers/folder.preview.controller';
@@ -86,6 +90,11 @@ container.bind<IssueService>(IssueService)
     .toSelf()
     .inSingletonScope();
 
+// Bind PullRequestService
+container.bind<PullRequestService>(TYPES.PullRequestService)
+    .to(PullRequestService)
+    .inSingletonScope();
+
 // Bind IssueCommentService
 container.bind<IssueCommentService>(TYPES.IssueCommentService)
     .to(IssueCommentService)
@@ -124,6 +133,11 @@ container.bind<RepositoryController>(RepositoryController)
 container.bind<RepositoryAccessController>(RepositoryAccessController)
     .toSelf()
     .inSingletonScope();
+
+// Bind PullRequestController
+container.bind<PullRequestController>(TYPES.PullRequestController)
+    .to(PullRequestController)
+    .inSingletonScope(); // Or .inRequestScope() if preferred
 
 // Bind IssueCommentController
 container.bind<IssueCommentController>(TYPES.IssueCommentController)
