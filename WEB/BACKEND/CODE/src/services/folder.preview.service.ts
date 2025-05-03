@@ -1,10 +1,12 @@
-import { injectable } from 'inversify'; // Added import
+import { injectable, inject } from 'inversify'; // Updated import
 import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import * as util from 'util';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
+import { UserRepository } from '../repositories/user.repository';
+import { TYPES } from '../di/types';
 
 const execPromise = util.promisify(exec);
 
@@ -44,7 +46,9 @@ interface RenameResult {
 export class FolderPreviewService {
     private readonly sourceGitPathRoot = '/srv/git/';
 
-    constructor() {
+    constructor(
+        @inject(TYPES.UserRepository) private userRepository: UserRepository
+    ) {
         // Initialization logic for the service, if any, would go here.
     }
 
@@ -181,6 +185,17 @@ export class FolderPreviewService {
         const sourceRepoPath = path.join(userSourceGitPath, repoName);
 
         try {
+            // Get user's email from repository
+            const userResult = await this.userRepository.findByUsername(username);
+            if (userResult.status === ResponseStatus.FAILED || !userResult.data) {
+                return { 
+                    status: ResponseStatus.FAILED, 
+                    message: `User ${username} not found`, 
+                    error: 'User not found' 
+                };
+            }
+            const userEmail = userResult.data.email;
+
             // Check if the temp repo directory exists
             try {
                 await fsp.access(tempRepoPath);
@@ -203,15 +218,26 @@ export class FolderPreviewService {
                 };
             }
 
+            // Configure Git user for this commit (Optional but good practice, keep it)
+            // This sets the config for subsequent commands in this session if needed,
+            // but the --author flag directly overrides for the commit itself.
+            await execPromise(`cd "${tempRepoPath}" && git config user.name "${username}" && git config user.email "${userEmail}"`);
+
             // Stage all changes
             await execPromise(`cd "${tempRepoPath}" && git add --all`);
 
-            // Commit changes with provided message or default
-            await execPromise(`cd "${tempRepoPath}" && git commit -m "${commitMessage.replace(/"/g, '\\"')}"`).catch(err => {
+            // Commit changes with specific author and provided message
+            const authorInfo = `${username} <${userEmail}>`;
+            await execPromise(`cd "${tempRepoPath}" && git commit --author="${authorInfo.replace(/"/g, '\\"')}" -m "${commitMessage.replace(/"/g, '\\"')}"`).catch(err => {
                 // If no changes to commit, we can still try to push (in case of unpushed commits)
-                if (!err.stderr.includes('nothing to commit')) {
+                if (err.stderr && !err.stderr.includes('nothing to commit')) { // Check stderr exists
+                    throw err;
+                } else if (!err.stderr) {
+                    // If stderr is null/undefined but there was an error, rethrow
+                    console.warn("Git commit command failed without stderr output. Rethrowing error.");
                     throw err;
                 }
+                // If 'nothing to commit' or no error, proceed
             });
 
             // Push changes back to the source repository

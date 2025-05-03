@@ -42,7 +42,7 @@ export class FolderPreviewController {
 
     /**
      * Handles cloning a Git repository.
-     * POST /preview/clone/:repoName?ownername=...
+ /preview/clone/:repoName?ownername=...
      */
     public async cloneGitFolder(req: Request, res: Response): Promise<void> {
         // Authentication check (assuming middleware adds 'user' to req)
