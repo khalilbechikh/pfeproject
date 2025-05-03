@@ -1,9 +1,21 @@
+-- CreateEnum
+CREATE TYPE "RepositoryAccess" AS ENUM ('view', 'edit');
+
+-- CreateEnum
+CREATE TYPE "PullRequestStatus" AS ENUM ('OPEN', 'CLOSED', 'MERGED');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" SERIAL NOT NULL,
     "username" VARCHAR(50) NOT NULL,
     "email" VARCHAR(100) NOT NULL,
     "password_hash" TEXT NOT NULL,
+    "bio" TEXT,
+    "gitCliPassword" TEXT,
+    "avatar_path" VARCHAR(255),
+    "is_admin" BOOLEAN DEFAULT false,
+    "confirmed" BOOLEAN DEFAULT false,
+    "contribution_count" INTEGER DEFAULT 0,
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -17,8 +29,13 @@ CREATE TABLE "repository" (
     "owner_user_id" INTEGER NOT NULL,
     "description" TEXT,
     "is_private" BOOLEAN DEFAULT false,
+    "repoPath" VARCHAR(512),
+    "parent_id" INTEGER,
+    "forked_at" TIMESTAMP(6),
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "forks_count" INTEGER DEFAULT 0,
+    "pull_requests_count" INTEGER DEFAULT 0,
 
     CONSTRAINT "repository_pkey" PRIMARY KEY ("id")
 );
@@ -28,7 +45,7 @@ CREATE TABLE "repository_access" (
     "id" SERIAL NOT NULL,
     "repository_id" INTEGER NOT NULL,
     "user_id" INTEGER NOT NULL,
-    "access_level" VARCHAR(50) NOT NULL,
+    "access_level" "RepositoryAccess" NOT NULL,
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -56,7 +73,10 @@ CREATE TABLE "pull_request" (
     "author_id" INTEGER,
     "source_branch" VARCHAR(255) NOT NULL,
     "target_branch" VARCHAR(255) NOT NULL,
-    "status" VARCHAR(20) NOT NULL,
+    "status" "PullRequestStatus" NOT NULL DEFAULT 'OPEN',
+    "source_repository_id" INTEGER NOT NULL,
+    "target_repository_id" INTEGER NOT NULL,
+    "merged_at" TIMESTAMP(6),
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -100,6 +120,9 @@ CREATE UNIQUE INDEX "repository_access_repository_id_user_id_key" ON "repository
 ALTER TABLE "repository" ADD CONSTRAINT "repository_owner_user_id_fkey" FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "repository" ADD CONSTRAINT "repository_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "repository"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "repository_access" ADD CONSTRAINT "repository_access_repository_id_fkey" FOREIGN KEY ("repository_id") REFERENCES "repository"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -116,6 +139,12 @@ ALTER TABLE "pull_request" ADD CONSTRAINT "pull_request_repository_id_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "pull_request" ADD CONSTRAINT "pull_request_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pull_request" ADD CONSTRAINT "pull_request_source_repository_id_fkey" FOREIGN KEY ("source_repository_id") REFERENCES "repository"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pull_request" ADD CONSTRAINT "pull_request_target_repository_id_fkey" FOREIGN KEY ("target_repository_id") REFERENCES "repository"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "issue_comment" ADD CONSTRAINT "issue_comment_issue_id_fkey" FOREIGN KEY ("issue_id") REFERENCES "issue"("id") ON DELETE CASCADE ON UPDATE CASCADE;
