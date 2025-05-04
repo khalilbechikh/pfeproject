@@ -161,6 +161,30 @@ export const SearchIssuesDto = z.object({
 
 export type SearchIssuesDto = z.infer<typeof SearchIssuesDto>;
 
+/**
+ * ## SearchAllIssuesDto Schema
+ *
+ * Validates the incoming data for searching issues across all repositories.
+ *
+ * | Field       | Type    | Validation Rules              |
+ * |-------------|---------|-------------------------------|
+ * | searchQuery | string  | Required, not empty           |
+ *
+ * ### Example:
+ * ```json
+ * {
+ *   "searchQuery": "database connection"
+ * }
+ * ```
+ */
+export const SearchAllIssuesDto = z.object({
+    searchQuery: z
+        .string({ required_error: 'Search query is required.' })
+        .min(1, 'Search query cannot be empty.'),
+});
+
+export type SearchAllIssuesDto = z.infer<typeof SearchAllIssuesDto>;
+
 @injectable()
 export class IssueService {
     constructor(
@@ -516,6 +540,49 @@ export class IssueService {
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Failed to search issues',
+                error: `${error}`,
+            };
+        }
+    }
+
+    /**
+     * Search for issues by title or description across all repositories
+     * @param searchData Object containing searchQuery
+     * @returns ApiResponse with array of matching issues or error
+     */
+    async findAllIssues(searchData: SearchAllIssuesDto): Promise<ApiResponse<issue[]>> {
+        try {
+            console.log("=== ISSUE SERVICE: findAllIssues START ===");
+            console.log("Search data:", JSON.stringify(searchData));
+
+            // Validate data using Zod schema
+            const validatedData = SearchAllIssuesDto.parse(searchData);
+            console.log("Data validation successful");
+
+            // Pass the validated search query
+            const response = await this.issueRepository.findAllIssues(validatedData.searchQuery);
+            
+            console.log("Global issues search completed with", response.data?.length || 0, "results");
+            console.log("=== ISSUE SERVICE: findAllIssues END - Success ===");
+            
+            return response;
+        } catch (error) {
+            console.error("=== ISSUE SERVICE: findAllIssues ERROR ===");
+            console.error("Error searching all issues:", error);
+            
+            // Handle Zod validation errors separately for clearer error messages
+            if (error instanceof z.ZodError) {
+                const formattedErrors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Validation failed',
+                    error: formattedErrors,
+                };
+            }
+
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to search all issues',
                 error: `${error}`,
             };
         }

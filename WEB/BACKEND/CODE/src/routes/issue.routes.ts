@@ -5,6 +5,12 @@ import { IssueController } from '../controllers/issue.controller';
 const router = Router();
 const issueController = container.get<IssueController>(IssueController);
 
+// Global issue search (across all repositories)
+// IMPORTANT: Place this before routes with parameters like /:issueId to avoid conflicts
+router.get('/search', (req: Request, res: Response) => 
+    issueController.findAllIssues(req, res)
+);
+
 // Repository issues
 router.get('/repository/:repositoryId', (req: Request, res: Response) => 
     issueController.getRepositoryIssues(req, res)

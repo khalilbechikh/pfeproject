@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { injectable, inject } from 'inversify';
-import { IssueService, CreateIssueDto, UpdateIssueDto, AddCommentDto, SearchIssuesDto } from '../services/issue.service';
+import { IssueService, CreateIssueDto, UpdateIssueDto, AddCommentDto, SearchIssuesDto, SearchAllIssuesDto } from '../services/issue.service'; // Added SearchAllIssuesDto
 import { ResponseStatus } from '../DTO/apiResponse.DTO';
 import { z } from 'zod'; // Import Zod for potential controller-level validation if needed
 
@@ -367,6 +367,58 @@ export class IssueController {
             res.status(500).json({ 
                 status: ResponseStatus.FAILED,
                 message: 'Failed to search issues',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    };
+
+    /**
+     * Search for issues across all repositories by title or description
+     * @param req Request with searchQuery query parameter
+     * @param res Response
+     */
+    findAllIssues = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const { searchQuery } = req.query;
+
+            if (!searchQuery || typeof searchQuery !== 'string' || searchQuery.trim() === '') {
+                 res.status(400).json({ 
+                    status: ResponseStatus.FAILED,
+                    message: 'Missing or invalid search query',
+                    error: 'A non-empty searchQuery query parameter is required'
+                });
+                return;
+            }
+
+            // Construct the DTO for the service layer
+            const searchData: SearchAllIssuesDto = {
+                searchQuery
+            };
+
+            // Service layer handles detailed validation with SearchAllIssuesDto
+            const response = await this.issueService.findAllIssues(searchData);
+            
+            if (response.status === ResponseStatus.FAILED) {
+                // Service layer provides validation errors
+                res.status(400).json(response); 
+                return;
+            }
+            
+            res.status(200).json(response);
+        } catch (error) {
+            console.error('Error in IssueController.findAllIssues:', error);
+             // Check if it's a Zod validation error passed up (though service handles it)
+            if (error instanceof z.ZodError) {
+                 res.status(400).json({
+                    status: ResponseStatus.FAILED,
+                    message: 'Validation failed',
+                    error: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
+                });
+                return;
+            }
+            res.status(500).json({ 
+                status: ResponseStatus.FAILED,
+                message: 'Failed to search all issues',
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
         }
