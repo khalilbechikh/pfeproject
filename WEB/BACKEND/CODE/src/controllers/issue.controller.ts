@@ -411,5 +411,42 @@ export class IssueController {
             });
         }
     };
+
+    /**
+     * Get all issue comments for a specific repository
+     * @param req Request with repositoryId parameter
+     * @param res Response
+     */
+    getRepositoryIssueComments = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const repositoryId = parseInt(req.params.repositoryId, 10);
+
+            if (isNaN(repositoryId)) {
+                res.status(400).json({ 
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID format',
+                    error: 'Repository ID must be a number'
+                });
+                return;
+            }
+
+            const response = await this.issueService.getRepositoryIssueComments(repositoryId);
+            
+            if (response.status === ResponseStatus.FAILED) {
+                // Service layer handles not found or other errors
+                res.status(400).json(response); 
+                return;
+            }
+            
+            res.status(200).json(response);
+        } catch (error) {
+            console.error('Error in IssueController.getRepositoryIssueComments:', error);
+            res.status(500).json({ 
+                status: ResponseStatus.FAILED,
+                message: 'Failed to get repository issue comments',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    };
 }
 

@@ -383,4 +383,46 @@ export class IssueRepository {
             };
         }
     }
+
+    /**
+     * Get all issue comments for a specific repository
+     * @param repositoryId Repository ID to get comments for
+     * @returns Promise with ApiResponse containing array of issue comments
+     */
+    async getRepositoryIssueComments(repositoryId: number): Promise<ApiResponse<any[]>> { // Using any[] for now, refine if needed
+        try {
+            const comments = await this.prisma.issue_comment.findMany({
+                where: {
+                    issue: {
+                        repository_id: repositoryId
+                    }
+                },
+                include: {
+                    author: true, // Include comment author details
+                    issue: {      // Include issue details if needed
+                        select: {
+                            id: true,
+                            title: true
+                        }
+                    }
+                },
+                orderBy: {
+                    created_at: 'asc' // Order comments chronologically
+                }
+            });
+
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository issue comments retrieved successfully",
+                data: comments
+            };
+        } catch (error) {
+            console.error('Error in IssueRepository.getRepositoryIssueComments:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to retrieve repository issue comments",
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
 }
