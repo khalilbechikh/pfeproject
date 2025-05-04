@@ -5,6 +5,7 @@ import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Rocket } from 'lucide-react';
 import Confetti from 'react-dom-confetti';
+import Editor from '@monaco-editor/react';
 
 interface JwtPayload {
     userId: number;
@@ -33,6 +34,16 @@ interface DirectoryItem {
     lastModified?: string;
 }
 
+interface TreeNode {
+    name: string;
+    type: 'file' | 'folder';
+    path: string;
+    isExpanded: boolean;
+    children: TreeNode[];
+    loaded: boolean;
+    parentPath?: string;
+}
+
 const UserOwnRepoPreview = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -54,15 +65,17 @@ const UserOwnRepoPreview = () => {
     const [commitMessage, setCommitMessage] = useState<string>('');
     const [isCreating, setIsCreating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [terminalOpen, setTerminalOpen] = useState(false);
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
-    const [showCommitSuccess, setShowCommitSuccess] = useState(false); // Add new state variable
+    const [showCommitSuccess, setShowCommitSuccess] = useState(false);
+    const [sidebarTree, setSidebarTree] = useState<TreeNode[]>([]);
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('plaintext');
+    const [terminalOpen, setTerminalOpen] = useState(false);
+    const [initialRootPath, setInitialRootPath] = useState<string>('');
 
-    const filteredContents = directoryContents.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredContents = directoryContents
+        .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()) && !item.name.endsWith('.git'))
+        .sort((a, b) => a.type === 'folder' ? -1 : 1);
 
     const handleScroll = useCallback(() => {
         setHeaderScrolled(window.scrollY > 50);
@@ -95,7 +108,6 @@ const UserOwnRepoPreview = () => {
                 let originalOwner = "";
                 let originalRepoName = "";
                 if (repoData.data.parent_id) {
-                    // Fetch parent repository details
                     const parentRepoResponse = await fetch(
                         `http://localhost:5000/v1/api/repositories/${repoData.data.parent_id}`,
                         { headers: { 'Authorization': `Bearer ${token}` } }
@@ -117,13 +129,12 @@ const UserOwnRepoPreview = () => {
                 setRepo({
                     ...repoData.data,
                     owner: {
-                        username: userData.data.username // Current repo owner (fork owner)
+                        username: userData.data.username
                     },
                     originalOwner: originalOwner,
                     originalRepoName: originalRepoName
                 });
 
-                // Clone using the fork owner's username and current repo name
                 const cloneResponse = await fetch(
                     `http://localhost:5000/v1/api/preview/clone/${encodeURIComponent(repoData.data.name)}.git?ownername=${encodeURIComponent(userData.data.username)}`,
                     { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }
@@ -133,10 +144,12 @@ const UserOwnRepoPreview = () => {
                 if (cloneResult.status === 'success') {
                     setCurrentPath(cloneResult.data);
                     setDisplayPath(cloneResult.data.replace('temp-working-directory/', ''));
+                    setInitialRootPath(cloneResult.data);
                 } else if (cloneResult.error?.includes('File exists')) {
                     const path = `temp-working-directory/${repoData.data.name}.git`;
                     setCurrentPath(path);
                     setDisplayPath(path.replace('temp-working-directory/', ''));
+                    setInitialRootPath(path);
                 } else {
                     throw new Error(cloneResult.message || 'Clone failed');
                 }
@@ -149,6 +162,129 @@ const UserOwnRepoPreview = () => {
 
         fetchRepo();
     }, [id]);
+
+    const SIDEBAR_WIDTH = 320;
+
+    useEffect(() => {
+        if (!repo || !initialRootPath) return;
+
+        const loadInitialTree = async () => {
+            const cleanPath = initialRootPath.replace('temp-working-directory/', '');
+            const rootNode: TreeNode = {
+                name: cleanPath.split('/').pop() || cleanPath,
+                type: 'folder',
+                path: cleanPath,
+                isExpanded: true,
+                children: [],
+                loaded: false,
+                parentPath: ''
+            };
+            setSidebarTree([rootNode]);
+        };
+
+        loadInitialTree();
+    }, [repo, initialRootPath]);
+
+    const toggleFolder = async (path: string) => {
+        const node = findNode(sidebarTree, path);
+        if (!node) return;
+
+        if (!node.loaded) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(
+                    `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const children = data.data.content
+                        .filter((item: DirectoryItem) => item.name !== '.git') // Filter out .git folder
+                        .map((item: DirectoryItem) => ({
+                            name: item.name,
+                            type: item.type,
+                            path: `${path}/${item.name}`,
+                            isExpanded: false,
+                            children: [],
+                            loaded: false,
+                            parentPath: path
+                        }));
+
+                    setSidebarTree(prev => updateTree(prev, path, n => ({
+                        ...n,
+                        children,
+                        loaded: true
+                    })));
+                }
+            } catch (err) {
+                console.error('Error loading folder contents:', err);
+            }
+        }
+
+        setSidebarTree(prev => updateTree(prev, path, n => ({
+            ...n,
+            isExpanded: !n.isExpanded
+        })));
+    };
+
+    const findNode = (nodes: TreeNode[], targetPath: string): TreeNode | undefined => {
+        for (const node of nodes) {
+            if (node.path === targetPath) return node;
+            const found = findNode(node.children, targetPath);
+            if (found) return found;
+        }
+        return undefined;
+    };
+
+    const updateTree = (nodes: TreeNode[], targetPath: string, updater: (node: TreeNode) => TreeNode): TreeNode[] => {
+        return nodes.map(node => {
+            if (node.path === targetPath) return updater(node);
+            return { ...node, children: updateTree(node.children, targetPath, updater) };
+        });
+    };
+
+    const addChildNode = (nodes: TreeNode[], parentPath: string, newNode: TreeNode): TreeNode[] => {
+        return nodes.map(node => {
+            if (node.path === parentPath) {
+                return { ...node, children: [newNode, ...node.children] };
+            }
+            return { ...node, children: addChildNode(node.children, parentPath, newNode) };
+        });
+    };
+
+    const removeNode = (nodes: TreeNode[], targetPath: string): TreeNode[] => {
+        return nodes.filter(node => node.path !== targetPath).map(node => ({
+            ...node,
+            children: removeNode(node.children, targetPath)
+        }));
+    };
+
+    const TreeView = ({ nodes, onToggle }: { nodes: TreeNode[], onToggle: (path: string) => void }) => (
+        <div className="pl-2">
+            {nodes.map(node => (
+                <div key={node.path}>
+                    <div className="flex items-center">
+                        {node.type === 'folder' && (
+                            <button
+                                onClick={() => onToggle(node.path)}
+                                className="mr-1 p-1 hover:bg-gray-700 rounded text-sm"
+                            >
+                                {node.isExpanded ? '▼' : '▶'}
+                            </button>
+                        )}
+                        <div className={`flex items-center flex-1 p-2 rounded-lg cursor-pointer ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}>
+                            <FileIcon type={node.type} name={node.name} />
+                            <span className="ml-2">{node.name}</span>
+                        </div>
+                    </div>
+                    {node.type === 'folder' && node.isExpanded && (
+                        <TreeView nodes={node.children} onToggle={onToggle} />
+                    )}
+                </div>
+            ))}
+        </div>
+    );
 
     useEffect(() => {
         const fetchDirectoryContents = async () => {
@@ -175,7 +311,7 @@ const UserOwnRepoPreview = () => {
                 const responseData = await response.json();
 
                 if (responseData.data.type === 'folder') {
-                    setDirectoryContents(responseData.data.content);
+                    setDirectoryContents(responseData.data.content.filter((item: DirectoryItem) => !(item.type === 'folder' && item.name.endsWith('.git'))));
                 } else {
                     throw new Error('Expected folder content');
                 }
@@ -233,7 +369,8 @@ const UserOwnRepoPreview = () => {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
-            const rawPath = `${currentPath}/${newItemName}`.replace('temp-working-directory/', '');
+            const cleanPath = currentPath.replace('temp-working-directory/', '');
+            const rawPath = `${cleanPath}/${newItemName}`;
 
             const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
                 method: 'POST',
@@ -253,9 +390,20 @@ const UserOwnRepoPreview = () => {
             setNewItemName('');
             setNewFileContent('');
             setIsCreating(false);
-            setDirectoryContents([...directoryContents, { name: newItemName, type: newItemType }]);
+            const newItemPath = `${cleanPath}/${newItemName}`;
+            const newTreeNode: TreeNode = {
+                name: newItemName,
+                type: newItemType,
+                path: newItemPath,
+                isExpanded: newItemType === 'folder',
+                children: [],
+                loaded: false,
+                parentPath: cleanPath
+            };
+            setDirectoryContents([{ name: newItemName, type: newItemType }, ...directoryContents]);
+            setSidebarTree(prev => addChildNode(prev, cleanPath, newTreeNode));
             if (newItemType === 'file') {
-                setHasChanges(true); // Set hasChanges(true) after successful operation
+                setHasChanges(true);
             }
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to create item');
@@ -286,7 +434,7 @@ const UserOwnRepoPreview = () => {
 
             setSelectedFile({ ...selectedFile, content: newFileContent });
             setNewFileContent('');
-            setHasChanges(true); // Set hasChanges(true) after successful operation
+            setHasChanges(true);
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to modify file content');
         }
@@ -322,7 +470,22 @@ const UserOwnRepoPreview = () => {
                     : item
             ));
             setRenameItem(null);
-            setHasChanges(true); // Set hasChanges(true) after successful operation
+            setHasChanges(true);
+
+            const oldPath = renameItem.oldPath.replace('temp-working-directory/', '');
+            const newPath = renameItem.newPath.replace('temp-working-directory/', '');
+            setSidebarTree(prev =>
+                updateTree(prev, oldPath, n => ({
+                    ...n,
+                    name: newPath.split('/').pop() || n.name,
+                    path: newPath,
+                    children: n.children.map(child => ({
+                        ...child,
+                        path: child.path.replace(oldPath, newPath),
+                        parentPath: newPath
+                    }))
+                }))
+            );
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to rename item');
         }
@@ -338,16 +501,13 @@ const UserOwnRepoPreview = () => {
 
             const cleanPath = `${currentPath}/${itemName}`.replace('temp-working-directory/', '');
 
-            // Check if the item contains files before deletion
             let containsFiles = false;
             if (item.type === 'file') {
                 containsFiles = true;
             } else {
-                // Check if folder contains any files recursively
                 containsFiles = await checkIfContainsFiles(cleanPath);
             }
 
-            // Proceed with deletion
             const response = await fetch(`http://localhost:5000/v1/api/preview/item?relativePath=${encodeURIComponent(cleanPath)}`, {
                 method: 'DELETE',
                 headers: {
@@ -359,7 +519,9 @@ const UserOwnRepoPreview = () => {
 
             setDirectoryContents(directoryContents.filter(item => item.name !== itemName));
 
-            // If the deleted item or its contents had files, enable commit
+            const itemPath = `${currentPath}/${itemName}`.replace('temp-working-directory/', '');
+            setSidebarTree(prev => removeNode(prev, itemPath));
+
             if (containsFiles) {
                 setHasChanges(true);
             }
@@ -405,7 +567,6 @@ const UserOwnRepoPreview = () => {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
-            // Add ownername query parameter
             const response = await fetch(
                 `http://localhost:5000/v1/api/preview/push/${encodeURIComponent(repo?.name)}.git?ownername=${encodeURIComponent(repo?.owner.username || '')}`,
                 {
@@ -420,7 +581,6 @@ const UserOwnRepoPreview = () => {
 
             if (!response.ok) throw new Error('Failed to commit changes');
 
-            // Replace alert with this
             setShowCommitSuccess(true);
             setCommitMessage('');
             setHasChanges(false);
@@ -608,58 +768,28 @@ const UserOwnRepoPreview = () => {
             </header>
 
             <div className="flex flex-1 pt-20">
-                {sidebarOpen && (
-                    <motion.aside
-                        initial={{ x: -300 }}
-                        animate={{ x: 0 }}
-                        className={`w-80 fixed left-0 h-full p-6 border-r ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white/50'
-                            } backdrop-blur-lg`}
-                    >
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-800'
-                                }`}>
-                                Repository Structure
-                            </h2>
-                            <button
-                                onClick={() => setSidebarOpen(false)}
-                                className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-                                    }`}
-                            >
-                                <X size={18} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
-                            </button>
-                        </div>
-                        <div className="space-y-1">
-                            {directoryContents
-                                .filter(item => item.type === 'folder')
-                                .map((folder) => (
-                                    <div
-                                        key={folder.name}
-                                        className={`flex items-center p-2 rounded-lg cursor-pointer ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'
-                                            }`}
-                                        onClick={() => handleFolderClick(folder.name)}
-                                    >
-                                        <Folder className="h-5 w-5 mr-2 text-amber-400" />
-                                        <span>{folder.name}</span>
-                                    </div>
-                                ))}
-                        </div>
-                    </motion.aside>
-                )}
+                <motion.aside
+                    initial={{ x: 0 }}
+                    className={`w-80 fixed left-0 h-full p-6 border-r z-60 ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white/50'
+                        } backdrop-blur-lg`}
+                    style={{ width: `${SIDEBAR_WIDTH}px` }}
+                >
+                    <div className="flex items-center justify-between mb-6">
+                        <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-800'
+                            }`}>
+                            Repository Structure
+                        </h2>
+                    </div>
+                    <TreeView
+                        nodes={sidebarTree}
+                        onToggle={toggleFolder}
+                    />
+                </motion.aside>
 
-                <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'
-                    }`}>
+                <main className={`flex-1 transition-all duration-300 ml-80`}>
                     <div className="container mx-auto px-8 py-6">
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center space-x-4">
-                                {!sidebarOpen && (
-                                    <button
-                                        onClick={() => setSidebarOpen(true)}
-                                        className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
-                                            }`}
-                                    >
-                                        <Folder size={20} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
-                                    </button>
-                                )}
                                 <div className={`flex items-center space-x-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
                                     }`}>
                                     {displayPath.split('/').map((segment, index) => (
@@ -735,17 +865,6 @@ const UserOwnRepoPreview = () => {
                                             <option value="folder">Folder</option>
                                             <option value="file">File</option>
                                         </select>
-                                        {newItemType === 'file' && (
-                                            <textarea
-                                                placeholder="File content"
-                                                value={newFileContent}
-                                                onChange={(e) => setNewFileContent(e.target.value)}
-                                                className={`w-full px-4 py-2 rounded-lg ${darkMode
-                                                        ? 'bg-gray-700 text-white placeholder-gray-500'
-                                                        : 'bg-gray-100 text-gray-800 placeholder-gray-400'
-                                                    } min-h-[100px]`}
-                                            />
-                                        )}
                                         <button
                                             onClick={handleCreateItem}
                                             className={`w-full py-2.5 rounded-lg ${darkMode
@@ -863,68 +982,58 @@ const UserOwnRepoPreview = () => {
                         <AnimatePresence>
                             {selectedFile && (
                                 <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center`}
+                                    className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+                                    style={{ left: `${SIDEBAR_WIDTH}px`, width: `calc(100% - ${SIDEBAR_WIDTH}px)` }}
                                 >
-                                    <motion.div
-                                        initial={{ y: 50, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        exit={{ y: -50, opacity: 0 }}
-                                        className={`w-full max-w-4xl rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'
-                                            }`}
-                                    >
-                                        <div className="flex justify-between items-center mb-4">
-                                            <div className="flex items-center space-x-2">
-                                                <FileIcon
-                                                    type="file"
-                                                    name={selectedFile.path.split('.').pop() || 'file'}
-                                                />
-                                                <span className="font-mono text-sm">
-                                                    {selectedFile.path.split('/').pop()}
-                                                </span>
+                                    <div className="h-screen w-full flex flex-col">
+                                        <div className={`flex justify-between items-center p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                                            <div className="flex items-center space-x-4">
+                                                <select
+                                                    value={selectedLanguage}
+                                                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                                                    className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
+                                                >
+                                                    <option value="plaintext">Plain Text</option>
+                                                    <option value="python">Python</option>
+                                                    <option value="javascript">JavaScript</option>
+                                                    <option value="typescript">TypeScript</option>
+                                                    <option value="java">Java</option>
+                                                    <option value="csharp">C#</option>
+                                                    <option value="cpp">C++</option>
+                                                    <option value="html">HTML</option>
+                                                    <option value="css">CSS</option>
+                                                </select>
                                             </div>
-                                            <button
-                                                onClick={() => setSelectedFile(null)}
-                                                className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                                                    }`}
-                                            >
-                                                <X size={20} />
-                                            </button>
+                                            <div className="flex space-x-2">
+                                                <button
+                                                    onClick={handleModifyFileContent}
+                                                    className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-cyan-600 hover:bg-cyan-700'} text-white`}
+                                                >
+                                                    Save Changes
+                                                </button>
+                                                <button
+                                                    onClick={() => setSelectedFile(null)}
+                                                    className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                                >
+                                                    <X size={24} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className={`rounded-xl overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-gray-100'
-                                            }`}>
-                                            <textarea
+                                        <div className="flex-1">
+                                            <Editor
+                                                height="100%"
+                                                language={selectedLanguage as string}
+                                                theme={darkMode ? 'vs-dark' : 'vs-light'}
                                                 value={newFileContent}
-                                                onChange={(e) => setNewFileContent(e.target.value)}
-                                                className={`w-full h-96 p-4 font-mono text-sm ${darkMode
-                                                        ? 'bg-gray-900 text-gray-300 caret-violet-400'
-                                                        : 'bg-gray-100 text-gray-800 caret-cyan-600'
-                                                    } outline-none resize-none`}
+                                                onChange={(value) => setNewFileContent(value || '')}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    automaticLayout: true,
+                                                    scrollBeyondLastLine: false,
+                                                }}
                                             />
                                         </div>
-                                        <div className="flex justify-end space-x-2 mt-4">
-                                            <button
-                                                onClick={() => setSelectedFile(null)}
-                                                className={`px-4 py-2 rounded-lg ${darkMode
-                                                        ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                                                    }`}
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                onClick={handleModifyFileContent}
-                                                className={`px-4 py-2 rounded-lg ${darkMode
-                                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
-                                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                                                    }`}
-                                            >
-                                                Save Changes
-                                            </button>
-                                        </div>
-                                    </motion.div>
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -1068,7 +1177,6 @@ const UserOwnRepoPreview = () => {
                                         />
                                     </div>
 
-                                    {/* Progress bar */}
                                     <motion.div
                                         initial={{ width: '100%' }}
                                         animate={{ width: '0%' }}

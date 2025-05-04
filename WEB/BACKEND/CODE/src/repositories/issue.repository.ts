@@ -18,10 +18,24 @@ export class IssueRepository {
      */
     async getRepositoryIssues(repositoryId: number): Promise<ApiResponse<issue[]>> {
         try {
+            // Check if the repository exists
+            const repository = await this.prisma.repository.findUnique({
+                where: { id: repositoryId }
+            });
+
+            if (!repository) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Repository not found",
+                    data: []
+                };
+            }
+
             const issues = await this.prisma.issue.findMany({
                 where: {
                     repository_id: repositoryId
                 },
+
                 include: {
                     author: true,
                     issue_comment: true
@@ -275,6 +289,7 @@ export class IssueRepository {
         }
     ): Promise<ApiResponse<issue[]>> {
         try {
+            console.log('+++++++++++++++++++++++++++++Searching for issues with query:', searchData.searchQuery, "in the repository id ",searchData.repositoryId);;
             const issues = await this.prisma.issue.findMany({
                 where: {
                     repository_id: searchData.repositoryId,

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Folder, File, X, Moon, Sun, GitBranch, GitFork, Search } from 'lucide-react';
+import { ChevronLeft, Folder, File, X, Moon, Sun, GitBranch, GitFork, Search, AlertCircle } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
+import IssueReportModal from './IssueReportModal';
+import IssueDisplay, { Issue } from './IssueDisplay';
 
 interface JwtPayload {
     userId: number;
@@ -54,6 +56,8 @@ const Preview = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [headerScrolled, setHeaderScrolled] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [issuesRefresh, setIssuesRefresh] = useState(false);
 
     const filteredContents = directoryContents.filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -239,7 +243,7 @@ const Preview = () => {
                 default: return 'text-gray-400';
             }
         };
-        
+
         return (
             <motion.div whileHover={{ scale: 1.1 }} className="mr-2">
                 {type === 'folder' ? (
@@ -262,8 +266,8 @@ const Preview = () => {
                 darkMode ? 'bg-gray-800/30' : 'bg-white'
             }`}
         >
-            <div className="flex items-center flex-1" onClick={() => item.type === 'folder' 
-                ? handleFolderClick(item.name) 
+            <div className="flex items-center flex-1" onClick={() => item.type === 'folder'
+                ? handleFolderClick(item.name)
                 : handleFileClick(item.name)}>
                 <FileIcon type={item.type} name={item.name} />
                 <span className="font-mono text-sm">{item.name}</span>
@@ -303,7 +307,7 @@ const Preview = () => {
 
     return (
         <div className={`min-h-screen flex flex-col ${
-            darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white' 
+            darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
             : 'bg-gradient-to-br from-gray-50 to-white text-gray-800'
         } transition-all duration-300`}>
             <header className={`fixed top-0 left-0 right-0 z-50 ${
@@ -322,7 +326,7 @@ const Preview = () => {
                             <ChevronLeft size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
                         </button>
                         <div className="flex items-center space-x-3">
-                            <motion.div 
+                            <motion.div
                                 whileHover={{ rotate: 12, scale: 1.1 }}
                                 className={`p-2 rounded-lg ${
                                     darkMode ? 'bg-violet-600' : 'bg-cyan-600'
@@ -344,7 +348,7 @@ const Preview = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4">
                         <div className={`relative transition-all duration-300 ${
                             headerScrolled ? 'w-64' : 'w-96'
@@ -355,8 +359,8 @@ const Preview = () => {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className={`w-full px-4 py-2 rounded-xl ${
-                                    darkMode 
-                                    ? 'bg-gray-800 text-white placeholder-gray-500' 
+                                    darkMode
+                                    ? 'bg-gray-800 text-white placeholder-gray-500'
                                     : 'bg-gray-100 text-gray-800 placeholder-gray-400'
                                 } pr-10 transition-all`}
                             />
@@ -364,7 +368,7 @@ const Preview = () => {
                                 darkMode ? 'text-gray-500' : 'text-gray-400'
                             }`} />
                         </div>
-                        
+
                         <div className="flex space-x-2">
                             <button
                                 onClick={() => setDarkMode(!darkMode)}
@@ -385,7 +389,7 @@ const Preview = () => {
 
             <div className="flex flex-1 pt-20">
                 {sidebarOpen && (
-                    <motion.aside 
+                    <motion.aside
                         initial={{ x: -300 }}
                         animate={{ x: 0 }}
                         className={`w-80 fixed left-0 h-full p-6 border-r ${
@@ -447,7 +451,7 @@ const Preview = () => {
                                 }`}>
                                     {displayPath.split('/').map((segment, index) => (
                                         <React.Fragment key={index}>
-                                            <span 
+                                            <span
                                                 className="hover:text-violet-400 cursor-pointer"
                                                 onClick={() => {
                                                     const newPath = displayPath.split('/').slice(0, index + 1).join('/');
@@ -464,25 +468,39 @@ const Preview = () => {
                                     ))}
                                 </div>
                             </div>
-                            
-                            <button
-                                onClick={handleFork}
-                                disabled={forkStatus === 'loading' || forkStatus === 'success'}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-xl ${
-                                    darkMode 
-                                    ? 'bg-violet-600 hover:bg-violet-700 text-white' 
-                                    : 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                                } transition-colors ${
-                                    (forkStatus === 'loading' || forkStatus === 'success') ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
-                            >
-                                <GitFork size={18} />
-                                <span>
-                                    {forkStatus === 'loading' ? 'Forking...' :
-                                    forkStatus === 'success' ? 'Forked!' :
-                                    'Add to my repositories'}
-                                </span>
-                            </button>
+
+                            <div className="flex space-x-4">
+                                <button
+                                    onClick={handleFork}
+                                    disabled={forkStatus === 'loading' || forkStatus === 'success'}
+                                    className={`flex items-center space-x-2 px-4 py-2 rounded-xl ${
+                                        darkMode
+                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                    } transition-colors ${
+                                        (forkStatus === 'loading' || forkStatus === 'success') ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                >
+                                    <GitFork size={18} />
+                                    <span>
+                                        {forkStatus === 'loading' ? 'Forking...' :
+                                        forkStatus === 'success' ? 'Forked!' :
+                                        'Add to my repositories'}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => setShowReportModal(true)}
+                                    className={`px-4 py-2 rounded-xl flex items-center space-x-2 ${
+                                        darkMode
+                                        ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400'
+                                        : 'bg-red-100 hover:bg-red-200 text-red-700'
+                                    } transition-all`}
+                                >
+                                    <AlertCircle size={18} className="inline-block" />
+                                    <span>Report Issue</span>
+                                </button>
+                            </div>
                         </div>
 
                         {forkStatus === 'error' && (
@@ -531,8 +549,8 @@ const Preview = () => {
                                             }`}
                                         >
                                             <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                                                {searchQuery 
-                                                    ? 'No files match your search' 
+                                                {searchQuery
+                                                    ? 'No files match your search'
                                                     : 'This directory is empty'}
                                             </p>
                                         </motion.div>
@@ -559,9 +577,9 @@ const Preview = () => {
                                     >
                                         <div className="flex justify-between items-center mb-4">
                                             <div className="flex items-center space-x-2">
-                                                <FileIcon 
-                                                    type="file" 
-                                                    name={selectedFile.path.split('.').pop() || 'file'} 
+                                                <FileIcon
+                                                    type="file"
+                                                    name={selectedFile.path.split('.').pop() || 'file'}
                                                 />
                                                 <span className="font-mono text-sm">
                                                     {selectedFile.path.split('/').pop()}
@@ -592,6 +610,21 @@ const Preview = () => {
                     </div>
                 </main>
             </div>
+
+            {showReportModal && repo && (
+                <IssueReportModal
+                    darkMode={darkMode}
+                    repositoryId={repo.id}
+                    onClose={() => setShowReportModal(false)}
+                    onIssueCreated={() => setIssuesRefresh(prev => !prev)}
+                />
+            )}
+
+            {repo && (
+                <div className="mt-12">
+                    <IssueDisplay darkMode={darkMode} repositoryId={repo.id} key={issuesRefresh.toString()} />
+                </div>
+            )}
         </div>
     );
 };

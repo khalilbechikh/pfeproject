@@ -215,7 +215,7 @@ export class IssueController {
             
             // Send back the deleted issue data or just a success message
             // res.status(200).json(response); 
-            res.status(204).send(); // 204 No Content is often preferred for DELETE success
+            res.status(200).json(response); // Return the deleted issue DTO or success message
         } catch (error) {
             console.error('Error in IssueController.deleteIssue:', error);
             res.status(500).json({ 

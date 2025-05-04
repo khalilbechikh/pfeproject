@@ -1,94 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, AlertCircle, Check, Clock, Filter, ChevronDown, Tag, User } from 'lucide-react';
+import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, Clock, Filter, ChevronDown, User, AlertCircle } from 'lucide-react';
 import Profile from './profile';
 import RepositoriesList from './RepositoriesList';
-import ExplorerRepo from './explorerepo'; // Add this import
+import ExplorerRepo from './explorerepo';
 import { jwtDecode } from 'jwt-decode';
-
-const languageColors = {
-    JavaScript: "bg-yellow-400",
-    TypeScript: "bg-blue-500",
-    Python: "bg-indigo-500",
-    Rust: "bg-orange-500",
-    CSS: "bg-purple-500",
-    HTML: "bg-red-500"
-};
-
-const labelColors = {
-    "bug": {
-        bg: "bg-red-100",
-        text: "text-red-700",
-        darkBg: "bg-red-900/30",
-        darkText: "text-red-400"
-    },
-    "enhancement": {
-        bg: "bg-green-100",
-        text: "text-green-700",
-        darkBg: "bg-green-900/30",
-        darkText: "text-green-400"
-    },
-    "performance": {
-        bg: "bg-yellow-100",
-        text: "text-yellow-700",
-        darkBg: "bg-yellow-900/30",
-        darkText: "text-yellow-400"
-    },
-    "feature-request": {
-        bg: "bg-purple-100",
-        text: "text-purple-700",
-        darkBg: "bg-purple-900/30",
-        darkText: "text-purple-400"
-    },
-    "ui": {
-        bg: "bg-pink-100",
-        text: "text-pink-700",
-        darkBg: "bg-pink-900/30",
-        darkText: "text-pink-400"
-    },
-    "fixed": {
-        bg: "bg-blue-100",
-        text: "text-blue-700",
-        darkBg: "bg-blue-900/30",
-        darkText: "text-blue-400"
-    },
-    "visualization": {
-        bg: "bg-indigo-100",
-        text: "text-indigo-700",
-        darkBg: "bg-indigo-900/30",
-        darkText: "text-indigo-400"
-    },
-    "user-request": {
-        bg: "bg-teal-100",
-        text: "text-teal-700",
-        darkBg: "bg-teal-900/30",
-        darkText: "text-teal-400"
-    },
-    "optimization": {
-        bg: "bg-orange-100",
-        text: "text-orange-700",
-        darkBg: "bg-orange-900/30",
-        darkText: "text-orange-400"
-    },
-    "crash": {
-        bg: "bg-rose-100",
-        text: "text-rose-700",
-        darkBg: "bg-rose-900/30",
-        darkText: "text-rose-400"
-    },
-    "browser-compatibility": {
-        bg: "bg-sky-100",
-        text: "text-sky-700",
-        darkBg: "bg-sky-900/30",
-        darkText: "text-sky-400"
-    },
-    "core-functionality": {
-        bg: "bg-amber-100",
-        text: "text-amber-700",
-        darkBg: "bg-amber-900/30",
-        darkText: "text-amber-400"
-    }
-};
+import IssueDisplay, { Issue } from './IssueDisplay';
 
 interface JwtPayload {
     userId: string;
@@ -107,20 +24,6 @@ interface UserProfile {
     repositories?: any[];
     issues?: any[];
     pull_requests?: any[];
-}
-
-interface Issue {
-    id: string;
-    title: string;
-    project: string;
-    status: 'open' | 'closed';
-    priority: 'critical' | 'high' | 'medium' | 'low';
-    labels: (keyof typeof labelColors)[];
-    assignee: string | null;
-    createdAt: string;
-    updatedAt: string;
-    comments: number;
-    closedAt?: string;
 }
 
 interface Particle {
@@ -297,212 +200,18 @@ export default function EnhancedSharecodeDashboard() {
         return () => clearInterval(interval);
     }, []);
 
-    const filteredIssues = issues.filter(issue => {
-        if (issuesTab === 'open') return issue.status === 'open';
-        if (issuesTab === 'closed') return issue.status === 'closed';
-        return true;
-    });
-
-    const getDaysAgo = (dateString: string): string => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffTime = Math.abs(now.getTime() - date.getTime());
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays === 0) return "today";
-        else if (diffDays === 1) return "yesterday";
-        else return `${diffDays} days ago`;
-    };
-
     const renderTabContent = () => {
         switch (currentTab) {
             case 'profile':
                 return <Profile darkMode={darkMode} setDarkMode={setDarkMode} />;
             case 'issues':
                 return (
-                    <div className="space-y-6">
-                        <div className="mb-6 flex justify-between items-center">
-                            <div>
-                                <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Issues</h1>
-                                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Track and manage issues across your projects</p>
-                            </div>
-                            <button className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg transition-all duration-300 hover:shadow-lg ${darkMode ? 'hover:shadow-violet-500/30' : 'hover:shadow-cyan-500/30'} transform hover:-translate-y-0.5`}>
-                                <Plus size={18} />
-                                <span>New Issue</span>
-                            </button>
-                        </div>
-                        <div className={`${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'} backdrop-blur-sm border rounded-lg p-4 mb-6`}>
-                            <div className="flex flex-wrap gap-4 items-center">
-                                <div className="flex rounded-md">
-                                    {['open', 'closed', 'all'].map((tab) => (
-                                        <button
-                                            key={tab}
-                                            onClick={() => setIssuesTab(tab)}
-                                            className={`px-4 py-2 text-sm font-medium ${issuesTab === tab
-                                                ? darkMode
-                                                    ? 'bg-violet-600/20 text-violet-400 border-violet-600/30'
-                                                    : 'bg-cyan-50 text-cyan-600 border-cyan-200'
-                                                : darkMode
-                                                    ? 'bg-gray-800 text-gray-400 hover:text-gray-300 border-gray-700'
-                                                    : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200'
-                                                } border ${tab === 'open' ? 'rounded-l-md' : tab === 'all' ? 'rounded-r-md' : ''} transition-colors`}
-                                        >
-                                            {tab === 'open' && <AlertCircle size={14} className="inline mr-1.5" />}
-                                            {tab === 'closed' && <Check size={14} className="inline mr-1.5" />}
-                                            {tab === 'all' && <span className="h-3.5 w-3.5 inline-block mr-1.5"></span>}
-                                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                            <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {issues.filter(issue => tab === 'all' ? true : issue.status === tab).length}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="flex-1 flex justify-end">
-                                    <div className="flex items-center space-x-3">
-                                        <button className={`flex items-center px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            } rounded-md transition-colors`}>
-                                            <Filter size={14} className="mr-2" />
-                                            Filters
-                                            <ChevronDown size={14} className="ml-2" />
-                                        </button>
-                                        <button className={`flex items-center px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            } rounded-md transition-colors`}>
-                                            <Tag size={14} className="mr-2" />
-                                            Labels
-                                            <ChevronDown size={14} className="ml-2" />
-                                        </button>
-                                        <button className={`flex items-center px-3 py-2 text-sm ${darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            } rounded-md transition-colors`}>
-                                            <Users size={14} className="mr-2" />
-                                            Assignees
-                                            <ChevronDown size={14} className="ml-2" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className={`${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'} backdrop-blur-sm border rounded-lg overflow-hidden`}>
-                            <ul>
-                                {filteredIssues.map((issue, idx) => (
-                                    <li
-                                        key={issue.id}
-                                        className={`${idx !== filteredIssues.length - 1 ? (darkMode ? 'border-b border-gray-700' : 'border-b border-gray-200') : ''
-                                            } ${darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'} transition-colors group cursor-pointer`}
-                                    >
-                                        <div className="p-4 flex items-start">
-                                            <div className="mt-1">
-                                                {issue.status === 'open' ? (
-                                                    <div className={`p-1 rounded-full ${issue.priority === 'critical' ?
-                                                        'text-red-500 bg-red-100 dark:bg-red-900/20' :
-                                                        'text-green-500 bg-green-100 dark:bg-green-900/20'}`}>
-                                                        <AlertCircle size={16} />
-                                                    </div>
-                                                ) : (
-                                                    <div className="p-1 rounded-full text-purple-500 bg-purple-100 dark:bg-purple-900/20">
-                                                        <Check size={16} />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="ml-3 flex-1">
-                                                <div className="flex flex-wrap items-center">
-                                                    <h3 className={`text-base font-medium ${darkMode ? 'text-white' : 'text-gray-900'} ${issue.status === 'closed' ? 'line-through opacity-70' : ''} group-hover:underline`}>
-                                                        {issue.title}
-                                                    </h3>
-                                                    <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
-                                                        }`}>
-                                                        {issue.id}
-                                                    </span>
-                                                </div>
-                                                <div className="mt-1 text-sm">
-                                                    <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
-                                                        {issue.status === 'open' ? 'Opened' : 'Closed'} {getDaysAgo(issue.status === 'open' ? issue.createdAt : issue.closedAt!)}
-                                                        {issue.project && ` in `}
-                                                        {issue.project && (
-                                                            <span className={`font-medium ${darkMode ? 'text-violet-400' : 'text-cyan-600'}`}>
-                                                                {issue.project}
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                </div>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {issue.labels.map((label) => (
-                                                        <span
-                                                            key={label}
-                                                            className={`text-xs px-2 py-1 rounded-full ${darkMode
-                                                                ? `${labelColors[label].darkBg} ${labelColors[label].darkText}`
-                                                                : `${labelColors[label].bg} ${labelColors[label].text}`
-                                                                }`}
-                                                        >
-                                                            {label}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="ml-4 flex flex-col items-end">
-                                                <span className={`text-xs px-2 py-1 rounded-full ${issue.priority === 'critical'
-                                                    ? darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
-                                                    : issue.priority === 'high'
-                                                        ? darkMode ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-700'
-                                                        : issue.priority === 'medium'
-                                                            ? darkMode ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-700'
-                                                            : darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-700'
-                                                    }`}>
-                                                    {issue.priority}
-                                                </span>
-                                                <div className="mt-2 flex items-center space-x-3">
-                                                    {issue.assignee ? (
-                                                        <div className="flex items-center">
-                                                            <div className={`w-6 h-6 rounded-full border-2 ${darkMode ? 'border-gray-800 bg-gray-700' : 'border-white bg-gray-200'} flex items-center justify-center text-xs font-medium`}>
-                                                                {issue.assignee.charAt(0)}
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Unassigned</span>
-                                                    )}
-                                                    <div className="flex items-center">
-                                                        <MessageSquare size={14} className={`mr-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                                                        <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{issue.comments}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="mt-2 flex items-center text-xs">
-                                                    <Clock size={12} className={`mr-1 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                                                    <span className={`${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                        Updated {getDaysAgo(issue.updatedAt)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                        <div className="flex justify-center mt-6">
-                            <div className="inline-flex rounded-md shadow-sm">
-                                {['Previous', '1', '2', '3', '...', '8', 'Next'].map((page, idx) => (
-                                    <button
-                                        key={idx}
-                                        className={`px-4 py-2 text-sm font-medium ${page === '1'
-                                            ? darkMode
-                                                ? 'bg-violet-600/20 text-violet-400 border-violet-600/30'
-                                                : 'bg-cyan-50 text-cyan-600 border-cyan-300'
-                                            : darkMode
-                                                ? 'bg-gray-800 text-gray-400 hover:text-white border-gray-700'
-                                                : 'bg-white text-gray-700 hover:text-gray-900 border-gray-300'
-                                            } border ${idx === 0
-                                                ? 'rounded-l-md'
-                                                : idx === 6
-                                                    ? 'rounded-r-md'
-                                                    : ''
-                                            } ${idx !== 0 ? 'border-l-0' : ''
-                                            } transition-colors`}
-                                    >
-                                        {page}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                    <IssueDisplay
+                        issues={issues}
+                        darkMode={darkMode}
+                        issuesTab={issuesTab}
+                        setIssuesTab={setIssuesTab}
+                    />
                 );
             case 'repositories':
                 return <RepositoriesList darkMode={darkMode} />;
@@ -567,7 +276,7 @@ export default function EnhancedSharecodeDashboard() {
     const menuItems: MenuItem[] = [
         { icon: <User size={20} />, label: 'Profile', id: 'profile' },
         { icon: <Code size={20} />, label: 'Repositories', id: 'repositories' },
-        { icon: <GitFork size={20} />, label: 'Explore Repositories', id: 'explore' }, // Add new menu item
+        { icon: <GitFork size={20} />, label: 'Explore Repositories', id: 'explore' },
         { icon: <AlertCircle size={20} />, label: 'Issues', id: 'issues' },
         { icon: <Clock size={20} />, label: 'Activity', id: 'activity' },
         { icon: <FileText size={20} />, label: 'Documentation', id: 'docs' },
@@ -619,7 +328,6 @@ export default function EnhancedSharecodeDashboard() {
                         >
                             {darkMode ? <Sun size={20} className="text-gray-400" /> : <Moon size={20} className="text-gray-600" />}
                         </button>
-                        {/* Updated avatar display */}
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
                             {user?.avatar_path ? (
                                 <img
