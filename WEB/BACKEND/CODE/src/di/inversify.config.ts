@@ -34,6 +34,8 @@ import { FolderPreviewController } from '../controllers/folder.preview.controlle
 //import { GitService } from '../services/git.service';
 // Import IssueController
 import { IssueController } from '../controllers/issue.controller';
+// Import TwoFactorAuthController
+import { TwoFactorAuthController } from '../controllers/2fa';
 
 // Create a single InversifyJS Container
 const container = new Container();
@@ -124,8 +126,9 @@ container.bind<UserController>(UserController)
     .toSelf()
     .inRequestScope();
 
-container.bind<AuthenticationController>(AuthenticationController)
-    .toSelf()
+// FIX: Use TYPES.AuthenticationController instead of AuthenticationController class
+container.bind<AuthenticationController>(TYPES.AuthenticationController)
+    .to(AuthenticationController)
     .inSingletonScope();
 
 container.bind<RepositoryController>(RepositoryController)
@@ -155,5 +158,10 @@ container.bind<IssueController>(IssueController)
 container.bind<FolderPreviewController>(TYPES.FolderPreviewController)
     .to(FolderPreviewController)
     .inRequestScope();
+
+// Bind TwoFactorAuthController
+container.bind<TwoFactorAuthController>(TYPES.TwoFactorAuthController)
+    .to(TwoFactorAuthController)
+    .inSingletonScope();
 
 export default container;

@@ -3,6 +3,9 @@ import { Prisma, users } from '@prisma/client';
 import { UserRepository } from '../repositories/user.repository';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import { TYPES } from '../di/types';
+import * as bcrypt from 'bcrypt';
 
 // Zod schema for user creation
 export const CreateUserSchema = z.object({
@@ -56,7 +59,10 @@ export const UpdateUserSchema = z.object({
 
 @injectable()
 export class UserService {
-    constructor(@inject(UserRepository) private userRepository: UserRepository) {}
+    constructor(
+        @inject(TYPES.PrismaClient) private prismaClient: PrismaClient,
+        @inject(UserRepository) private userRepository: UserRepository
+    ) {}
 
     /**
      * Get a user by ID with optional related data
@@ -259,5 +265,60 @@ export class UserService {
         // In a real application, use a proper password hashing library like bcrypt
         // This is just a placeholder for demonstration purposes
         return `hashed_${password}_${Date.now()}`;
+    }
+
+    /**
+     * Updates a user's two-factor authentication secret
+     * @param userId The ID of the user
+     * @param secret The generated 2FA secret
+     */
+    public async updateUserTwoFactorSecret(userId: string, secret: string): Promise<void> {
+        const userIdNum = parseInt(userId);
+        await this.prismaClient.users.update({
+            where: { id: userIdNum },
+            data: { 
+                twoFactorSecret: secret,
+            }
+        });
+    }
+
+    /**
+     * Enables two-factor authentication for a user
+     * @param userId The ID of the user
+     */
+    public async enableTwoFactor(userId: string): Promise<void> {
+        const userIdNum = parseInt(userId);
+        await this.prismaClient.users.update({
+            where: { id: userIdNum },
+            data: { 
+                twoFactorEnabled: true 
+            }
+        });
+    }
+
+    /**
+     * Disables two-factor authentication for a user
+     * @param userId The ID of the user
+     */
+    public async disableTwoFactor(userId: string): Promise<void> {
+        const userIdNum = parseInt(userId);
+        await this.prismaClient.users.update({
+            where: { id: userIdNum },
+            data: { 
+                twoFactorEnabled: false,
+                twoFactorSecret: null
+            }
+        });
+    }
+
+    /**
+     * Find a user by their ID
+     * @param userId The ID of the user
+     */
+    public async findUserById(userId: string) {
+        const userIdNum = parseInt(userId);
+        return this.prismaClient.users.findUnique({
+            where: { id: userIdNum }
+        });
     }
 }

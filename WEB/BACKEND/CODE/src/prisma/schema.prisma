@@ -17,6 +17,8 @@ model users {
   avatar_path    String?             @db.VarChar(255)
   is_admin      Boolean?            @default(false) @db.Boolean
   confirmed      Boolean?            @default(false) @db.Boolean
+  twoFactorSecret String?           @db.Text
+  twoFactorEnabled Boolean          @default(false) @db.Boolean
   contribution_count Int?                @default(0) @db.Integer
   created_at    DateTime            @default(now()) @db.Timestamp(6)
   updated_at    DateTime            @default(now()) @updatedAt @db.Timestamp(6)
