@@ -3,8 +3,8 @@ POST http://localhost:5000/v1/api/signup
 Content-Type: application/json
 
 {
-  "username": "dfasjdfk",
-  "email": "jbrnhmd@exam12ple.com",
+  "username": "dfadfdfsjdfk",
+  "email": "jbrnhmdfdfa@exam12ple.com",
   "password": "SecurePass123!"
 }
 

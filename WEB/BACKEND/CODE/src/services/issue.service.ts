@@ -587,4 +587,45 @@ export class IssueService {
             };
         }
     }
+
+    /**
+     * Get all issue comments for a specific repository
+     * @param repositoryId Repository ID to get comments for
+     * @returns ApiResponse with array of comments or error
+     */
+    async getRepositoryIssueComments(repositoryId: number): Promise<ApiResponse<any[]>> {
+        try {
+            console.log("=== ISSUE SERVICE: getRepositoryIssueComments START ===");
+            console.log("Repository ID:", repositoryId);
+
+            if (!repositoryId || repositoryId <= 0) {
+                console.log("Invalid repository ID:", repositoryId);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID',
+                    error: 'Repository ID must be a positive integer',
+                };
+            }
+
+            // Check if repository exists (optional, but good practice)
+            // const repoExists = await this.prisma.repository.findUnique({ where: { id: repositoryId } });
+            // if (!repoExists) {
+            //     return { status: ResponseStatus.FAILED, message: 'Repository not found', error: 'Repository not found' };
+            // }
+
+            const response = await this.issueRepository.getRepositoryIssueComments(repositoryId);
+            console.log("Repository issue comments retrieval completed with", response.data?.length || 0, "results");
+            console.log("=== ISSUE SERVICE: getRepositoryIssueComments END ===");
+            return response;
+        } catch (error) {
+            console.error("=== ISSUE SERVICE: getRepositoryIssueComments ERROR ===");
+            console.error("Error getting repository issue comments:", error);
+            
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to get repository issue comments',
+                error: `${error}`,
+            };
+        }
+    }
 }
