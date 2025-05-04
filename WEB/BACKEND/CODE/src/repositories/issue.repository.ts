@@ -327,4 +327,49 @@ export class IssueRepository {
             };
         }
     }
+
+    /**
+     * Search for issues by title or description across all repositories
+     * @param searchQuery Search query string
+     * @returns Promise with ApiResponse containing array of matching issues
+     */
+    async findAllIssues(searchQuery: string): Promise<ApiResponse<issue[]>> {
+        try {
+            const issues = await this.prisma.issue.findMany({
+                where: {
+                    OR: [
+                        {
+                            title: {
+                                contains: searchQuery,
+                                mode: 'insensitive'
+                            }
+                        },
+                        {
+                            description: {
+                                contains: searchQuery,
+                                mode: 'insensitive'
+                            }
+                        }
+                    ]
+                },
+                include: {
+                    author: true,
+                    repository: true // Include repository info as well
+                }
+            });
+
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Global issues search completed successfully",
+                data: issues
+            };
+        } catch (error) {
+            console.error('Error in IssueRepository.findAllIssues:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to search all issues",
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
 }

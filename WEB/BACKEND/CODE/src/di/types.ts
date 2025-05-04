@@ -29,6 +29,9 @@ const TYPES = {
     // Add new types for Pull Request
     PullRequestService: Symbol.for('PullRequestService'),
     PullRequestController: Symbol.for('PullRequestController'),
+
+    // Add new symbol for TwoFactorAuthController
+    TwoFactorAuthController: Symbol.for('TwoFactorAuthController'),
 };
 
 export { TYPES };
