@@ -335,28 +335,39 @@ export class IssueRepository {
      */
     async findAllIssues(searchQuery: string): Promise<ApiResponse<issue[]>> {
         try {
-            const issues = await this.prisma.issue.findMany({
-                where: {
-                    OR: [
-                        {
-                            title: {
-                                contains: searchQuery,
-                                mode: 'insensitive'
+            let issues;
+            if (!searchQuery || searchQuery.trim() === '') {
+                // Return all issues if searchQuery is empty or whitespace
+                issues = await this.prisma.issue.findMany({
+                    include: {
+                        author: true,
+                        repository: true
+                    }
+                });
+            } else {
+                issues = await this.prisma.issue.findMany({
+                    where: {
+                        OR: [
+                            {
+                                title: {
+                                    contains: searchQuery,
+                                    mode: 'insensitive'
+                                }
+                            },
+                            {
+                                description: {
+                                    contains: searchQuery,
+                                    mode: 'insensitive'
+                                }
                             }
-                        },
-                        {
-                            description: {
-                                contains: searchQuery,
-                                mode: 'insensitive'
-                            }
-                        }
-                    ]
-                },
-                include: {
-                    author: true,
-                    repository: true // Include repository info as well
-                }
-            });
+                        ]
+                    },
+                    include: {
+                        author: true,
+                        repository: true // Include repository info as well
+                    }
+                });
+            }
 
             return {
                 status: ResponseStatus.SUCCESS,

@@ -1,283 +1,378 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, MessageSquare, Clock, User, CheckCircle, Search, X } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
+import { Edit, MessageSquare, X, Save, Search, Trash2 } from 'lucide-react';
 
-export interface Issue {
-  id: number;
-  title: string;
-  description: string;
-  status: 'open' | 'closed';
-  created_at: string;
-  updated_at: string;
-  author: {
-    id: number;
-    username: string;
-    avatar_path?: string;
-  };
-  issue_comment: any[];
+interface JwtPayload {
+    userId: number;
+    email: string;
 }
 
-const IssueDisplay = ({ darkMode, repositoryId }: { darkMode: boolean, repositoryId: number }) => {
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<'all' | 'my'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [userId, setUserId] = useState<number | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
+export interface Issue {
+    id: number;
+    repository_id: number;
+    author_id: number;
+    title: string;
+    description: string;
+    status: 'open' | 'closed';
+    created_at: string;
+    updated_at: string;
+    author: {
+        username: string;
+        avatar_path: string;
+    };
+    issue_comment: Comment[];
+}
 
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      const decoded = jwtDecode<{ userId: number }>(token);
-      setUserId(decoded.userId);
-    }
-  }, []);
+interface Comment {
+    id: number;
+    content: string;
+    author_id: number;
+    created_at: string;
+}
 
-  const fetchIssues = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const token = localStorage.getItem('authToken');
-      if (!token || !repositoryId) throw new Error('Authentication required');
+interface IssueDisplayProps {
+    darkMode: boolean;
+}
 
-      let url = '';
-      if (isSearching) {
-        url = `http://localhost:5000/v1/api/issues/repository/${repositoryId}/search?searchQuery=${encodeURIComponent(searchQuery)}`;
-      } else if (viewMode === 'my' && userId) {
-        url = `http://localhost:5000/v1/api/issues/user/${userId}`;
-      } else {
-        url = `http://localhost:5000/v1/api/issues/repository/${repositoryId}`;
-      }
+const IssueDisplay: React.FC<IssueDisplayProps> = ({ darkMode }) => {
+    const [issues, setIssues] = useState<Issue[]>([]);
+    const [filteredIssues, setFilteredIssues] = useState<Issue[]>([]);
+    const [showUserIssues, setShowUserIssues] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [userId, setUserId] = useState<number | null>(null);
+    const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+    const [editMode, setEditMode] = useState(false);
+    const [commentContent, setCommentContent] = useState('');
+    const [loading, setLoading] = useState(true);
 
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch issues');
-      const { data } = await response.json();
-
-      setIssues(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load issues');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (repositoryId) {
-      // Immediate fetch for non-search changes
-      if (!isSearching) {
-        fetchIssues();
-      }
-
-      // Debounced fetch for search queries
-      const debounceTimer = setTimeout(() => {
-        if (isSearching) {
-          fetchIssues();
+    useEffect(() => {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            const decoded = jwtDecode<JwtPayload>(token);
+            setUserId(decoded.userId);
         }
-      }, 500);
+    }, []);
 
-      return () => clearTimeout(debounceTimer);
-    }
-  }, [searchQuery, viewMode, repositoryId, userId, isSearching]);
+    const fetchIssues = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch(
+                'http://localhost:5000/v1/api/issues/search',
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            const data = await response.json();
+            if (data.status === 'success') {
+                setIssues(data.data.map(issue => ({
+                    ...issue,
+                    issue_comment: issue.issue_comment || [] // Add default empty array
+                })));
+                setFilteredIssues(data.data);
+            }
+        } catch (error) {
+            console.error('Error fetching issues:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+    useEffect(() => {
+        fetchIssues();
+    }, [fetchIssues]);
 
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
-    return `${Math.floor(diff/86400)}d ago`;
-  };
+    useEffect(() => {
+        const result = issues.filter(issue => {
+            const matchesSearch = issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                issue.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-  const handleSearchToggle = () => {
-    setIsSearching(!isSearching);
-    if (!isSearching) setSearchQuery('');
-  };
+            return matchesSearch && (showUserIssues
+                ? issue.author_id === userId
+                : issue.author_id !== userId);
+        });
+        setFilteredIssues(result);
+    }, [searchQuery, showUserIssues, issues, userId]);
 
-  if (!repositoryId) return null;
+    const handleCommentSubmit = async (issueId: number) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            await fetch('http://localhost:5000/v1/api/issues/comments', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    issueId,
+                    authorId: userId,
+                    content: commentContent
+                })
+            });
+            setCommentContent('');
+            fetchIssues();
+        } catch (error) {
+            console.error('Error submitting comment:', error);
+        }
+    };
 
-  if (loading) {
+    const handleIssueUpdate = async (updatedIssue: Issue) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            await fetch(`http://localhost:5000/v1/api/issues/${updatedIssue.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: updatedIssue.title,
+                    description: updatedIssue.description,
+                    status: updatedIssue.status
+                })
+            });
+            setEditMode(false);
+            fetchIssues();
+        } catch (error) {
+            console.error('Error updating issue:', error);
+        }
+    };
+
+    const handleDeleteIssue = async (issueId: number) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            await fetch(`http://localhost:5000/v1/api/issues/${issueId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            fetchIssues();
+        } catch (error) {
+            console.error('Error deleting issue:', error);
+        }
+    };
+
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-500" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={`p-6 rounded-xl ${darkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-100 text-red-700'}`}>
-        {error}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8">
-      <div className={`p-6 rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} shadow-lg`}>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <div className="flex-1">
-            <h1 className={`text-3xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
-              Project Issues
-            </h1>
-            <p className={`mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {issues.length} reported issues • Updated in real-time
-            </p>
-          </div>
-
-          <div className="flex gap-3 w-full sm:w-auto">
-            <div className={`relative flex-1 ${isSearching ? 'block' : 'hidden'} sm:block`}>
-              <input
-                type="text"
-                placeholder="Search issues..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full px-4 py-2 rounded-xl ${
-                  darkMode
-                    ? 'bg-gray-700/50 text-white placeholder-gray-400'
-                    : 'bg-gray-100 text-gray-800 placeholder-gray-500'
-                } pr-10 transition-all`}
-              />
-              <button
-                onClick={handleSearchToggle}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 ${
-                  darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {isSearching ? <X size={18} /> : <Search size={18} />}
-              </button>
-            </div>
-
-            <div className={`flex rounded-xl p-1 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
-              <button
-                onClick={() => setViewMode('all')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  viewMode === 'all'
-                    ? darkMode ? 'bg-violet-600 text-white' : 'bg-cyan-600 text-white'
-                    : darkMode ? 'text-gray-300 hover:bg-gray-600/50' : 'text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setViewMode('my')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  viewMode === 'my'
-                    ? darkMode ? 'bg-violet-600 text-white' : 'bg-cyan-600 text-white'
-                    : darkMode ? 'text-gray-300 hover:bg-gray-600/50' : 'text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                My Issues
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-6">
-          <AnimatePresence>
-            {issues.map((issue) => (
-              <motion.div
-                key={issue.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className={`group relative p-6 rounded-xl transition-all ${
-                  darkMode
-                    ? 'bg-gray-800/30 hover:bg-gray-800/50 border border-gray-700'
-                    : 'bg-white hover:bg-gray-50 border border-gray-200'
-                } shadow-sm hover:shadow-md`}
-              >
-                <div className="flex items-start space-x-4">
-                  <div className={`p-3 rounded-xl ${
-                    issue.status === 'closed'
-                      ? 'bg-green-600/20'
-                      : darkMode
-                        ? 'bg-violet-600/20'
-                        : 'bg-cyan-600/20'
-                  }`}>
-                    <AlertCircle className={`w-6 h-6 ${
-                      issue.status === 'closed'
-                        ? 'text-green-400'
-                        : darkMode
-                          ? 'text-violet-400'
-                          : 'text-cyan-600'
-                    }`} />
-                  </div>
-
-                  <div className="flex-1 space-y-4">
-                    <div className="space-y-2">
-                      <h3 className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
-                        {issue.title}
-                      </h3>
-                      <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {issue.description}
-                      </p>
+        <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} transition-colors duration-300`}>
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                    <button
+                        onClick={() => setShowUserIssues(!showUserIssues)}
+                        className={`px-4 py-2 rounded-xl transition-colors ${
+                            darkMode
+                            ? 'bg-violet-600 hover:bg-violet-700'
+                            : 'bg-cyan-600 hover:bg-cyan-700'
+                        } text-white`}
+                    >
+                        {showUserIssues ? "Show Others' Issues" : 'Show My Issues'}
+                    </button>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search issues..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className={`pl-4 pr-10 py-2 rounded-xl ${
+                                darkMode
+                                ? 'bg-gray-700 text-white'
+                                : 'bg-gray-100 text-gray-800'
+                            } transition-colors`}
+                        />
+                        <Search className={`absolute right-3 top-2.5 ${
+                            darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`} size={20} />
                     </div>
-
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-sm">
-                      <div className="flex items-center space-x-2">
-                        {issue.author.avatar_path ? (
-                          <img
-                            src={issue.author.avatar_path}
-                            alt={issue.author.username}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className={`w-8 h-8 rounded-full ${
-                            darkMode ? 'bg-gray-700' : 'bg-gray-100'
-                          } flex items-center justify-center`}>
-                            <User className="w-4 h-4" />
-                          </div>
-                        )}
-                        <span className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} ${
-                          userId === issue.author.id ? 'font-semibold' : ''
-                        }`}>
-                          {issue.author.username}
-                          {userId === issue.author.id && (
-                            <span className="ml-2 text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-300">
-                              You
-                            </span>
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <Clock className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                            {getTimeAgo(issue.created_at)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <MessageSquare className={`w-4 h-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                            {issue.issue_comment.length} comments
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {issue.status === 'closed' && (
-                    <div className={`p-2 rounded-full ${darkMode ? 'bg-green-900/20' : 'bg-green-100'}`}>
-                      <CheckCircle className={`w-5 h-5 ${darkMode ? 'text-green-400' : 'text-green-600'}`} />
-                    </div>
-                  )}
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center p-8">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500"></div>
+                </div>
+            ) : (
+                <motion.div layout className="space-y-4">
+                    <AnimatePresence>
+                        {filteredIssues.map(issue => (
+                            <motion.div
+                                key={issue.id}
+                                layout
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className={`p-4 rounded-xl ${
+                                    darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                                } transition-colors`}
+                            >
+                                <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                        <h3 className={`text-lg font-semibold ${
+                                            darkMode ? 'text-white' : 'text-gray-800'
+                                        }`}>{issue.title}</h3>
+                                        <p className={`text-sm ${
+                                            darkMode ? 'text-gray-300' : 'text-gray-600'
+                                        }`}>{issue.description}</p>
+                                    </div>
+                                    {issue.author_id === userId && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedIssue(issue);
+                                                    setEditMode(true);
+                                                }}
+                                                className={`p-2 rounded-lg ${
+                                                    darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                <Edit size={18} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteIssue(issue.id)}
+                                                className={`p-2 rounded-lg ${
+                                                    darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                <Trash2 size={18} className={darkMode ? 'text-red-400' : 'text-red-600'} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center space-x-3 mb-3">
+                                    <span className={`text-sm px-2 py-1 rounded-full ${
+                                        issue.status === 'open'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
+                                    }`}>{issue.status}</span>
+                                    <div className="flex items-center space-x-1">
+                                        <img
+                                            src={issue.author.avatar_path}
+                                            alt="avatar"
+                                            className="w-6 h-6 rounded-full"
+                                        />
+                                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            {issue.author.username}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {(issue.issue_comment || []).map(comment => (
+                                    <div key={comment.id} className={`ml-6 p-3 rounded-lg ${
+                                        darkMode ? 'bg-gray-600' : 'bg-gray-200'
+                                    } mb-2`}>
+                                        <p className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                                            {comment.content}
+                                        </p>
+                                    </div>
+                                ))}
+
+                                {issue.author_id !== userId && (
+                                    <div className="flex space-x-2 mt-3">
+                                        <input
+                                            value={commentContent}
+                                            onChange={(e) => setCommentContent(e.target.value)}
+                                            placeholder="Add a comment..."
+                                            className={`flex-1 px-3 py-1 rounded-lg ${
+                                                darkMode
+                                                ? 'bg-gray-600 text-white'
+                                                : 'bg-gray-200 text-gray-800'
+                                            }`}
+                                        />
+                                        <button
+                                            onClick={() => handleCommentSubmit(issue.id)}
+                                            className={`px-3 py-1 rounded-lg ${
+                                                darkMode
+                                                ? 'bg-violet-600 hover:bg-violet-700'
+                                                : 'bg-cyan-600 hover:bg-cyan-700'
+                                            } text-white`}
+                                        >
+                                            <MessageSquare size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </motion.div>
+            )}
+
+            <AnimatePresence>
+                {editMode && selectedIssue && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center`}
+                    >
+                        <motion.div
+                            initial={{ y: 50 }}
+                            animate={{ y: 0 }}
+                            className={`p-6 rounded-xl w-full max-w-xl ${
+                                darkMode ? 'bg-gray-700' : 'bg-white'
+                            }`}
+                        >
+                            <div className="flex justify-between mb-4">
+                                <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                    Edit Issue
+                                </h3>
+                                <button
+                                    onClick={() => setEditMode(false)}
+                                    className={`p-1 rounded-full ${
+                                        darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <input
+                                value={selectedIssue.title}
+                                onChange={(e) => setSelectedIssue({
+                                    ...selectedIssue,
+                                    title: e.target.value
+                                })}
+                                className={`w-full mb-3 p-2 rounded-lg ${
+                                    darkMode ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-800'
+                                }`}
+                            />
+                            <textarea
+                                value={selectedIssue.description}
+                                onChange={(e) => setSelectedIssue({
+                                    ...selectedIssue,
+                                    description: e.target.value
+                                })}
+                                className={`w-full mb-3 p-2 rounded-lg ${
+                                    darkMode ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-800'
+                                }`}
+                                rows={4}
+                            />
+                            <select
+                                value={selectedIssue.status}
+                                onChange={(e) => setSelectedIssue({
+                                    ...selectedIssue,
+                                    status: e.target.value as 'open' | 'closed'
+                                })}
+                                className={`w-full mb-4 p-2 rounded-lg ${
+                                    darkMode ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-800'
+                                }`}
+                            >
+                                <option value="open">Open</option>
+                                <option value="closed">Closed</option>
+                            </select>
+
+                            <button
+                                onClick={() => handleIssueUpdate(selectedIssue)}
+                                className={`w-full py-2 rounded-lg flex items-center justify-center space-x-2 ${
+                                    darkMode
+                                    ? 'bg-violet-600 hover:bg-violet-700'
+                                    : 'bg-cyan-600 hover:bg-cyan-700'
+                                } text-white`}
+                            >
+                                <Save size={18} />
+                                <span>Save Changes</span>
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default IssueDisplay;

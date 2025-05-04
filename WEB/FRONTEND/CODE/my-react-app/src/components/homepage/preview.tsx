@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Folder, File, X, Moon, Sun, GitBranch, GitFork, Search, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Folder, File, X, Moon, Sun, GitBranch, GitFork, AlertCircle } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
 import IssueReportModal from './IssueReportModal';
-import IssueDisplay, { Issue } from './IssueDisplay';
 
 interface JwtPayload {
     userId: number;
@@ -53,15 +52,9 @@ const Preview = () => {
     const [directoryLoading, setDirectoryLoading] = useState(true);
     const [directoryError, setDirectoryError] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<{ path: string; content: string } | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
-    const [issuesRefresh, setIssuesRefresh] = useState(false);
-
-    const filteredContents = directoryContents.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
 
     const handleScroll = useCallback(() => {
         setHeaderScrolled(window.scrollY > 50);
@@ -350,25 +343,6 @@ const Preview = () => {
                     </div>
 
                     <div className="flex items-center space-x-4">
-                        <div className={`relative transition-all duration-300 ${
-                            headerScrolled ? 'w-64' : 'w-96'
-                        }`}>
-                            <input
-                                type="text"
-                                placeholder="Search files..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className={`w-full px-4 py-2 rounded-xl ${
-                                    darkMode
-                                    ? 'bg-gray-800 text-white placeholder-gray-500'
-                                    : 'bg-gray-100 text-gray-800 placeholder-gray-400'
-                                } pr-10 transition-all`}
-                            />
-                            <Search size={18} className={`absolute right-3 top-3 ${
-                                darkMode ? 'text-gray-500' : 'text-gray-400'
-                            }`} />
-                        </div>
-
                         <div className="flex space-x-2">
                             <button
                                 onClick={() => setDarkMode(!darkMode)}
@@ -536,8 +510,8 @@ const Preview = () => {
                         {!directoryLoading && !directoryError && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <AnimatePresence>
-                                    {filteredContents.length > 0 ? (
-                                        filteredContents.map((item) => (
+                                    {directoryContents.length > 0 ? (
+                                        directoryContents.map((item) => (
                                             <DirectoryItemCard key={item.name} item={item} />
                                         ))
                                     ) : (
@@ -549,9 +523,7 @@ const Preview = () => {
                                             }`}
                                         >
                                             <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                                                {searchQuery
-                                                    ? 'No files match your search'
-                                                    : 'This directory is empty'}
+                                                This directory is empty
                                             </p>
                                         </motion.div>
                                     )}
@@ -616,14 +588,8 @@ const Preview = () => {
                     darkMode={darkMode}
                     repositoryId={repo.id}
                     onClose={() => setShowReportModal(false)}
-                    onIssueCreated={() => setIssuesRefresh(prev => !prev)}
+                    onIssueCreated={() => {}}
                 />
-            )}
-
-            {repo && (
-                <div className="mt-12">
-                    <IssueDisplay darkMode={darkMode} repositoryId={repo.id} key={issuesRefresh.toString()} />
-                </div>
             )}
         </div>
     );

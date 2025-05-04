@@ -128,3 +128,7 @@ Authorization: {{authToken}}
 ### Search Issues in Repository - Missing Query
 GET {{baseUrl}}/repository/{{repositoryId}}/search
 Authorization: {{authToken}}
+
+### Find all issues (global search)
+GET http://localhost:5000/v1/api/issues/search
+Authorization: {{authToken}}
