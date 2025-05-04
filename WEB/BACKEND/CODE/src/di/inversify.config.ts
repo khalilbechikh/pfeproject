@@ -135,9 +135,10 @@ container.bind<RepositoryController>(RepositoryController)
     .toSelf()
     .inSingletonScope();
 
-container.bind<RepositoryAccessController>(RepositoryAccessController)
-    .toSelf()
+container.bind<RepositoryAccessController>(TYPES.RepositoryAccessController)
+    .to(RepositoryAccessController)
     .inSingletonScope();
+
 
 // Bind PullRequestController
 container.bind<PullRequestController>(TYPES.PullRequestController)

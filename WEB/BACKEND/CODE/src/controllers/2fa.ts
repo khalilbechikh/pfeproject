@@ -15,7 +15,8 @@ export class TwoFactorAuthController {
     ) {}
 
     /**
-     * Generates a new 2FA secret and QR code for the user
+     * Generates a new 2FA secret for the user and returns the data
+     * needed for the frontend to generate a QR code
      * Uses the authenticated user information from the request object
      * that was set by the authenticateJWT middleware
      */
@@ -41,16 +42,13 @@ export class TwoFactorAuthController {
             // Save the secret to the user's record (temporary - will be confirmed later)
             await this.userService.updateUserTwoFactorSecret(userId, secret.base32);
 
-            // Generate QR code as a data URL
-            const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url || '');
-
-            // Return the QR code and the secret key
+            // Return the secret data needed for QR code generation in the frontend
             res.status(200).json({
                 status: 'success',
                 data: {
-                    qrCode: qrCodeUrl,
                     secret: secret.base32,
-                    message: 'Scan the QR code with your authentication app to set up 2FA'
+                    otpauthUrl: secret.otpauth_url,
+                    message: 'Use this data to generate a QR code in your authentication app'
                 }
             });
         } catch (error) {
