@@ -430,6 +430,7 @@ export class IssueController {
                 return;
             }
 
+            // Assuming the service method exists and was added previously
             const response = await this.issueService.getRepositoryIssueComments(repositoryId);
             
             if (response.status === ResponseStatus.FAILED) {
@@ -444,6 +445,43 @@ export class IssueController {
             res.status(500).json({ 
                 status: ResponseStatus.FAILED,
                 message: 'Failed to get repository issue comments',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    };
+
+    /**
+     * Get all comments for a specific issue
+     * @param req Request with issueId parameter
+     * @param res Response
+     */
+    getIssueComments = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const issueId = parseInt(req.params.issueId, 10);
+
+            if (isNaN(issueId)) {
+                res.status(400).json({ 
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid issue ID format',
+                    error: 'Issue ID must be a number'
+                });
+                return;
+            }
+
+            const response = await this.issueService.getIssueComments(issueId);
+            
+            if (response.status === ResponseStatus.FAILED) {
+                // Service layer handles not found or other errors
+                res.status(response.message === 'Issue not found' ? 404 : 400).json(response); 
+                return;
+            }
+            
+            res.status(200).json(response);
+        } catch (error) {
+            console.error('Error in IssueController.getIssueComments:', error);
+            res.status(500).json({ 
+                status: ResponseStatus.FAILED,
+                message: 'Failed to get issue comments',
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
         }

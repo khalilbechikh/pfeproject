@@ -469,6 +469,111 @@ export class IssueService {
     }
 
     /**
+     * Get all comments for a specific issue
+     * @param issueId Issue ID to get comments for
+     * @returns ApiResponse with array of comments or error
+     */
+    async getIssueComments(issueId: number): Promise<ApiResponse<any[]>> {
+        try {
+            console.log("=== ISSUE SERVICE: getIssueComments START ===");
+            console.log("Issue ID:", issueId);
+
+            if (!issueId || issueId <= 0) {
+                console.log("Invalid issue ID:", issueId);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid issue ID',
+                    error: 'Issue ID must be a positive integer',
+                };
+            }
+
+            // Check if issue exists (optional, but good practice)
+            const issueExistsResponse = await this.issueRepository.getIssueById(issueId);
+            if (issueExistsResponse.status === ResponseStatus.FAILED || !issueExistsResponse.data) {
+                 console.log("Issue not found with ID:", issueId);
+                 return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Issue not found',
+                    error: 'Issue not found'
+                 };
+            }
+
+            const response = await this.issueRepository.getIssueComments(issueId);
+            console.log("Issue comments retrieval completed with", response.data?.length || 0, "results");
+            console.log("=== ISSUE SERVICE: getIssueComments END ===");
+            return response;
+        } catch (error) {
+            console.error("=== ISSUE SERVICE: getIssueComments ERROR ===");
+            console.error("Error getting issue comments:", error);
+            
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to get issue comments',
+                error: `${error}`,
+            };
+        }
+    }
+
+    /**
+     * Get all comments for all issues within a specific repository
+     * @param repositoryId Repository ID to get comments for
+     * @returns ApiResponse with array of comments or error
+     */
+    async getRepositoryIssueComments(repositoryId: number): Promise<ApiResponse<any[]>> {
+        try {
+            console.log("=== ISSUE SERVICE: getRepositoryIssueComments START ===");
+            console.log("Repository ID:", repositoryId);
+
+            if (!repositoryId || repositoryId <= 0) {
+                console.log("Invalid repository ID:", repositoryId);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID',
+                    error: 'Repository ID must be a positive integer',
+                };
+            }
+
+            // Fetch all issues for the repo, then fetch comments for each issue. This might be inefficient.
+            const issuesResponse = await this.issueRepository.getRepositoryIssues(repositoryId);
+            if (issuesResponse.status === ResponseStatus.FAILED) {
+                return { ...issuesResponse, message: "Failed to fetch issues for repository comments" };
+            }
+            if (!issuesResponse.data || issuesResponse.data.length === 0) {
+                return { status: ResponseStatus.SUCCESS, message: "No issues found in repository, hence no comments", data: [] };
+            }
+
+            const issueIds = issuesResponse.data.map(issue => issue.id);
+            let allComments: any[] = []; // Use a proper type if available
+
+            for (const issueId of issueIds) {
+                const commentsResponse = await this.issueRepository.getIssueComments(issueId);
+                if (commentsResponse.status === ResponseStatus.SUCCESS && commentsResponse.data) {
+                    allComments = allComments.concat(commentsResponse.data);
+                }
+            }
+
+            const response = {
+                 status: ResponseStatus.SUCCESS,
+                 message: "Repository issue comments retrieved successfully",
+                 data: allComments
+            };
+
+            console.log("Repository issue comments retrieval completed with", response.data?.length || 0, "results");
+            console.log("=== ISSUE SERVICE: getRepositoryIssueComments END ===");
+            return response;
+        } catch (error) {
+            console.error("=== ISSUE SERVICE: getRepositoryIssueComments ERROR ===");
+            console.error("Error getting repository issue comments:", error);
+            
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to get repository issue comments',
+                error: `${error}`,
+            };
+        }
+    }
+
+    /**
      * Get all issues created by a specific user
      * @param userId User ID to get issues for
      * @returns ApiResponse with array of issues or error
@@ -581,47 +686,6 @@ export class IssueService {
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Failed to search all issues',
-                error: `${error}`,
-            };
-        }
-    }
-
-    /**
-     * Get all issue comments for a specific repository
-     * @param repositoryId Repository ID to get comments for
-     * @returns ApiResponse with array of comments or error
-     */
-    async getRepositoryIssueComments(repositoryId: number): Promise<ApiResponse<any[]>> {
-        try {
-            console.log("=== ISSUE SERVICE: getRepositoryIssueComments START ===");
-            console.log("Repository ID:", repositoryId);
-
-            if (!repositoryId || repositoryId <= 0) {
-                console.log("Invalid repository ID:", repositoryId);
-                return {
-                    status: ResponseStatus.FAILED,
-                    message: 'Invalid repository ID',
-                    error: 'Repository ID must be a positive integer',
-                };
-            }
-
-            // Check if repository exists (optional, but good practice)
-            // const repoExists = await this.prisma.repository.findUnique({ where: { id: repositoryId } });
-            // if (!repoExists) {
-            //     return { status: ResponseStatus.FAILED, message: 'Repository not found', error: 'Repository not found' };
-            // }
-
-            const response = await this.issueRepository.getRepositoryIssueComments(repositoryId);
-            console.log("Repository issue comments retrieval completed with", response.data?.length || 0, "results");
-            console.log("=== ISSUE SERVICE: getRepositoryIssueComments END ===");
-            return response;
-        } catch (error) {
-            console.error("=== ISSUE SERVICE: getRepositoryIssueComments ERROR ===");
-            console.error("Error getting repository issue comments:", error);
-            
-            return {
-                status: ResponseStatus.FAILED,
-                message: 'Failed to get repository issue comments',
                 error: `${error}`,
             };
         }
