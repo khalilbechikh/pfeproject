@@ -242,7 +242,7 @@ const IssueDisplay: React.FC<IssueDisplayProps> = ({ darkMode }) => {
                                     }`}>{issue.status}</span>
                                     <div className="flex items-center space-x-1">
                                         <img
-                                            src={issue.author.avatar_path}
+                                            src={`http://localhost:5000/v1/api/users/${issue.author_id}/avatar`}
                                             alt="avatar"
                                             className="w-6 h-6 rounded-full"
                                         />
