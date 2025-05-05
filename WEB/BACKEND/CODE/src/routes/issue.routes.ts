@@ -31,6 +31,11 @@ router.get('/:issueId', (req: Request, res: Response) => {
     issueController.getIssueById(req, res);
 });
 
+// Get comments for a specific issue
+router.get('/:issueId/comments', (req: Request, res: Response) => {
+    issueController.getIssueComments(req, res);
+});
+
 router.post('/', (req: Request, res: Response) => {
     issueController.createIssue(req, res);
 });
