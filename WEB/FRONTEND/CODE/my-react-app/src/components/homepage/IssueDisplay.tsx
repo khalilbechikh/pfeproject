@@ -21,15 +21,200 @@ export interface Issue {
         username: string;
         avatar_path: string;
     };
-    issue_comment: Comment[];
 }
 
 interface Comment {
     id: number;
-    content: string;
+    issue_id: number;
     author_id: number;
+    content: string;
     created_at: string;
+    updated_at: string;
+    author: {
+        id: number;
+        username: string;
+        avatar_path: string;
+    };
 }
+
+interface IssueItemProps {
+    issue: Issue;
+    darkMode: boolean;
+    userId: number | null;
+    onDelete: (issueId: number) => void;
+    onEdit: (issue: Issue) => void;
+    comments: Comment[];
+    fetchComments: () => void;
+}
+
+const IssueItem: React.FC<IssueItemProps> = ({
+    issue,
+    darkMode,
+    userId,
+    onDelete,
+    onEdit,
+    comments,
+    fetchComments
+}) => {
+    const [commentContent, setCommentContent] = useState('');
+    const [isCommentsVisible, setIsCommentsVisible] = useState(false);
+
+    const toggleComments = () => {
+        const newVisibility = !isCommentsVisible;
+        setIsCommentsVisible(newVisibility);
+        if (newVisibility && comments.length === 0) {
+            fetchComments();
+        }
+    };
+
+    const handleCommentSubmit = async () => {
+        if (!userId || !commentContent.trim()) return;
+
+        try {
+            const token = localStorage.getItem('authToken');
+            await fetch('http://localhost:5000/v1/api/issues/comments', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    issueId: issue.id,
+                    authorId: userId,
+                    content: commentContent.trim()
+                })
+            });
+            setCommentContent('');
+            fetchComments(); // Refresh comments after submission
+        } catch (error) {
+            console.error('Error submitting comment:', error);
+        }
+    };
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
+        >
+            <div className="flex justify-between items-start mb-3">
+                <div>
+                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        {issue.title}
+                    </h3>
+                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {issue.description}
+                    </p>
+                </div>
+                {issue.author_id === userId && (
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onEdit(issue)}
+                            className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
+                        >
+                            <Edit size={18} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
+                        </button>
+                        <button
+                            onClick={() => onDelete(issue.id)}
+                            className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
+                        >
+                            <Trash2 size={18} className={darkMode ? 'text-red-400' : 'text-red-600'} />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex items-center space-x-3 mb-3">
+                <span className={`text-sm px-2 py-1 rounded-full ${
+                    issue.status === 'open'
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                    {issue.status}
+                </span>
+                <div className="flex items-center space-x-1">
+                    <img
+                        src={issue.author.avatar_path
+                            ? `http://localhost:5000${issue.author.avatar_path}`
+                            : '/default-avatar.png'}
+                        alt="avatar"
+                        className="w-6 h-6 rounded-full"
+                    />
+                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {issue.author.username}
+                    </span>
+                </div>
+            </div>
+
+            <button
+                onClick={toggleComments}
+                className={`text-sm mb-3 ${
+                    darkMode
+                    ? 'text-blue-400 hover:text-blue-300'
+                    : 'text-blue-600 hover:text-blue-700'
+                } hover:underline cursor-pointer`}
+            >
+                {isCommentsVisible ? 'Hide Comments' : 'Show Comments'}
+            </button>
+
+            {isCommentsVisible && (
+                <div className="ml-4 space-y-3">
+                    {comments.map(comment => (
+                        <div
+                            key={comment.id}
+                            className={`p-3 rounded-lg ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}
+                        >
+                            <div className="flex items-center gap-2 mb-2">
+                                <img
+                                    src={comment.author.avatar_path
+                                        ? `http://localhost:5000${comment.author.avatar_path}`
+                                        : '/default-avatar.png'}
+                                    alt="avatar"
+                                    className="w-5 h-5 rounded-full"
+                                />
+                                <span className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    {comment.author.username}
+                                </span>
+                                <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    {new Date(comment.created_at).toLocaleDateString()}
+                                </span>
+                            </div>
+                            <p className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                                {comment.content}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {issue.author_id !== userId && (
+                <div className="flex gap-2 mt-4">
+                    <input
+                        value={commentContent}
+                        onChange={(e) => setCommentContent(e.target.value)}
+                        placeholder="Add a comment..."
+                        className={`flex-1 px-3 py-2 rounded-lg ${
+                            darkMode ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-800'
+                        }`}
+                        onKeyPress={(e) => e.key === 'Enter' && handleCommentSubmit()}
+                    />
+                    <button
+                        onClick={handleCommentSubmit}
+                        className={`px-4 py-2 rounded-lg ${
+                            darkMode
+                            ? 'bg-violet-600 hover:bg-violet-700'
+                            : 'bg-cyan-600 hover:bg-cyan-700'
+                        } text-white`}
+                    >
+                        <MessageSquare size={18} />
+                    </button>
+                </div>
+            )}
+        </motion.div>
+    );
+};
 
 interface IssueDisplayProps {
     darkMode: boolean;
@@ -38,12 +223,12 @@ interface IssueDisplayProps {
 const IssueDisplay: React.FC<IssueDisplayProps> = ({ darkMode }) => {
     const [issues, setIssues] = useState<Issue[]>([]);
     const [filteredIssues, setFilteredIssues] = useState<Issue[]>([]);
+    const [commentsByIssueId, setCommentsByIssueId] = useState<Record<number, Comment[]>>({});
     const [showUserIssues, setShowUserIssues] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [userId, setUserId] = useState<number | null>(null);
     const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
     const [editMode, setEditMode] = useState(false);
-    const [commentContent, setCommentContent] = useState('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -63,10 +248,7 @@ const IssueDisplay: React.FC<IssueDisplayProps> = ({ darkMode }) => {
             );
             const data = await response.json();
             if (data.status === 'success') {
-                setIssues(data.data.map(issue => ({
-                    ...issue,
-                    issue_comment: issue.issue_comment || [] // Add default empty array
-                })));
+                setIssues(data.data);
                 setFilteredIssues(data.data);
             }
         } catch (error) {
@@ -76,43 +258,39 @@ const IssueDisplay: React.FC<IssueDisplayProps> = ({ darkMode }) => {
         }
     }, []);
 
+    const fetchComments = useCallback(async (issueId: number) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch(
+                `http://localhost:5000/v1/api/issues/${issueId}/comments`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            const data = await response.json();
+            if (data.status === 'success') {
+                setCommentsByIssueId(prev => ({
+                    ...prev,
+                    [issueId]: data.data
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching comments:', error);
+        }
+    }, []);
+
     useEffect(() => {
         fetchIssues();
     }, [fetchIssues]);
 
     useEffect(() => {
-        const result = issues.filter(issue => {
+        const filtered = issues.filter(issue => {
             const matchesSearch = issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                issue.description.toLowerCase().includes(searchQuery.toLowerCase());
-
+                                issue.description.toLowerCase().includes(searchQuery.toLowerCase());
             return matchesSearch && (showUserIssues
                 ? issue.author_id === userId
                 : issue.author_id !== userId);
         });
-        setFilteredIssues(result);
+        setFilteredIssues(filtered);
     }, [searchQuery, showUserIssues, issues, userId]);
-
-    const handleCommentSubmit = async (issueId: number) => {
-        try {
-            const token = localStorage.getItem('authToken');
-            await fetch('http://localhost:5000/v1/api/issues/comments', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    issueId,
-                    authorId: userId,
-                    content: commentContent
-                })
-            });
-            setCommentContent('');
-            fetchIssues();
-        } catch (error) {
-            console.error('Error submitting comment:', error);
-        }
-    };
 
     const handleIssueUpdate = async (updatedIssue: Issue) => {
         try {
@@ -190,103 +368,19 @@ const IssueDisplay: React.FC<IssueDisplayProps> = ({ darkMode }) => {
                 <motion.div layout className="space-y-4">
                     <AnimatePresence>
                         {filteredIssues.map(issue => (
-                            <motion.div
+                            <IssueItem
                                 key={issue.id}
-                                layout
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                className={`p-4 rounded-xl ${
-                                    darkMode ? 'bg-gray-700' : 'bg-gray-100'
-                                } transition-colors`}
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                        <h3 className={`text-lg font-semibold ${
-                                            darkMode ? 'text-white' : 'text-gray-800'
-                                        }`}>{issue.title}</h3>
-                                        <p className={`text-sm ${
-                                            darkMode ? 'text-gray-300' : 'text-gray-600'
-                                        }`}>{issue.description}</p>
-                                    </div>
-                                    {issue.author_id === userId && (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedIssue(issue);
-                                                    setEditMode(true);
-                                                }}
-                                                className={`p-2 rounded-lg ${
-                                                    darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                                                }`}
-                                            >
-                                                <Edit size={18} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteIssue(issue.id)}
-                                                className={`p-2 rounded-lg ${
-                                                    darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                                                }`}
-                                            >
-                                                <Trash2 size={18} className={darkMode ? 'text-red-400' : 'text-red-600'} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center space-x-3 mb-3">
-                                    <span className={`text-sm px-2 py-1 rounded-full ${
-                                        issue.status === 'open'
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-red-100 text-red-800'
-                                    }`}>{issue.status}</span>
-                                    <div className="flex items-center space-x-1">
-                                        <img
-                                            src={`http://localhost:5000/v1/api/users/${issue.author_id}/avatar`}
-                                            alt="avatar"
-                                            className="w-6 h-6 rounded-full"
-                                        />
-                                        <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                            {issue.author.username}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {(issue.issue_comment || []).map(comment => (
-                                    <div key={comment.id} className={`ml-6 p-3 rounded-lg ${
-                                        darkMode ? 'bg-gray-600' : 'bg-gray-200'
-                                    } mb-2`}>
-                                        <p className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                                            {comment.content}
-                                        </p>
-                                    </div>
-                                ))}
-
-                                {issue.author_id !== userId && (
-                                    <div className="flex space-x-2 mt-3">
-                                        <input
-                                            value={commentContent}
-                                            onChange={(e) => setCommentContent(e.target.value)}
-                                            placeholder="Add a comment..."
-                                            className={`flex-1 px-3 py-1 rounded-lg ${
-                                                darkMode
-                                                ? 'bg-gray-600 text-white'
-                                                : 'bg-gray-200 text-gray-800'
-                                            }`}
-                                        />
-                                        <button
-                                            onClick={() => handleCommentSubmit(issue.id)}
-                                            className={`px-3 py-1 rounded-lg ${
-                                                darkMode
-                                                ? 'bg-violet-600 hover:bg-violet-700'
-                                                : 'bg-cyan-600 hover:bg-cyan-700'
-                                            } text-white`}
-                                        >
-                                            <MessageSquare size={16} />
-                                        </button>
-                                    </div>
-                                )}
-                            </motion.div>
+                                issue={issue}
+                                darkMode={darkMode}
+                                userId={userId}
+                                onDelete={handleDeleteIssue}
+                                onEdit={(issue) => {
+                                    setSelectedIssue(issue);
+                                    setEditMode(true); // Add this to activate edit mode
+                                }}
+                                comments={commentsByIssueId[issue.id] || []}
+                                fetchComments={() => fetchComments(issue.id)}
+                            />
                         ))}
                     </AnimatePresence>
                 </motion.div>

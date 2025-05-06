@@ -4,8 +4,11 @@ import LoginSignup from './components/auth/loginsignup';
 import StyledPage from './components/StyledPage';
 import Dashboard from './components/homepage/dashboard';
 import Profile from './components/homepage/profile';
-import Preview from './components/homepage/preview'; // Import the Preview component
-import UserOwnRepoPreview from './components/homepage/UserOwnRepoPreview'; // Import the UserOwnRepoPreview component
+import Preview from './components/homepage/preview';
+import UserOwnRepoPreview from './components/homepage/UserOwnRepoPreview';
+import RequestResetPassword from './components/auth/requestresetpassword';
+import ResetPassword from './components/auth/resetpassword'; // Import the ResetPassword component
+import Verify2FA from './components/auth/verify2fa'; // Add new import
 import { JSX, useState } from 'react';
 
 function App() {
@@ -22,6 +25,8 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginSignup />} />
         <Route path="/styled" element={<StyledPage />} />
+        <Route path="/request-reset-password" element={<RequestResetPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} /> {/* New dynamic route */}
 
         {/* Protected Routes */}
         <Route
@@ -55,6 +60,15 @@ function App() {
           element={
             <ProtectedRoute>
               <UserOwnRepoPreview darkMode={darkMode} />
+            </ProtectedRoute>
+          }
+        />
+        {/* New route for 2FA verification */}
+        <Route
+          path="/verify-2fa"
+          element={
+            <ProtectedRoute>
+              <Verify2FA />
             </ProtectedRoute>
           }
         />

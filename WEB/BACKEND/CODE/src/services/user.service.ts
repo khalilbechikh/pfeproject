@@ -364,4 +364,35 @@ export class UserService {
             where: { id: userIdNum }
         });
     }
+
+    /**
+     * Get a user by email
+     * @param email User email
+     * @returns ApiResponse with user object or error
+     */
+    async getUserByEmail(email: string) {
+        try {
+            const user = await this.userRepository.getUserByEmail(email);
+            if (user) {
+                return {
+                    status: ResponseStatus.SUCCESS,
+                    message: 'User found',
+                    data: user
+                };
+            } else {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'User not found',
+                    data: null
+                };
+            }
+        } catch (error) {
+            console.error('Error in UserService.getUserByEmail:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve user by email',
+                error: (error as Error).message
+            };
+        }
+    }
 }

@@ -4,6 +4,7 @@ import { ChevronLeft, Folder, File, X, Moon, Sun, GitBranch, GitFork, AlertCircl
 import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
 import IssueReportModal from './IssueReportModal';
+import Editor from '@monaco-editor/react';
 
 interface JwtPayload {
     userId: number;
@@ -32,6 +33,16 @@ interface DirectoryItem {
     lastModified?: string;
 }
 
+interface TreeNode {
+    name: string;
+    type: 'file' | 'folder';
+    path: string;
+    isExpanded: boolean;
+    children: TreeNode[];
+    loaded: boolean;
+    parentPath?: string;
+}
+
 const Preview = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -55,6 +66,9 @@ const Preview = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
+    const [sidebarTree, setSidebarTree] = useState<TreeNode[]>([]);
+    const [initialRootPath, setInitialRootPath] = useState<string>('');
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('plaintext');
 
     const handleScroll = useCallback(() => {
         setHeaderScrolled(window.scrollY > 50);
@@ -99,10 +113,12 @@ const Preview = () => {
                 if (cloneResult.status === 'success') {
                     setCurrentPath(cloneResult.data);
                     setDisplayPath(cloneResult.data.replace('temp-working-directory/', ''));
+                    setInitialRootPath(cloneResult.data);
                 } else if (cloneResult.error?.includes('File exists')) {
                     const path = `temp-working-directory/${repoData.data.name}.git`;
                     setCurrentPath(path);
                     setDisplayPath(path.replace('temp-working-directory/', ''));
+                    setInitialRootPath(path);
                 } else {
                     throw new Error(cloneResult.message || 'Clone failed');
                 }
@@ -143,7 +159,7 @@ const Preview = () => {
                 const responseData = await response.json();
 
                 if (responseData.data.type === 'folder') {
-                    setDirectoryContents(responseData.data.content);
+                    setDirectoryContents(responseData.data.content.filter((item: DirectoryItem) => !(item.type === 'folder' && item.name.endsWith('.git'))));
                 } else {
                     throw new Error('Expected folder content');
                 }
@@ -223,6 +239,120 @@ const Preview = () => {
         }
     };
 
+    const findNode = (nodes: TreeNode[], targetPath: string): TreeNode | undefined => {
+        for (const node of nodes) {
+            if (node.path === targetPath) return node;
+            const found = findNode(node.children, targetPath);
+            if (found) return found;
+        }
+        return undefined;
+    };
+
+    const updateTree = (nodes: TreeNode[], targetPath: string, updater: (node: TreeNode) => TreeNode): TreeNode[] => {
+        return nodes.map(node => {
+            if (node.path === targetPath) return updater(node);
+            return { ...node, children: updateTree(node.children, targetPath, updater) };
+        });
+    };
+
+    const addChildNode = (nodes: TreeNode[], parentPath: string, newNode: TreeNode): TreeNode[] => {
+        return nodes.map(node => {
+            if (node.path === parentPath) {
+                return { ...node, children: [newNode, ...node.children] };
+            }
+            return { ...node, children: addChildNode(node.children, parentPath, newNode) };
+        });
+    };
+
+    const toggleFolder = async (path: string) => {
+        const node = findNode(sidebarTree, path);
+        if (!node) return;
+
+        if (!node.loaded) {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(
+                    `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const children = data.data.content
+                        .filter((item: DirectoryItem) => item.name !== '.git')
+                        .map((item: DirectoryItem) => ({
+                            name: item.name,
+                            type: item.type,
+                            path: `${path}/${item.name}`,
+                            isExpanded: false,
+                            children: [],
+                            loaded: false,
+                            parentPath: path
+                        }));
+
+                    setSidebarTree(prev => updateTree(prev, path, n => ({
+                        ...n,
+                        children,
+                        loaded: true
+                    })));
+                }
+            } catch (err) {
+                console.error('Error loading folder contents:', err);
+            }
+        }
+
+        setSidebarTree(prev => updateTree(prev, path, n => ({
+            ...n,
+            isExpanded: !n.isExpanded
+        })));
+    };
+
+    const TreeView = ({ nodes, onToggle }: { nodes: TreeNode[], onToggle: (path: string) => void }) => (
+        <div className="pl-2">
+            {nodes.map(node => (
+                <div key={node.path}>
+                    <div className="flex items-center">
+                        {node.type === 'folder' && (
+                            <button
+                                onClick={() => onToggle(node.path)}
+                                className="mr-1 p-1 hover:bg-gray-700 rounded text-sm"
+                            >
+                                {node.isExpanded ? '▼' : '▶'}
+                            </button>
+                        )}
+                        <div className={`flex items-center flex-1 p-2 rounded-lg cursor-pointer ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}>
+                            <FileIcon type={node.type} name={node.name} />
+                            <span className="ml-2">{node.name}</span>
+                        </div>
+                    </div>
+                    {node.type === 'folder' && node.isExpanded && (
+                        <TreeView nodes={node.children} onToggle={onToggle} />
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+
+    useEffect(() => {
+        if (!repo || !initialRootPath) return;
+
+        const loadInitialTree = async () => {
+            const cleanPath = initialRootPath.replace('temp-working-directory/', '');
+            const rootNode: TreeNode = {
+                name: cleanPath.split('/').pop() || cleanPath,
+                type: 'folder',
+                path: cleanPath,
+                isExpanded: true,
+                children: [],
+                loaded: false,
+                parentPath: ''
+            };
+            setSidebarTree([rootNode]);
+        };
+
+        loadInitialTree();
+    }, [repo, initialRootPath]);
+
     const FileIcon = ({ type, name }: { type: 'file' | 'folder', name: string }) => {
         const extension = name.split('.').pop();
         const getColor = () => {
@@ -298,6 +428,8 @@ const Preview = () => {
         );
     }
 
+    const SIDEBAR_WIDTH = 320;
+
     return (
         <div className={`min-h-screen flex flex-col ${
             darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
@@ -369,6 +501,7 @@ const Preview = () => {
                         className={`w-80 fixed left-0 h-full p-6 border-r ${
                             darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white/50'
                         } backdrop-blur-lg`}
+                        style={{ width: `${SIDEBAR_WIDTH}px` }}
                     >
                         <div className="flex items-center justify-between mb-6">
                             <h2 className={`text-lg font-semibold ${
@@ -385,22 +518,10 @@ const Preview = () => {
                                 <X size={18} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
                             </button>
                         </div>
-                        <div className="space-y-1">
-                            {directoryContents
-                                .filter(item => item.type === 'folder')
-                                .map((folder) => (
-                                    <div
-                                        key={folder.name}
-                                        className={`flex items-center p-2 rounded-lg cursor-pointer ${
-                                            darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'
-                                        }`}
-                                        onClick={() => handleFolderClick(folder.name)}
-                                    >
-                                        <Folder className="h-5 w-5 mr-2 text-amber-400" />
-                                        <span>{folder.name}</span>
-                                    </div>
-                                ))}
-                        </div>
+                        <TreeView
+                            nodes={sidebarTree}
+                            onToggle={toggleFolder}
+                        />
                     </motion.aside>
                 )}
 
@@ -534,48 +655,52 @@ const Preview = () => {
                         <AnimatePresence>
                             {selectedFile && (
                                 <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center`}
+                                    className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+                                    style={{ left: `${SIDEBAR_WIDTH}px`, width: `calc(100% - ${SIDEBAR_WIDTH}px)` }}
                                 >
-                                    <motion.div
-                                        initial={{ y: 50, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        exit={{ y: -50, opacity: 0 }}
-                                        className={`w-full max-w-4xl rounded-2xl p-6 ${
-                                            darkMode ? 'bg-gray-800' : 'bg-white'
-                                        }`}
-                                    >
-                                        <div className="flex justify-between items-center mb-4">
-                                            <div className="flex items-center space-x-2">
-                                                <FileIcon
-                                                    type="file"
-                                                    name={selectedFile.path.split('.').pop() || 'file'}
-                                                />
-                                                <span className="font-mono text-sm">
-                                                    {selectedFile.path.split('/').pop()}
-                                                </span>
+                                    <div className="h-screen w-full flex flex-col">
+                                        <div className={`flex justify-between items-center p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                                            <div className="flex items-center space-x-4">
+                                                <select
+                                                    value={selectedLanguage}
+                                                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                                                    className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
+                                                >
+                                                    <option value="plaintext">Plain Text</option>
+                                                    <option value="python">Python</option>
+                                                    <option value="javascript">JavaScript</option>
+                                                    <option value="typescript">TypeScript</option>
+                                                    <option value="java">Java</option>
+                                                    <option value="csharp">C#</option>
+                                                    <option value="cpp">C++</option>
+                                                    <option value="html">HTML</option>
+                                                    <option value="css">CSS</option>
+                                                </select>
                                             </div>
-                                            <button
-                                                onClick={() => setSelectedFile(null)}
-                                                className={`p-2 rounded-full ${
-                                                    darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                                                }`}
-                                            >
-                                                <X size={20} />
-                                            </button>
+                                            <div className="flex space-x-2">
+                                                <button
+                                                    onClick={() => setSelectedFile(null)}
+                                                    className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                                >
+                                                    <X size={24} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className={`rounded-xl overflow-hidden ${
-                                            darkMode ? 'bg-gray-900' : 'bg-gray-100'
-                                        }`}>
-                                            <pre className={`text-sm whitespace-pre-wrap break-words ${
-                                                darkMode ? 'text-gray-300' : 'text-gray-800'
-                                            } p-4 overflow-auto max-h-[70vh]`}>
-                                                {selectedFile.content}
-                                            </pre>
+                                        <div className="flex-1">
+                                            <Editor
+                                                height="100%"
+                                                language={selectedLanguage as string}
+                                                theme={darkMode ? 'vs-dark' : 'vs-light'}
+                                                value={selectedFile.content}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    automaticLayout: true,
+                                                    scrollBeyondLastLine: false,
+                                                    readOnly: true
+                                                }}
+                                            />
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>

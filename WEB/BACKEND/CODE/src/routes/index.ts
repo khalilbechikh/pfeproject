@@ -5,7 +5,8 @@ import { authenticationRoutes } from './authentication.routes';
 import { configureRepositoryRoutes } from './repository.routes';
 import folderPreviewRoutes from './folder.preview.routes'; // Import the new routes
 import { configurePullRequestRoutes } from './pullRequest.routes'; // Import pull request routes
-import issueRoutes from './issue.routes'; // Import issue routes default export
+import issueRoutes from './issue.routes'; // Import issue routes default 
+import repositoryAccessController  from './repository_access.routes'; 
 import twoFactorAuthRouter from './2fa.routes'; // Import 2FA routes
 
 export const configureRoutes = (): Router => {
@@ -19,6 +20,6 @@ export const configureRoutes = (): Router => {
     router.use('/pull-requests', configurePullRequestRoutes()); // Add pull request routes
     router.use('/issues', issueRoutes); // Use the imported issue router directly
     router.use('/2fa', twoFactorAuthRouter); // Add 2FA routes
-
+    router.use('/repository-access', repositoryAccessController); // Add repository access routes
     return router;
 };

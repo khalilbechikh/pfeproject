@@ -13,6 +13,9 @@ export const configureUserRoutes = (): Router => {
     // GET /api/users/:id - Get a user by ID
     router.get('/:id', userController.getUserById);
 
+    // GET /api/users/email/:email - Get a user by email
+    router.get('/email/:email', userController.getUserByEmail);
+
     // POST /api/users - Create a new user
     router.post('/', userController.createUser);
 

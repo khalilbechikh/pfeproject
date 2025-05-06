@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom'; // Import Link from react-router-dom
-import { GitFork, Users, Code, Share2 } from 'lucide-react';
+import { GitFork, Users, Code } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 
 interface JwtPayload {
@@ -159,7 +159,7 @@ const ExplorerRepo = ({ darkMode }: { darkMode: boolean }) => {
                                     <div>
                                         <div className="flex items-center space-x-3">
                                             <h3 className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline`}>
-                                                <Link 
+                                                <Link
                                                     to={`/repositories/${repository.id}`}
                                                     state={{ darkMode }} // Pass darkMode as state
                                                 >
@@ -218,10 +218,6 @@ const ExplorerRepo = ({ darkMode }: { darkMode: boolean }) => {
                                         <Code size={14} className="inline-block mr-1.5" />
                                         Code
                                     </Link>
-                                    <button className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-400' : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700'} transition-colors`}>
-                                        <Share2 size={14} className="inline-block mr-1.5" />
-                                        Share
-                                    </button>
                                 </div>
                             </div>
                         </div>

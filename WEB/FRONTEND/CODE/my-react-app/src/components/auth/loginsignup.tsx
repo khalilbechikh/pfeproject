@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, CheckCircleIcon, Share2, Moon, Sun } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { CreateUserSchema, LoginUserSchema } from '../auth/authzod'; // Import the Zod schemas
+import { jwtDecode } from "jwt-decode"; // Add jwtDecode import
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -121,10 +122,28 @@ export default function AuthPage() {
         setSuccessMessage(responseData.message || (isLogin ? "Login successful!" : "Account created successfully!"));
         setFormSuccess(true);
 
-        setTimeout(() => {
+        setTimeout(async () => {
           setFormSuccess(false);
           if (isLogin) {
-            navigate('/dashboard');
+            try {
+              const storedToken = localStorage.getItem('authToken');
+              if (!storedToken) throw new Error("No token found");
+
+              const decoded: { userId: number } = jwtDecode(storedToken);
+              const userResponse = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}`, {
+                headers: { 'Authorization': `Bearer ${storedToken}` }
+              });
+
+              const userData = await userResponse.json();
+              if (userData.data.twoFactorEnabled) {
+                navigate('/verify-2fa');
+              } else {
+                navigate('/dashboard');
+              }
+            } catch (error) {
+              console.error("2FA check failed:", error);
+              navigate('/dashboard');
+            }
           } else {
             setUsername('');
             setEmail('');
@@ -362,12 +381,12 @@ export default function AuthPage() {
                     Remember me
                   </label>
                 </div>
-                <a
-                  href="#"
+                <Link
+                  to="/request-reset-password"
                   className={`${darkMode ? 'text-violet-400 hover:text-violet-300' : 'text-cyan-600 hover:text-cyan-700'} transition-colors`}
                 >
                   Forgot password?
-                </a>
+                </Link>
               </div>
             )}
 

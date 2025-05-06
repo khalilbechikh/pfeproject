@@ -291,4 +291,36 @@ export class UserController {
             }
         }
     }
+
+    /**
+     * Get a user by email
+     * @param req Express request object
+     * @param res Express response object
+     */
+    getUserByEmail = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const email = req.params.email;
+            if (!email) {
+                res.status(400).json({ error: 'Email is required' });
+                return;
+            }
+            const userResponse = await this.userService.getUserByEmail(email);
+            if (userResponse.status === ResponseStatus.SUCCESS) {
+                res.status(200).json(userResponse);
+            } else {
+                res.status(404).json({
+                    status: userResponse.status,
+                    message: userResponse.message,
+                    error: userResponse.error
+                });
+            }
+        } catch (error) {
+            console.error('Error in UserController.getUserByEmail:', error);
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve user by email',
+                error: (error instanceof Error) ? error.message : 'Unknown error'
+            });
+        }
+    };
 }

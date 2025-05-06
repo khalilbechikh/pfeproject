@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, Clock, Filter, ChevronDown, User, AlertCircle } from 'lucide-react';
+import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, Clock, Filter, ChevronDown, User, AlertCircle, Bot } from 'lucide-react';
 import Profile from './profile';
 import RepositoriesList from './RepositoriesList';
 import ExplorerRepo from './explorerepo';
@@ -9,7 +9,6 @@ import IssueDisplay, { Issue } from './IssueDisplay';
 
 interface JwtPayload {
     userId: string;
-    // Add other fields if needed, e.g. exp, iat, etc.
 }
 
 interface UserProfile {
@@ -40,14 +39,6 @@ interface MenuItem {
     id: string;
 }
 
-interface Activity {
-    type: 'commit' | 'issue' | 'star' | 'fork';
-    project: string;
-    action: string;
-    time: string;
-    icon: React.ReactNode;
-}
-
 export default function EnhancedSharecodeDashboard() {
     const navigate = useNavigate();
     const [currentTab, setCurrentTab] = useState<string>('repositories');
@@ -63,7 +54,6 @@ export default function EnhancedSharecodeDashboard() {
     })));
     const [user, setUser] = useState<UserProfile | null>(null);
 
-    // Add this useEffect to fetch user data
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -217,51 +207,6 @@ export default function EnhancedSharecodeDashboard() {
                 return <RepositoriesList darkMode={darkMode} />;
             case 'explore':
                 return <ExplorerRepo darkMode={darkMode} />;
-            case 'activity':
-                return (
-                    <div className="space-y-6">
-                        <div className="mb-6">
-                            <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Recent Activity</h1>
-                            <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your recent interactions and updates</p>
-                        </div>
-                        <div className={`${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'} backdrop-blur-sm border rounded-lg overflow-hidden`}>
-                            <div className="p-4">
-                                <ul className="space-y-6">
-                                    {[
-                                        { type: 'commit', project: 'Neural Network Visualizer', action: 'Fixed visualization bug in convolutional layers', time: '2 hours ago', icon: <Code size={16} /> },
-                                        { type: 'issue', project: 'Quantum Algorithm Simulator', action: 'Closed issue #42: Performance optimization', time: '5 hours ago', icon: <AlertCircle size={16} /> },
-                                        { type: 'star', project: '3D Code Architecture', action: 'Starred this repository', time: 'Yesterday', icon: <Star size={16} /> },
-                                        { type: 'fork', project: 'Blockchain Explorer', action: 'Forked this repository', time: '2 days ago', icon: <GitFork size={16} /> },
-                                        { type: 'commit', project: 'Neural Network Visualizer', action: 'Added export functionality for trained models', time: '3 days ago', icon: <Code size={16} /> },
-                                    ].map((activity, idx) => (
-                                        <li key={idx} className="relative pl-8">
-                                            <div className={`absolute left-0 top-0 rounded-full p-1 ${activity.type === 'commit'
-                                                ? darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600'
-                                                : activity.type === 'issue'
-                                                    ? darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'
-                                                    : activity.type === 'star'
-                                                        ? darkMode ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-600'
-                                                        : darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-600'
-                                                }`}>
-                                                {activity.icon}
-                                            </div>
-                                            <div>
-                                                <p className={`${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>
-                                                    <span className={`font-medium ${darkMode ? 'text-violet-400' : 'text-cyan-600'}`}>
-                                                        {activity.project}
-                                                    </span>
-                                                    <span className="mx-1">•</span>
-                                                    {activity.action}
-                                                </p>
-                                                <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{activity.time}</p>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                );
             default:
                 return (
                     <div className="text-center py-16">
@@ -278,8 +223,7 @@ export default function EnhancedSharecodeDashboard() {
         { icon: <Code size={20} />, label: 'Repositories', id: 'repositories' },
         { icon: <GitFork size={20} />, label: 'Explore Repositories', id: 'explore' },
         { icon: <AlertCircle size={20} />, label: 'Issues', id: 'issues' },
-        { icon: <Clock size={20} />, label: 'Activity', id: 'activity' },
-        { icon: <FileText size={20} />, label: 'Documentation', id: 'docs' },
+        { icon: <Bot size={20} />, label: 'IA Agent', id: 'ia-agent' },
     ];
 
     return (

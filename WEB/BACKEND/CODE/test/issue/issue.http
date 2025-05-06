@@ -132,3 +132,15 @@ Authorization: {{authToken}}
 ### Find all issues (global search)
 GET http://localhost:5000/v1/api/issues/search
 Authorization: {{authToken}}
+
+### Get Comments for Issue - Success
+GET {{baseUrl}}/4/comments
+Authorization: {{authToken}}
+
+### Get Comments for Issue - Not Found
+GET {{baseUrl}}/{{nonExistentIssueId}}/comments
+Authorization: {{authToken}}
+
+### Get Comments for Issue - Invalid ID
+GET {{baseUrl}}/invalid-id/comments
+Authorization: {{authToken}}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Trash, Edit, Code, Share2, Users } from 'lucide-react';
+import { Plus, X, Trash, Edit, Code, Share2, Users, Search, UserPlus, ChevronDown, Check } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
 import UserOwnRepoPreview from './UserOwnRepoPreview';
@@ -18,6 +18,14 @@ interface Repository {
     updated_at: string;
     contributors: number;
     language: string;
+}
+
+interface AccessEntry {
+    user_id: number;
+    access_level: 'view' | 'edit';
+    user: {
+        email: string;
+    };
 }
 
 const languageColors: Record<string, string> = {
@@ -72,6 +80,12 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
         is_private: false
     });
     const [repoToDelete, setRepoToDelete] = useState<number | null>(null);
+    const [managingAccessRepoId, setManagingAccessRepoId] = useState<number | null>(null);
+    const [accessList, setAccessList] = useState<AccessEntry[]>([]);
+    const [newUserEmail, setNewUserEmail] = useState('');
+    const [newAccessLevel, setNewAccessLevel] = useState<'view' | 'edit'>('view');
+    const [accessError, setAccessError] = useState<string | null>(null);
+    const [isLoadingAccess, setIsLoadingAccess] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -270,6 +284,159 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
         } catch (err) {
             console.error("Error updating repository:", err);
             setError(err instanceof Error ? err.message : 'Failed to update repository');
+        }
+    };
+
+    const fetchRepositoryAccess = async (repositoryId: number) => {
+        try {
+            setIsLoadingAccess(true);
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
+
+            const response = await fetch(
+                `http://localhost:5000/v1/api/repository-access/repositories/${repositoryId}/users`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch access list');
+            }
+
+            const data = await response.json();
+            setAccessList(data.data);
+            setAccessError(null);
+        } catch (err) {
+            console.error("Error fetching repository access:", err);
+            setAccessError(err instanceof Error ? err.message : 'Failed to load access list');
+        } finally {
+            setIsLoadingAccess(false);
+        }
+    };
+
+    const handleAddAccess = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token || !managingAccessRepoId) {
+                throw new Error('No authentication token found');
+            }
+
+            // Validate email input
+            if (!newUserEmail || !newUserEmail.includes('@')) {
+                throw new Error('Please enter a valid email address');
+            }
+
+            // Step 1: Get user ID from email
+            const userResponse = await fetch(
+                `http://localhost:5000/v1/api/users/email/${encodeURIComponent(newUserEmail)}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            if (!userResponse.ok) {
+                const errorData = await userResponse.json();
+                throw new Error(errorData.message || 'User not found with this email');
+            }
+
+            const userData = await userResponse.json();
+            const userId = userData.data.id;
+
+            // Step 2: Add access with obtained user ID
+            const accessResponse = await fetch(
+                `http://localhost:5000/v1/api/repository-access/access`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        repositoryId: managingAccessRepoId,
+                        userId: userId,
+                        accessLevel: newAccessLevel
+                    })
+                }
+            );
+
+            if (!accessResponse.ok) {
+                const errorData = await accessResponse.json();
+                throw new Error(errorData.message || 'Failed to add access');
+            }
+
+            // Refresh access list and reset form
+            await fetchRepositoryAccess(managingAccessRepoId);
+            setNewUserEmail('');
+            setNewAccessLevel('view');
+            setAccessError(null);
+        } catch (err) {
+            console.error("Error adding repository access:", err);
+            setAccessError(err instanceof Error ? err.message : 'Failed to add access');
+        }
+    };
+
+    const handleUpdateAccess = async (userId: number, newLevel: 'view' | 'edit') => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token || !managingAccessRepoId) throw new Error('No authentication token found');
+
+            const response = await fetch(
+                `http://localhost:5000/v1/api/repository-access/repositories/${managingAccessRepoId}/users/${userId}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ accessLevel: newLevel })
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to update access level');
+            }
+
+            await fetchRepositoryAccess(managingAccessRepoId);
+        } catch (err) {
+            console.error("Error updating repository access:", err);
+            setAccessError(err instanceof Error ? err.message : 'Failed to update access');
+        }
+    };
+
+    const handleRemoveAccess = async (userId: number) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token || !managingAccessRepoId) throw new Error('No authentication token found');
+
+            const response = await fetch(
+                `http://localhost:5000/v1/api/repository-access/repositories/${managingAccessRepoId}/users/${userId}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to remove access');
+            }
+
+            await fetchRepositoryAccess(managingAccessRepoId);
+        } catch (err) {
+            console.error("Error removing repository access:", err);
+            setAccessError(err instanceof Error ? err.message : 'Failed to remove access');
         }
     };
 
@@ -517,6 +684,120 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                 </div>
             )}
 
+            {managingAccessRepoId !== null && (
+                <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${darkMode ? 'dark' : ''}`}>
+                    <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl p-6 w-full max-w-xl border`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                Manage Access
+                            </h2>
+                            <button
+                                onClick={() => {
+                                    setManagingAccessRepoId(null);
+                                    setAccessList([]);
+                                    setAccessError(null);
+                                }}
+                                className={`p-1 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <X size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg`}>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 relative">
+                                        <Search size={18} className={`absolute left-3 top-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                                        <input
+                                            type="email"
+                                            value={newUserEmail}
+                                            onChange={(e) => setNewUserEmail(e.target.value)}
+                                            placeholder="Enter user email"
+                                            className={`w-full pl-10 pr-3 py-2 rounded-lg ${
+                                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300 text-gray-900'
+                                            } border focus:ring-2 ${darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'}`}
+                                        />
+                                    </div>
+                                    <div className="relative">
+                                        <select
+                                            value={newAccessLevel}
+                                            onChange={(e) => setNewAccessLevel(e.target.value as 'view' | 'edit')}
+                                            className={`appearance-none py-2 pl-3 pr-8 rounded-lg ${
+                                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300 text-gray-900'
+                                            } border focus:ring-2 ${darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'}`}
+                                        >
+                                            <option value="view">Can view</option>
+                                            <option value="edit">Can edit</option>
+                                        </select>
+                                        <ChevronDown size={16} className={`absolute right-3 top-3 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`} />
+                                    </div>
+                                    <button
+                                        onClick={handleAddAccess}
+                                        className={`px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg flex items-center gap-2`}
+                                    >
+                                        <UserPlus size={18} />
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+
+                            {accessError && (
+                                <div className={`p-3 rounded-lg ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-600'}`}>
+                                    {accessError}
+                                </div>
+                            )}
+
+                            {isLoadingAccess ? (
+                                <div className="flex justify-center py-4">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-violet-500"></div>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {accessList.map((access) => (
+                                        <div key={access.user_id} className={`flex items-center justify-between p-3 rounded-lg ${
+                                            darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                                        }`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                                    darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-700'
+                                                }`}>
+                                                    {access.user.email[0].toUpperCase()}
+                                                </div>
+                                                <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                                                    {access.user.email}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <div className="relative">
+                                                    <select
+                                                        value={access.access_level}
+                                                        onChange={(e) => handleUpdateAccess(access.user_id, e.target.value as 'view' | 'edit')}
+                                                        className={`appearance-none py-1 pl-3 pr-8 rounded-md ${
+                                                            darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300 text-gray-900'
+                                                        } border focus:ring-2 ${darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'} text-sm`}
+                                                    >
+                                                        <option value="view">Can view</option>
+                                                        <option value="edit">Can edit</option>
+                                                    </select>
+                                                    <ChevronDown size={14} className={`absolute right-2 top-2 ${darkMode ? 'text-gray-300' : 'text-gray-500'}`} />
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveAccess(access.user_id)}
+                                                    className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600 text-red-400' : 'hover:bg-gray-100 text-red-600'}`}
+                                                >
+                                                    <Trash size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {repositories.length === 0 ? (
                 <div className={`p-8 text-center rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                     <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>No repositories found. Create your first repository!</p>
@@ -601,7 +882,21 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                         <Code size={14} className="inline-block mr-1.5" />
                                         Code
                                     </button>
-                                    <button className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-400' : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700'} transition-colors`}>
+                                    <button
+                                        onClick={() => {
+                                            if (repository.is_private) {
+                                                setManagingAccessRepoId(repository.id);
+                                                fetchRepositoryAccess(repository.id);
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 text-sm rounded-md ${
+                                            darkMode
+                                                ? 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-400'
+                                                : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700'
+                                        } transition-colors ${!repository.is_private ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        disabled={!repository.is_private}
+                                        title={!repository.is_private ? 'Sharing is only available for private repositories' : ''}
+                                    >
                                         <Share2 size={14} className="inline-block mr-1.5" />
                                         Share
                                     </button>

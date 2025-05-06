@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Settings, Edit, Camera, Save, X, Key, Github, Mail, Calendar, MapPin, Clock, FileText, GitFork, Star, AlertCircle, RefreshCw, Shield, Code, MessageSquare, Trash2, Sun, Moon, CheckCircle } from 'lucide-react';
 import { z } from 'zod';
 import { jwtDecode } from 'jwt-decode';
+import QRCode from 'react-qr-code';
 
 interface Particle {
     size: number;
@@ -23,6 +24,7 @@ interface UserProfile {
     repositories?: any[];
     issues?: any[];
     pull_requests?: any[];
+    twoFactorEnabled: boolean;
 }
 
 interface ProfileProps {
@@ -37,10 +39,17 @@ interface JwtPayload {
 
 export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps) {
     const [editMode, setEditMode] = useState(false);
-    const [activeTab, setActiveTab] = useState<'overview' | 'repositories' | 'activity' | 'settings'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+    const [show2FAModal, setShow2FAModal] = useState(false);
+    const [qrCodeData, setQrCodeData] = useState('');
+    const [twoFAToken, setTwoFAToken] = useState('');
+    const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+    const [isVerifyingToken, setIsVerifyingToken] = useState(false);
+    const [twoFAError, setTwoFAError] = useState('');
 
     const [user, setUser] = useState<UserProfile | null>(null);
     const [editForm, setEditForm] = useState({
@@ -93,13 +102,15 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                     ...userData.data,
                     repositories: userData.data.repository || [],
                     issues: userData.data.issue || [],
-                    pull_requests: userData.data.pull_request || []
+                    pull_requests: userData.data.pull_request || [],
+                    twoFactorEnabled: userData.data.twoFactorEnabled,
                 });
                 setEditForm({
                     username: userData.data.username,
                     email: userData.data.email,
                     bio: userData.data.bio || '',
                 });
+                setIs2FAEnabled(userData.data.twoFactorEnabled);
             } catch (err) {
                 console.error('Error fetching user data:', err);
                 setError(err instanceof Error ? err.message : 'Failed to load profile');
@@ -261,6 +272,81 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             }]);
         }
     };
+
+    const handleEnable2FA = async () => {
+        try {
+            setIsGeneratingQR(true);
+            setTwoFAError('');
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:5000/v1/api/2fa/generate', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Failed to generate QR code');
+
+            setQrCodeData(data.data.otpauthUrl);
+            setShow2FAModal(true);
+        } catch (err) {
+            setTwoFAError(err instanceof Error ? err.message : 'Failed to setup 2FA');
+        } finally {
+            setIsGeneratingQR(false);
+        }
+    };
+
+    const handleVerify2FA = async () => {
+        try {
+            setIsVerifyingToken(true);
+            setTwoFAError('');
+            const token = localStorage.getItem('authToken');
+
+            const response = await fetch('http://localhost:5000/v1/api/2fa/verify', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token: twoFAToken })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Verification failed');
+
+            setIs2FAEnabled(true);
+            setShow2FAModal(false);
+            setSuccessMessage('Two-factor authentication enabled successfully!');
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            setTwoFAError(err instanceof Error ? err.message : 'Verification failed');
+        } finally {
+            setIsVerifyingToken(false);
+        }
+    };
+
+    const handleDisable2FA = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('http://localhost:5000/v1/api/2fa', {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Failed to disable 2FA');
+
+            setIs2FAEnabled(false);
+            setSuccessMessage('Two-factor authentication disabled successfully!');
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            setTwoFAError(err instanceof Error ? err.message : 'Failed to disable 2FA');
+        }
+    };
+
     const handleCancelEdit = () => {
         if (!user) return;
 
@@ -271,6 +357,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
         });
         setEditMode(false);
     };
+
     const handleAvatarClick = () => {
         if (editMode && fileInputRef.current) {
             fileInputRef.current.click();
@@ -314,6 +401,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
+
     const handleDeleteAccount = async () => {
         try {
             const token = localStorage.getItem('authToken');
@@ -369,14 +457,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
     const repositoriesCount = user.repositories?.length || 0;
     const issuesCount = user.issues?.length || 0;
     const pullRequestsCount = user.pull_requests?.length || 0;
-
-    const recentActivity = [
-        { type: 'repository', action: 'Created new repository', target: 'Neural Network Visualizer', time: '2 days ago' },
-        { type: 'issue', action: 'Closed issue', target: 'Fix convolutional layer rendering', time: '4 days ago' },
-        { type: 'pull_request', action: 'Opened pull request', target: 'Add export functionality for models', time: '1 week ago' },
-        { type: 'repository', action: 'Forked repository', target: 'Quantum Algorithm Simulator', time: '2 weeks ago' },
-        { type: 'issue', action: 'Commented on issue', target: 'Performance issues with large datasets', time: '3 weeks ago' },
-    ];
 
     const renderTabContent = () => {
         switch (activeTab) {
@@ -576,179 +656,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                 </div>
                             ))}
                         </div>
-
-                        <div className={`${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'} backdrop-blur-sm border rounded-lg overflow-hidden`}>
-                            <div className="p-4 border-b border-gray-700">
-                                <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>Recent Activity</h3>
-                            </div>
-                            <div className="p-4">
-                                <ul className="space-y-4">
-                                    {recentActivity.map((activity, idx) => (
-                                        <li key={idx} className="flex items-start">
-                                            <div className={`mt-1 p-1 rounded ${activity.type === 'repository'
-                                                ? (darkMode ? 'bg-blue-900/20 text-blue-400' : 'bg-blue-100 text-blue-600')
-                                                : activity.type === 'issue'
-                                                    ? (darkMode ? 'bg-red-900/20 text-red-400' : 'bg-red-100 text-red-600')
-                                                    : (darkMode ? 'bg-purple-900/20 text-purple-400' : 'bg-purple-100 text-purple-600')
-                                                }`}>
-                                                {activity.type === 'repository' && <FileText size={16} />}
-                                                {activity.type === 'issue' && <AlertCircle size={16} />}
-                                                {activity.type === 'pull_request' && <GitFork size={16} />}
-                                            </div>
-                                            <div className="ml-3">
-                                                <p className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
-                                                    <span>{activity.action}</span>
-                                                    <span className="mx-1">•</span>
-                                                    <span className={`font-medium ${darkMode ? 'text-violet-400' : 'text-cyan-600'}`}>
-                                                        {activity.target}
-                                                    </span>
-                                                </p>
-                                                <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                    {activity.time}
-                                                </p>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                );
-
-            case 'repositories':
-                return (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <div>
-                                <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Your Repositories</h2>
-                                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Manage your code repositories</p>
-                            </div>
-                            <div className="flex space-x-3">
-                                <div className={`flex items-center rounded-lg ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} px-3 py-2 w-64`}>
-                                    <input
-                                        type="text"
-                                        placeholder="Find a repository..."
-                                        className={`ml-2 w-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} focus:outline-none`}
-                                    />
-                                </div>
-                                <button className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white rounded-lg transition-all duration-300 hover:shadow-lg ${darkMode ? 'hover:shadow-violet-500/30' : 'hover:shadow-cyan-500/30'}`}>
-                                    <span>New</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4">
-                            {user.repositories?.map((repo, index) => (
-                                <div
-                                    key={index}
-                                    className={`${darkMode ? 'bg-gray-800/60 border-gray-700 hover:border-gray-600' : 'bg-white/70 border-gray-200 hover:border-cyan-300'} backdrop-blur-sm group border rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden`}
-                                >
-                                    <div className="p-5">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <div className="flex items-center space-x-3">
-                                                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline`}>
-                                                        {repo.name}
-                                                    </h3>
-                                                    <span className={`text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded-full`}>
-                                                        {repo.isPrivate ? 'Private' : 'Public'}
-                                                    </span>
-                                                </div>
-                                                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>{repo.description}</p>
-                                            </div>
-                                            <div className="flex space-x-2">
-                                                <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
-                                                    <Star size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                                </button>
-                                                <button className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}>
-                                                    <GitFork size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-wrap items-center text-sm mt-3 gap-y-2">
-                                            <div className="flex items-center mr-5">
-                                                <span className={`inline-block w-3 h-3 rounded-full mr-2 ${repo.language === "JavaScript" ? "bg-yellow-400" :
-                                                    repo.language === "TypeScript" ? "bg-blue-500" :
-                                                        repo.language === "Python" ? "bg-indigo-500" : "bg-gray-400"
-                                                    }`}></span>
-                                                <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{repo.language}</span>
-                                            </div>
-                                            <div className="flex items-center mr-5 group">
-                                                <Star size={16} className={`mr-1.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'} group-hover:text-yellow-400 transition-colors`} />
-                                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{repo.stars}</span>
-                                            </div>
-                                            <div className="flex items-center mr-5">
-                                                <GitFork size={16} className="mr-1.5 text-gray-400" />
-                                                <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>{repo.forks}</span>
-                                            </div>
-                                            <span className={`${darkMode ? 'text-gray-500' : 'text-gray-500'} text-sm ml-auto`}>Updated {repo.updated}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                );
-
-            case 'activity':
-                return (
-                    <div className="space-y-6">
-                        <div className="mb-6">
-                            <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-1`}>Activity Log</h2>
-                            <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your recent actions and contributions</p>
-                        </div>
-
-                        <div className={`${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'} backdrop-blur-sm border rounded-lg p-6`}>
-                            <ul className="space-y-6">
-                                {[...Array(10)].map((_, idx) => {
-                                    const types = ['commit', 'issue', 'pull_request', 'repository', 'comment'];
-                                    const type = types[Math.floor(Math.random() * types.length)];
-
-                                    return (
-                                        <li key={idx} className="relative pl-8">
-                                            <div className={`absolute left-0 top-0 rounded-full p-1 ${type === 'commit'
-                                                ? (darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600')
-                                                : type === 'issue'
-                                                    ? (darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-600')
-                                                    : type === 'pull_request'
-                                                        ? (darkMode ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600')
-                                                        : type === 'repository'
-                                                            ? (darkMode ? 'bg-green-900/30 text-green-400' : 'bg-green-100 text-green-600')
-                                                            : (darkMode ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-600')
-                                                }`}>
-                                                {type === 'commit' && <Code size={16} />}
-                                                {type === 'issue' && <AlertCircle size={16} />}
-                                                {type === 'pull_request' && <GitFork size={16} />}
-                                                {type === 'repository' && <FileText size={16} />}
-                                                {type === 'comment' && <MessageSquare size={16} />}
-                                            </div>
-                                            <div>
-                                                <p className={`${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>
-                                                    {type === 'commit' && 'Committed to '}
-                                                    {type === 'issue' && (idx % 2 === 0 ? 'Opened issue in ' : 'Closed issue in ')}
-                                                    {type === 'pull_request' && (idx % 2 === 0 ? 'Created pull request in ' : 'Merged pull request in ')}
-                                                    {type === 'repository' && (idx % 2 === 0 ? 'Created repository ' : 'Forked repository ')}
-                                                    {type === 'comment' && 'Commented on '}
-                                                    <span className={`font-medium ${darkMode ? 'text-violet-400' : 'text-cyan-600'}`}>
-                                                        {['Neural Network Visualizer', 'Quantum Algorithm Simulator', '3D Code Architecture', 'Blockchain Explorer'][idx % 4]}
-                                                    </span>
-                                                </p>
-                                                <p className={`mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                    {type === 'commit' && 'Added support for visualization of convolutional layers'}
-                                                    {type === 'issue' && (idx % 2 === 0 ? 'Performance issues with large datasets' : 'Fixed rendering issues in Firefox')}
-                                                    {type === 'pull_request' && (idx % 2 === 0 ? 'Add export functionality' : 'Improve UI responsiveness')}
-                                                    {type === 'repository' && 'Great improvement! This solves the issue I was having.'}
-                                                </p>
-                                                <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                    {['5 hours ago', '1 day ago', '2 days ago', '4 days ago', '1 week ago', '2 weeks ago'][idx % 6]}
-                                                </p>
-                                            </div>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
                     </div>
                 );
 
@@ -789,11 +696,40 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                 </div>
                                 <div>
                                     <h4 className={`text-md font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Two-Factor Authentication</h4>
-                                    <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Add an extra layer of security to your account</p>
-                                    <button className={`flex items-center space-x-2 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} ${darkMode ? 'text-gray-300' : 'text-gray-700'} rounded-lg transition-colors`}>
-                                        <Shield size={16} />
-                                        <span>Enable 2FA</span>
-                                    </button>
+                                    <p className={`text-sm mb-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {is2FAEnabled
+                                            ? 'Enhanced security is enabled for your account'
+                                            : 'Add an extra layer of security to your account'}
+                                    </p>
+                                    {is2FAEnabled ? (
+                                        <button
+                                            onClick={handleDisable2FA}
+                                            className={`flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors`}
+                                        >
+                                            <Shield size={16} />
+                                            <span>Disable 2FA</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleEnable2FA}
+                                            disabled={isGeneratingQR}
+                                            className={`flex items-center space-x-2 px-4 py-2 ${
+                                                darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'
+                                                } text-white rounded-lg transition-colors`}
+                                        >
+                                            {isGeneratingQR ? (
+                                                <RefreshCw className="animate-spin" size={16} />
+                                            ) : (
+                                                <Shield size={16} />
+                                            )}
+                                            <span>{isGeneratingQR ? 'Generating...' : 'Enable 2FA'}</span>
+                                        </button>
+                                    )}
+                                    {twoFAError && (
+                                        <p className={`mt-2 text-sm ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                            {twoFAError}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -890,8 +826,6 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                     <div className={`flex border-b mb-6 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                         {[
                             { id: 'overview', label: 'Overview' },
-                            { id: 'repositories', label: 'Repositories' },
-                            { id: 'activity', label: 'Activity' },
                             { id: 'settings', label: 'Settings' }
                         ].map((tab) => (
                             <button
@@ -1034,6 +968,74 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                 </div>
             )}
 
+            {show2FAModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl shadow-xl p-6 w-full max-w-md`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                Enable Two-Factor Authentication
+                            </h3>
+                            <button
+                                onClick={() => setShow2FAModal(false)}
+                                className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="text-center">
+                                <p className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Scan this QR code with your authenticator app
+                                </p>
+                                <div className="flex justify-center p-4 bg-white rounded-lg">
+                                    <QRCode
+                                        value={qrCodeData}
+                                        size={200}
+                                        level="M"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-700'}`}>
+                                    Verification Code
+                                </label>
+                                <input
+                                    type="text"
+                                    value={twoFAToken}
+                                    onChange={(e) => setTwoFAToken(e.target.value)}
+                                    placeholder="Enter 6-digit code"
+                                    className={`w-full px-3 py-2 rounded-md ${
+                                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'
+                                        } border focus:outline-none ${darkMode ? 'focus:border-violet-500' : 'focus:border-cyan-500'}`}
+                                />
+                            </div>
+
+                            {twoFAError && (
+                                <p className={`text-sm ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                    {twoFAError}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={handleVerify2FA}
+                                disabled={isVerifyingToken || !twoFAToken}
+                                className={`w-full py-2 rounded-lg flex items-center justify-center space-x-2 ${
+                                    darkMode ? 'bg-violet-600 hover:bg-violet-500' : 'bg-cyan-600 hover:bg-cyan-500'
+                                    } text-white transition-colors ${(isVerifyingToken || !twoFAToken) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                {isVerifyingToken ? (
+                                    <RefreshCw className="animate-spin" size={16} />
+                                ) : (
+                                    <Shield size={16} />
+                                )}
+                                <span>{isVerifyingToken ? 'Verifying...' : 'Verify and Enable'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
