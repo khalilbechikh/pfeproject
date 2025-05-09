@@ -271,7 +271,7 @@ export class FolderPreviewController {
 
     /**
      * Handles serving a raw file from a repository.
-     * GET /preview/files/:repoName/*
+     * GET /preview/files?path=repoName/path/to/file.jpg
      */
     public async serveFile(req: Request, res: Response): Promise<void> {
         if (!req.user || !req.user.username) {
@@ -280,47 +280,39 @@ export class FolderPreviewController {
             return;
         }
         const username = req.user.username;
-        const { repoName } = req.params;
-        const { path: filePathFromQuery } = req.query; // Get path from query parameter
+        const { path: filePathFromQuery } = req.query; // e.g., "myRepoName/path/to/file.jpg"
 
-        if (!repoName || typeof repoName !== 'string') {
-            res.status(400).json({ status: ResponseStatus.FAILED, message: 'Repository name is required as a route parameter', error: 'Missing or invalid repoName parameter' });
+        if (!filePathFromQuery || typeof filePathFromQuery !== 'string' || filePathFromQuery.trim() === '') {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Path query parameter is required and must be a non-empty string.', error: 'Missing or invalid query parameter: path' };
+            res.status(400).json(apiResponse);
             return;
         }
 
-        if (!filePathFromQuery || typeof filePathFromQuery !== 'string') {
-            res.status(400).json({ status: ResponseStatus.FAILED, message: 'File path is required as a query parameter (e.g., ?path=file.txt)', error: 'Missing or invalid path query parameter' });
-            return;
-        }
+        // Construct the path with the /git/ prefix, username, and temp-working-directory
+        const pathForService = `/srv/git/${username}/temp-working-directory/${filePathFromQuery}`;
 
-        // Construct the relative path within the temp workdir
-        const relativePath = path.join(repoName, filePathFromQuery);
-
-        const fileStreamPathResult = await this.folderPreviewService.getFilePathForStreaming(username, relativePath);
+        // Pass this constructed path to the service
+        const fileStreamPathResult = await this.folderPreviewService.getFilePathForStreaming(username, pathForService);
 
         if (fileStreamPathResult.status === ResponseStatus.SUCCESS && fileStreamPathResult.data) {
-            const fullFilePath = fileStreamPathResult.data;
-            // Determine content type based on file extension
-            const contentType = mime.getType(fullFilePath) || 'application/octet-stream';
+            const absoluteFilePath = fileStreamPathResult.data;
+            const contentType = mime.getType(absoluteFilePath) || 'application/octet-stream';
             res.setHeader('Content-Type', contentType);
-            
-            const stream = fs.createReadStream(fullFilePath);
-            stream.on('error', (err) => {
-                console.error('Stream error:', err);
-                // Check if headers have been sent
+
+            // Optional: Add Content-Disposition header to suggest filename for downloads
+            // res.setHeader('Content-Disposition', `inline; filename="${path.basename(absoluteFilePath)}"`);
+
+            const fileStream = fs.createReadStream(absoluteFilePath);
+            fileStream.on('error', (err) => {
+                console.error('Error streaming file:', err);
                 if (!res.headersSent) {
-                    res.status(500).json({ status: ResponseStatus.FAILED, message: 'Error streaming file', error: err.message });
-                } else {
-                    // If headers are sent, the response might be partially sent.
-                    // It's harder to send a clean JSON error, so we end the response.
-                    // Logging is important here.
-                    res.end(); 
+                    const errorResponse = { status: 'FAILED', message: 'Error streaming file from server.', error: 'File stream error' };
+                    res.status(500).json(errorResponse);
                 }
             });
-            stream.pipe(res);
+            fileStream.pipe(res);
         } else {
-            // Use a type assertion if you are sure about the structure of fileStreamPathResult when status is FAILED
-            const statusCode = getStatusCode(fileStreamPathResult as ApiResponse<any>);
+            const statusCode = getStatusCode(fileStreamPathResult); // Relies on fileStreamPathResult being ApiResponse<any>
             res.status(statusCode).json(fileStreamPathResult);
         }
     }

@@ -30,8 +30,10 @@ router.delete('/item', authenticateJWT, folderPreviewController.removeItem);
 router.patch('/item', authenticateJWT, folderPreviewController.renameItem);
 
 // Route to serve a raw file from within a repository in the temporary working directory
-// GET /files/:repoName?path=path/to/file.jpg
-router.get('/files/:repoName', authenticateJWT, folderPreviewController.serveFile);
+// The 'path' query parameter should be the full relative path within the user's 
+// temporary working directory, including the repository name.
+// e.g., GET /files?path=repoName/path/to/file.jpg
+router.get('/files', authenticateJWT, folderPreviewController.serveFile);
 
 // Add missing route for pushing changes to git repository
 // POST /push/:repoName - Body: { "commitMessage"?: "..." }
