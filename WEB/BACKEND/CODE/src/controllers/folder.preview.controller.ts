@@ -3,6 +3,9 @@ import { FolderPreviewService } from '../services/folder.preview.service';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 import { injectable, inject } from 'inversify'; // Added imports
 import { TYPES } from '../di/types'; // Added import (assuming types file exists)
+import * as fs from 'fs'; // Added import for file system
+import mime from 'mime'; // Changed import for mime types
+import path from 'path'; // Added import for path
 
 // Helper to determine HTTP status code based on API response
 const getStatusCode = (response: ApiResponse<any>, successCode: number = 200, createdCode: number = 201): number => {
@@ -38,6 +41,7 @@ export class FolderPreviewController {
         this.removeItem = this.removeItem.bind(this);
         this.renameItem = this.renameItem.bind(this);
         this.pushGitFolder = this.pushGitFolder.bind(this);
+        this.serveFile = this.serveFile.bind(this); // Bind the new method
     }
 
     /**
@@ -274,5 +278,61 @@ export class FolderPreviewController {
         // Send response based on service result
         const statusCode = getStatusCode(serviceResponse, 200); // 200 OK for successful push
         res.status(statusCode).json(serviceResponse);
+    }
+
+    /**
+     * Handles serving a raw file from a repository.
+     * GET /preview/files/:repoName/*
+     */
+    public async serveFile(req: Request, res: Response): Promise<void> {
+        if (!req.user || !req.user.username) {
+            const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Authentication required or username missing in token', error: 'Unauthorized' };
+            res.status(401).json(apiResponse);
+            return;
+        }
+        const username = req.user.username;
+        const { repoName } = req.params;
+        const { path: filePathFromQuery } = req.query; // Get path from query parameter
+
+        if (!repoName || typeof repoName !== 'string') {
+            res.status(400).json({ status: ResponseStatus.FAILED, message: 'Repository name is required as a route parameter', error: 'Missing or invalid repoName parameter' });
+            return;
+        }
+
+        if (!filePathFromQuery || typeof filePathFromQuery !== 'string') {
+            res.status(400).json({ status: ResponseStatus.FAILED, message: 'File path is required as a query parameter (e.g., ?path=file.txt)', error: 'Missing or invalid path query parameter' });
+            return;
+        }
+
+        // Construct the relative path within the temp workdir
+        const relativePath = path.join(repoName, filePathFromQuery);
+
+        const fileStreamPathResult = await this.folderPreviewService.getFilePathForStreaming(username, relativePath);
+
+        if (fileStreamPathResult.status === ResponseStatus.SUCCESS && fileStreamPathResult.data) {
+            const fullFilePath = fileStreamPathResult.data;
+            // Determine content type based on file extension
+            const contentType = mime.getType(fullFilePath) || 'application/octet-stream';
+            res.setHeader('Content-Type', contentType);
+            
+            const stream = fs.createReadStream(fullFilePath);
+            stream.on('error', (err) => {
+                console.error('Stream error:', err);
+                // Check if headers have been sent
+                if (!res.headersSent) {
+                    res.status(500).json({ status: ResponseStatus.FAILED, message: 'Error streaming file', error: err.message });
+                } else {
+                    // If headers are sent, the response might be partially sent.
+                    // It's harder to send a clean JSON error, so we end the response.
+                    // Logging is important here.
+                    res.end(); 
+                }
+            });
+            stream.pipe(res);
+        } else {
+            // Use a type assertion if you are sure about the structure of fileStreamPathResult when status is FAILED
+            const statusCode = getStatusCode(fileStreamPathResult as ApiResponse<any>);
+            res.status(statusCode).json(fileStreamPathResult);
+        }
     }
 }

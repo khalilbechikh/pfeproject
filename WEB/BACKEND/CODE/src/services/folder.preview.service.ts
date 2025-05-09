@@ -32,9 +32,10 @@ interface FolderContent {
 interface FileContent {
     type: 'file';
     path: string;
-    content: string;
+    content: string | null; // Modified to allow null for binary files
     size: number;
     lastModified: Date;
+    isBinary?: boolean; // Added flag to indicate if the file is binary
 }
 
 interface RenameResult {
@@ -277,6 +278,10 @@ export class FolderPreviewService {
              }
 
             const stats = await fsp.stat(fullPath);
+            const fileExtension = path.extname(fullPath).toLowerCase();
+            const binaryExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', // images
+                                      '.mp4', '.mov', '.avi', '.wmv', '.mkv', '.flv', // videos
+                                      '.mp3', '.wav', '.ogg', '.aac', '.flac']; // audio
 
             if (stats.isDirectory()) {
                 const items = await fsp.readdir(fullPath);
@@ -290,17 +295,15 @@ export class FolderPreviewService {
                                 name: item,
                                 type: itemStat.isDirectory() ? 'folder' : 'file',
                                 size: itemStat.size,
-                                lastModified: itemStat.mtime
+                                lastModified: itemStat.mtime,
                             } as FileDetails;
                         } catch (statError) {
-                            // Handle cases where item might disappear between readdir and stat (rare)
-                            console.error(`Could not stat item ${itemPath}:`, statError);
-                            return null; // Or some indicator of an issue
+                            console.warn(`Could not stat item ${itemPath}:`, statError);
+                            return null; // Skip items that can't be stat-ed
                         }
                     })
                 );
 
-                // Filter out nulls if any stat calls failed
                 const validContentDetails = contentDetails.filter(details => details !== null) as FileDetails[];
 
                 return {
@@ -313,26 +316,41 @@ export class FolderPreviewService {
                     }
                 };
             } else if (stats.isFile()) {
-                const fileContent = await fsp.readFile(fullPath, 'utf8');
-                return {
-                    status: ResponseStatus.SUCCESS,
-                    message: 'File content retrieved successfully',
-                    data: {
-                        type: 'file',
-                        path: normalizedPath,
-                        content: fileContent,
-                        size: stats.size,
-                        lastModified: stats.mtime
-                    }
-                };
+                if (binaryExtensions.includes(fileExtension)) {
+                    return {
+                        status: ResponseStatus.SUCCESS,
+                        message: 'File is binary; returning path.',
+                        data: {
+                            type: 'file',
+                            path: normalizedPath,
+                            content: null, // Content is null for binary files
+                            size: stats.size,
+                            lastModified: stats.mtime,
+                            isBinary: true
+                        }
+                    };
+                } else {
+                    const fileContent = await fsp.readFile(fullPath, 'utf8');
+                    return {
+                        status: ResponseStatus.SUCCESS,
+                        message: 'File content retrieved successfully',
+                        data: {
+                            type: 'file',
+                            path: normalizedPath,
+                            content: fileContent,
+                            size: stats.size,
+                            lastModified: stats.mtime,
+                            isBinary: false
+                        }
+                    };
+                }
             } else {
-                // This case should be rare (e.g., symbolic links not followed, special files)
-                return { status: ResponseStatus.FAILED, message: 'Path is not a regular file or directory', error: 'Invalid path type' };
+                return { status: ResponseStatus.FAILED, message: 'Path is not a file or directory', error: 'Invalid path type' };
             }
         } catch (error: any) {
             console.error('Error fetching path content in service:', error);
             if (error.code === 'ENOENT') {
-                return { status: ResponseStatus.FAILED, message: 'Path not found', error: error.message };
+                return { status: ResponseStatus.FAILED, message: 'Path not found during content fetch', error: 'ENOENT' };
             }
             return { status: ResponseStatus.FAILED, message: 'Failed to fetch path content', error: error.message || 'Unknown error' };
         }
@@ -520,6 +538,31 @@ export class FolderPreviewService {
         } catch (error: any) {
             console.error('Error renaming item in service:', error);
             return { status: ResponseStatus.FAILED, message: 'Failed to rename item', error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Validates a path and returns the full file path if it's a valid file for streaming.
+     */
+    public async getFilePathForStreaming(username: string, relativePath: string): Promise<ApiResponse<string | null>> {
+        const pathValidationResult = await this.resolveAndValidatePath(username, relativePath);
+        if (pathValidationResult.status === ResponseStatus.FAILED || !pathValidationResult.data) {
+            return { status: ResponseStatus.FAILED, message: pathValidationResult.message, error: pathValidationResult.error };
+        }
+        const { fullPath } = pathValidationResult.data;
+
+        try {
+            const stats = await fsp.stat(fullPath);
+            if (!stats.isFile()) {
+                return { status: ResponseStatus.FAILED, message: 'Path is not a file', error: 'Not a file' };
+            }
+            return { status: ResponseStatus.SUCCESS, message: 'File path retrieved for streaming', data: fullPath };
+        } catch (error: any) {
+            console.error('Error getting file path for streaming:', error);
+            if (error.code === 'ENOENT') {
+                return { status: ResponseStatus.FAILED, message: 'File not found for streaming', error: 'ENOENT' };
+            }
+            return { status: ResponseStatus.FAILED, message: 'Failed to get file path for streaming', error: error.message || 'Unknown error' };
         }
     }
 }
