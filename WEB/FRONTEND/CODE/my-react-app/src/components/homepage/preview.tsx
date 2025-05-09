@@ -79,6 +79,443 @@ const Preview = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, [handleScroll]);
 
+    const getLanguageFromExtension = (fileName: string): string => {
+        const extension = fileName.split('.').pop()?.toLowerCase();
+        switch (extension) {
+            // Popular languages
+            case 'js':
+                return 'javascript';
+            case 'ts':
+                return 'typescript';
+            case 'py':
+                return 'python';
+            case 'java':
+                return 'java';
+            case 'cs':
+                return 'csharp';
+            case 'cpp':
+                return 'cpp';
+            case 'c':
+                return 'c';
+            case 'h':
+                return 'cpp';
+            case 'html':
+                return 'html';
+            case 'css':
+                return 'css';
+            case 'json':
+                return 'json';
+            case 'md':
+                return 'markdown';
+            case 'php':
+                return 'php';
+            case 'go':
+                return 'go';
+            case 'rb':
+                return 'ruby';
+            case 'rs':
+                return 'rust';
+            case 'swift':
+                return 'swift';
+            case 'kt':
+                return 'kotlin';
+            case 'scala':
+                return 'scala';
+            case 'sh':
+                return 'shell';
+            case 'pl':
+                return 'perl';
+            case 'lua':
+                return 'lua';
+            case 'r':
+                return 'r';
+            case 'dart':
+                return 'dart';
+            case 'jl':
+                return 'julia';
+            case 'hs':
+                return 'haskell';
+            case 'elm':
+                return 'elm';
+            case 'clj':
+                return 'clojure';
+            case 'scm':
+                return 'scheme';
+            case 'erl':
+                return 'erlang';
+            case 'fsharp':
+                return 'fsharp';
+            case 'ex':
+                return 'elixir';
+            case 'exs':
+                return 'elixir';
+            case 'groovy':
+                return 'groovy';
+            case 'sql':
+                return 'sql';
+            case 'yaml':
+                return 'yaml';
+            case 'yml':
+                return 'yaml';
+            case 'xml':
+                return 'xml';
+            case 'toml':
+                return 'toml';
+            case 'ini':
+                return 'ini';
+            case 'm':
+                return 'objective-c';
+            case 'mm':
+                return 'objective-c';
+            case 'vb':
+                return 'vb';
+            case 'ps1':
+                return 'powershell';
+            case 'coffee':
+                return 'coffeescript';
+            case 'fsx':
+                return 'fsharp';
+            case 'sc':
+                return 'scala';
+            case 'lisp':
+                return 'lisp';
+            case 'asm':
+                return 'assembly';
+            case 's':
+                return 'assembly';
+            case 'pas':
+                return 'pascal';
+            case 'd':
+                return 'd';
+            case 'v':
+                return 'verilog';
+            case 'sv':
+                return 'systemverilog';
+            case 'vhdl':
+                return 'vhdl';
+            case 'tcl':
+                return 'tcl';
+            case 'awk':
+                return 'awk';
+            case 'sed':
+                return 'sed';
+            case 'bat':
+                return 'batch';
+            case 'cmd':
+                return 'batch';
+            case 'ps':
+                return 'postscript';
+            case 'tex':
+                return 'latex';
+            case 'bib':
+                return 'bibtex';
+            case 'make':
+                return 'makefile';
+            case 'mk':
+                return 'makefile';
+            case 'cmake':
+                return 'cmake';
+            case 'dockerfile':
+                return 'dockerfile';
+            case 'graphql':
+                return 'graphql';
+            case 'proto':
+                return 'protobuf';
+            case 'thrift':
+                return 'thrift';
+            case 'vue':
+                return 'vue';
+            case 'svelte':
+                return 'svelte';
+            case 'jsx':
+                return 'javascriptreact';
+            case 'tsx':
+                return 'typescriptreact';
+            case 'vue':
+                return 'vue';
+            case 'svelte':
+                return 'svelte';
+
+            // Additional languages and file types
+            case 'f':
+                return 'fortran';
+            case 'f90':
+                return 'fortran';
+            case 'f95':
+                return 'fortran';
+            case 'adb':
+                return 'ada';
+            case 'ads':
+                return 'ada';
+            case 'pl':
+                return 'prolog';
+            case 'p':
+                return 'pascal';
+            case 'pp':
+                return 'pascal';
+            case 'lsp':
+                return 'lisp';
+            case 'cl':
+                return 'commonlisp';
+            case 'sc':
+                return 'supercollider';
+            case 'scd':
+                return 'supercollider';
+            case 'nut':
+                return 'squirrel';
+            case 'st':
+                return 'smalltalk';
+            case 't':
+                return 'turing';
+            case 'tu':
+                return 'turing';
+            case 'vhd':
+                return 'vhdl';
+            case 'vhdl':
+                return 'vhdl';
+            case 'vb':
+                return 'vbscript';
+            case 'vbs':
+                return 'vbscript';
+            case 'xq':
+                return 'xquery';
+            case 'xql':
+                return 'xquery';
+            case 'xqm':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'zsh':
+                return 'zsh';
+            case 'fish':
+                return 'fish';
+            case 'nu':
+                return 'nushell';
+            case 'zig':
+                return 'zig';
+            case 'wren':
+                return 'wren';
+            case 'nim':
+                return 'nim';
+            case 'cr':
+                return 'crystal';
+            case 'ec':
+                return 'ec';
+            case 'ecl':
+                return 'ecl';
+            case 'ex':
+                return 'eiffel';
+            case 'frt':
+                return 'frege';
+            case 'g':
+                return 'gap';
+            case 'gd':
+                return 'gdscript';
+            case 'glsl':
+                return 'glsl';
+            case 'gnu':
+                return 'gnuplot';
+            case 'gp':
+                return 'gnuplot';
+            case 'hx':
+                return 'haxe';
+            case 'hxsl':
+                return 'hxsl';
+            case 'idr':
+                return 'idris';
+            case 'lidr':
+                return 'idris';
+            case 'janet':
+                return 'janet';
+            case 'jl':
+                return 'julia';
+            case 'kts':
+                return 'kotlin';
+            case 'ktm':
+                return 'kotlin';
+            case 'lean':
+                return 'lean';
+            case 'hlean':
+                return 'lean';
+            case 'lagda':
+                return 'agda';
+            case 'litcoffee':
+                return 'coffeescript';
+            case 'ls':
+                return 'livescript';
+            case 'mumps':
+                return 'mumps';
+            case 'm':
+                return 'mercury';
+            case 'moo':
+                return 'moocode';
+            case 'n':
+                return 'nemerle';
+            case 'nl':
+                return 'nl';
+            case 'nix':
+                return 'nix';
+            case 'ocaml':
+                return 'ocaml';
+            case 'ml':
+                return 'ocaml';
+            case 'mli':
+                return 'ocaml';
+            case 'mll':
+                return 'ocaml';
+            case 'mly':
+                return 'ocaml';
+            case 'opa':
+                return 'opa';
+            case 'p6':
+                return 'perl6';
+            case 'pl6':
+                return 'perl6';
+            case 'pm6':
+                return 'perl6';
+            case 'pogo':
+                return 'pogo';
+            case 'pony':
+                return 'pony';
+            case 'psc':
+                return 'papyrus';
+            case 'pss':
+                return 'powershell';
+            case 'purs':
+                return 'purescript';
+            case 'pyw':
+                return 'python';
+            case 'pyi':
+                return 'python';
+            case 'pyx':
+                return 'cython';
+            case 'pxd':
+                return 'cython';
+            case 'pxi':
+                return 'cython';
+            case 'rkt':
+                return 'racket';
+            case 'rktl':
+                return 'racket';
+            case 'rl':
+                return 'ragel';
+            case 'rst':
+                return 'restructuredtext';
+            case 'rs':
+                return 'rust';
+            case 'sas':
+                return 'sas';
+            case 'sc':
+                return 'scala';
+            case 'scm':
+                return 'scheme';
+            case 'scala':
+                return 'scala';
+            case 'sc':
+                return 'supercollider';
+            case 'scd':
+                return 'supercollider';
+            case 'sls':
+                return 'scheme';
+            case 'sml':
+                return 'sml';
+            case 'sol':
+                return 'solidity';
+            case 'st':
+                return 'smalltalk';
+            case 'stan':
+                return 'stan';
+            case 'tac':
+                return 'tac';
+            case 'tcsh':
+                return 'tcsh';
+            case 'texi':
+                return 'texinfo';
+            case 'tf':
+                return 'terraform';
+            case 'thrift':
+                return 'thrift';
+            case 'tl':
+                return 'tl';
+            case 'tla':
+                return 'tla';
+            case 'tm':
+                return 'tcl';
+            case 'tcl':
+                return 'tcl';
+            case 'toml':
+                return 'toml';
+            case 'tp':
+                return 'turing';
+            case 'tu':
+                return 'turing';
+            case 'uc':
+                return 'unrealscript';
+            case 'upc':
+                return 'upc';
+            case 'urs':
+                return 'urscript';
+            case 'v':
+                return 'verilog';
+            case 'vb':
+                return 'vbnet';
+            case 'vbs':
+                return 'vbscript';
+            case 'vcl':
+                return 'vcl';
+            case 'vhd':
+                return 'vhdl';
+            case 'vhdl':
+                return 'vhdl';
+            case 'vb':
+                return 'visualbasic';
+            case 'vbs':
+                return 'vbscript';
+            case 'wast':
+                return 'webassembly';
+            case 'wat':
+                return 'webassembly';
+            case 'wisp':
+                return 'wisp';
+            case 'wlk':
+                return 'wollok';
+            case 'wls':
+                return 'wollok';
+            case 'wren':
+                return 'wren';
+            case 'x10':
+                return 'xten';
+            case 'xpl':
+                return 'xproc';
+            case 'xq':
+                return 'xquery';
+            case 'xql':
+                return 'xquery';
+            case 'xqm':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'xsl':
+                return 'xsl';
+            case 'xslt':
+                return 'xslt';
+            case 'y':
+                return 'yacc';
+            case 'yaml':
+                return 'yaml';
+            case 'yml':
+                return 'yaml';
+            case 'zep':
+                return 'zephir';
+            case 'zimpl':
+                return 'zimpl';
+            case 'zsh':
+                return 'zsh';
+            default:
+                return 'plaintext';
+        }
+    };
+
     useEffect(() => {
         const fetchRepo = async () => {
             try {
@@ -217,12 +654,12 @@ const Preview = () => {
         }
     };
 
-    const handleFileClick = async (fileName: string) => {
+    const handleFileClick = async (filePath: string) => {
         try {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
-            const cleanPath = `${currentPath}/${fileName}`.replace('temp-working-directory/', '');
+            const cleanPath = filePath.replace('temp-working-directory/', '');
             const response = await fetch(
                 `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
@@ -232,7 +669,10 @@ const Preview = () => {
             const data = await response.json();
 
             if (data.data.type === 'file') {
-                setSelectedFile({ path: `${currentPath}/${fileName}`, content: data.data.content });
+                const fileExtension = filePath.split('.').pop()?.toLowerCase() || '';
+                const language = getLanguageFromExtension(fileExtension);
+                setSelectedLanguage(language);
+                setSelectedFile({ path: filePath, content: data.data.content });
             }
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to load file content');
@@ -307,7 +747,7 @@ const Preview = () => {
         })));
     };
 
-    const TreeView = ({ nodes, onToggle }: { nodes: TreeNode[], onToggle: (path: string) => void }) => (
+    const TreeView = ({ nodes, onToggle, onFileClick }: { nodes: TreeNode[], onToggle: (path: string) => void, onFileClick: (path: string) => void }) => (
         <div className="pl-2">
             {nodes.map(node => (
                 <div key={node.path}>
@@ -322,11 +762,20 @@ const Preview = () => {
                         )}
                         <div className={`flex items-center flex-1 p-2 rounded-lg cursor-pointer ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}>
                             <FileIcon type={node.type} name={node.name} />
-                            <span className="ml-2">{node.name}</span>
+                            <span
+                                className="ml-2"
+                                onClick={() => {
+                                    if (node.type === 'file') {
+                                        onFileClick(node.path);
+                                    }
+                                }}
+                            >
+                                {node.name}
+                            </span>
                         </div>
                     </div>
                     {node.type === 'folder' && node.isExpanded && (
-                        <TreeView nodes={node.children} onToggle={onToggle} />
+                        <TreeView nodes={node.children} onToggle={onToggle} onFileClick={onFileClick} />
                     )}
                 </div>
             ))}
@@ -391,7 +840,7 @@ const Preview = () => {
         >
             <div className="flex items-center flex-1" onClick={() => item.type === 'folder'
                 ? handleFolderClick(item.name)
-                : handleFileClick(item.name)}>
+                : handleFileClick(`${currentPath}/${item.name}`)}>
                 <FileIcon type={item.type} name={item.name} />
                 <span className="font-mono text-sm">{item.name}</span>
                 {item.size && (
@@ -518,10 +967,13 @@ const Preview = () => {
                                 <X size={18} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
                             </button>
                         </div>
-                        <TreeView
-                            nodes={sidebarTree}
-                            onToggle={toggleFolder}
-                        />
+                        <div className="overflow-y-auto h-[calc(100vh-150px)]"> {/* Adjust the height as needed */}
+                            <TreeView
+                                nodes={sidebarTree}
+                                onToggle={toggleFolder}
+                                onFileClick={handleFileClick}
+                            />
+                        </div>
                     </motion.aside>
                 )}
 
@@ -667,14 +1119,186 @@ const Preview = () => {
                                                     className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
                                                 >
                                                     <option value="plaintext">Plain Text</option>
-                                                    <option value="python">Python</option>
                                                     <option value="javascript">JavaScript</option>
                                                     <option value="typescript">TypeScript</option>
+                                                    <option value="python">Python</option>
                                                     <option value="java">Java</option>
                                                     <option value="csharp">C#</option>
                                                     <option value="cpp">C++</option>
+                                                    <option value="c">C</option>
                                                     <option value="html">HTML</option>
                                                     <option value="css">CSS</option>
+                                                    <option value="json">JSON</option>
+                                                    <option value="markdown">Markdown</option>
+                                                    <option value="php">PHP</option>
+                                                    <option value="go">Go</option>
+                                                    <option value="ruby">Ruby</option>
+                                                    <option value="rust">Rust</option>
+                                                    <option value="swift">Swift</option>
+                                                    <option value="kotlin">Kotlin</option>
+                                                    <option value="scala">Scala</option>
+                                                    <option value="shell">Shell</option>
+                                                    <option value="perl">Perl</option>
+                                                    <option value="lua">Lua</option>
+                                                    <option value="r">R</option>
+                                                    <option value="dart">Dart</option>
+                                                    <option value="julia">Julia</option>
+                                                    <option value="haskell">Haskell</option>
+                                                    <option value="elm">Elm</option>
+                                                    <option value="clojure">Clojure</option>
+                                                    <option value="scheme">Scheme</option>
+                                                    <option value="erlang">Erlang</option>
+                                                    <option value="fsharp">F#</option>
+                                                    <option value="elixir">Elixir</option>
+                                                    <option value="groovy">Groovy</option>
+                                                    <option value="sql">SQL</option>
+                                                    <option value="yaml">YAML</option>
+                                                    <option value="xml">XML</option>
+                                                    <option value="toml">TOML</option>
+                                                    <option value="ini">INI</option>
+                                                    <option value="objective-c">Objective-C</option>
+                                                    <option value="vb">VB</option>
+                                                    <option value="powershell">PowerShell</option>
+                                                    <option value="coffeescript">CoffeeScript</option>
+                                                    <option value="fsharp">F#</option>
+                                                    <option value="scala">Scala</option>
+                                                    <option value="lisp">Lisp</option>
+                                                    <option value="assembly">Assembly</option>
+                                                    <option value="pascal">Pascal</option>
+                                                    <option value="d">D</option>
+                                                    <option value="verilog">Verilog</option>
+                                                    <option value="systemverilog">SystemVerilog</option>
+                                                    <option value="vhdl">VHDL</option>
+                                                    <option value="tcl">Tcl</option>
+                                                    <option value="awk">AWK</option>
+                                                    <option value="sed">SED</option>
+                                                    <option value="batch">Batch</option>
+                                                    <option value="postscript">PostScript</option>
+                                                    <option value="latex">LaTeX</option>
+                                                    <option value="bibtex">BibTeX</option>
+                                                    <option value="makefile">Makefile</option>
+                                                    <option value="cmake">CMake</option>
+                                                    <option value="dockerfile">Dockerfile</option>
+                                                    <option value="graphql">GraphQL</option>
+                                                    <option value="protobuf">Protocol Buffers</option>
+                                                    <option value="thrift">Thrift</option>
+                                                    <option value="vue">Vue</option>
+                                                    <option value="svelte">Svelte</option>
+                                                    <option value="javascriptreact">JavaScript React</option>
+                                                    <option value="typescriptreact">TypeScript React</option>
+                                                    <option value="fortran">Fortran</option>
+                                                    <option value="ada">Ada</option>
+                                                    <option value="prolog">Prolog</option>
+                                                    <option value="commonlisp">Common Lisp</option>
+                                                    <option value="supercollider">SuperCollider</option>
+                                                    <option value="squirrel">Squirrel</option>
+                                                    <option value="smalltalk">Smalltalk</option>
+                                                    <option value="turing">Turing</option>
+                                                    <option value="vbscript">VBScript</option>
+                                                    <option value="xquery">XQuery</option>
+                                                    <option value="zsh">Zsh</option>
+                                                    <option value="fish">Fish</option>
+                                                    <option value="nushell">NuShell</option>
+                                                    <option value="zig">Zig</option>
+                                                    <option value="wren">Wren</option>
+                                                    <option value="nim">Nim</option>
+                                                    <option value="crystal">Crystal</option>
+                                                    <option value="eiffel">Eiffel</option>
+                                                    <option value="forth">Forth</option>
+                                                    <option value="frege">Frege</option>
+                                                    <option value="gap">GAP</option>
+                                                    <option value="gdscript">GDScript</option>
+                                                    <option value="glsl">GLSL</option>
+                                                    <option value="gnuplot">Gnuplot</option>
+                                                    <option value="haxe">Haxe</option>
+                                                    <option value="hxsl">HXML</option>
+                                                    <option value="idris">Idris</option>
+                                                    <option value="janet">Janet</option>
+                                                    <option value="mercury">Mercury</option>
+                                                    <option value="moocode">Moo</option>
+                                                    <option value="nemerle">Nemerle</option>
+                                                    <option value="nl">NL</option>
+                                                    <option value="nix">Nix</option>
+                                                    <option value="ocaml">OCaml</option>
+                                                    <option value="ml">OCaml</option>
+                                                    <option value="mli">OCaml</option>
+                                                    <option value="mll">OCaml</option>
+                                                    <option value="mly">OCaml</option>
+                                                    <option value="opa">Opa</option>
+                                                    <option value="p6">Perl 6</option>
+                                                    <option value="pl6">Perl 6</option>
+                                                    <option value="pm6">Perl 6</option>
+                                                    <option value="pogo">Pogo</option>
+                                                    <option value="pony">Pony</option>
+                                                    <option value="psc">Papyrus</option>
+                                                    <option value="pss">PowerShell</option>
+                                                    <option value="purs">PureScript</option>
+                                                    <option value="pyw">Python</option>
+                                                    <option value="pyi">Python</option>
+                                                    <option value="pyx">Cython</option>
+                                                    <option value="pxd">Cython</option>
+                                                    <option value="pxi">Cython</option>
+                                                    <option value="rkt">Racket</option>
+                                                    <option value="rktl">Racket</option>
+                                                    <option value="rl">Ragel</option>
+                                                    <option value="rst">reStructuredText</option>
+                                                    <option value="rs">Rust</option>
+                                                    <option value="sas">SAS</option>
+                                                    <option value="sc">Scala</option>
+                                                    <option value="scm">Scheme</option>
+                                                    <option value="scala">Scala</option>
+                                                    <option value="sc">SuperCollider</option>
+                                                    <option value="scd">SuperCollider</option>
+                                                    <option value="sls">Scheme</option>
+                                                    <option value="sml">SML</option>
+                                                    <option value="sol">Solidity</option>
+                                                    <option value="st">Smalltalk</option>
+                                                    <option value="stan">Stan</option>
+                                                    <option value="tac">TAC</option>
+                                                    <option value="tcsh">Tcsh</option>
+                                                    <option value="texi">Texinfo</option>
+                                                    <option value="tf">Terraform</option>
+                                                    <option value="thrift">Thrift</option>
+                                                    <option value="tl">TL</option>
+                                                    <option value="tla">TLA</option>
+                                                    <option value="tm">Tcl</option>
+                                                    <option value="tcl">Tcl</option>
+                                                    <option value="toml">TOML</option>
+                                                    <option value="tp">Turing</option>
+                                                    <option value="tu">Turing</option>
+                                                    <option value="uc">UnrealScript</option>
+                                                    <option value="upc">UPC</option>
+                                                    <option value="urs">URScript</option>
+                                                    <option value="v">Verilog</option>
+                                                    <option value="vb">VB.NET</option>
+                                                    <option value="vbs">VBScript</option>
+                                                    <option value="vcl">VCL</option>
+                                                    <option value="vhd">VHDL</option>
+                                                    <option value="vhdl">VHDL</option>
+                                                    <option value="vb">Visual Basic</option>
+                                                    <option value="vbs">VBScript</option>
+                                                    <option value="wast">WebAssembly</option>
+                                                    <option value="wat">WebAssembly</option>
+                                                    <option value="wisp">Wisp</option>
+                                                    <option value="wlk">Wollok</option>
+                                                    <option value="wls">Wollok</option>
+                                                    <option value="wren">Wren</option>
+                                                    <option value="x10">X10</option>
+                                                    <option value="xpl">XProc</option>
+                                                    <option value="xq">XQuery</option>
+                                                    <option value="xql">XQuery</option>
+                                                    <option value="xqm">XQuery</option>
+                                                    <option value="xqy">XQuery</option>
+                                                    <option value="xsl">XSL</option>
+                                                    <option value="xslt">XSLT</option>
+                                                    <option value="y">Yacc</option>
+                                                    <option value="yaml">YAML</option>
+                                                    <option value="yml">YAML</option>
+                                                    <option value="zep">Zephir</option>
+                                                    <option value="zimpl">Zimpl</option>
+                                                    <option value="zil">Zil</option>
+                                                    <option value="zpl">ZPL</option>
+                                                    <option value="zsh">Zsh</option>
                                                 </select>
                                             </div>
                                             <div className="flex space-x-2">
