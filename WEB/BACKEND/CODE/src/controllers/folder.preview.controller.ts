@@ -290,9 +290,11 @@ export class FolderPreviewController {
             res.status(401).json(apiResponse);
             return;
         }
+        console.log('serveFile ++++++++++++++++++++++++++++++++++++++++++++++++++00+0+0+++++++++++°987642345678987654345678909876');
         const username = req.user.username;
         const { repoName } = req.params;
         const { path: filePathFromQuery } = req.query; // Get path from query parameter
+        console.log('serveFile ++++++++++++++++++++++++++++++++++++++++++++++++++00+0+0+++++++++++°987642345678987654345678909876', filePathFromQuery);
 
         if (!repoName || typeof repoName !== 'string') {
             res.status(400).json({ status: ResponseStatus.FAILED, message: 'Repository name is required as a route parameter', error: 'Missing or invalid repoName parameter' });
@@ -316,6 +318,7 @@ export class FolderPreviewController {
             res.setHeader('Content-Type', contentType);
             
             const stream = fs.createReadStream(fullFilePath);
+            console.log('served file finanal path', fullFilePath);
             stream.on('error', (err) => {
                 console.error('Stream error:', err);
                 // Check if headers have been sent

@@ -76,6 +76,7 @@ const UserOwnRepoPreview = () => {
     const [initialRootPath, setInitialRootPath] = useState<string>('');
     const [newItemParentPath, setNewItemParentPath] = useState<string>('');
     const [isTypeFixed, setIsTypeFixed] = useState(false);
+    const [selectedBinaryFile, setSelectedBinaryFile] = useState<{ url: string; type: string } | null>(null);
 
     // Add this helper function to check name existence on the server
     const checkNameExists = async (parentPath: string, name: string): Promise<boolean> => {
@@ -96,6 +97,14 @@ const UserOwnRepoPreview = () => {
             console.error('Error checking name existence:', err);
             return false;
         }
+    };
+
+    // Helper function to determine if a file is a binary (image/video)
+    const isBinaryFile = (fileName: string): boolean => {
+        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'];
+        const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv'];
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        return imageExtensions.includes(ext) || videoExtensions.includes(ext);
     };
 
     const filteredContents = directoryContents
@@ -1050,6 +1059,35 @@ const UserOwnRepoPreview = () => {
     };
 
     const handleFileClick = async (filePath: string) => {
+        const fileName = filePath.split('/').pop() || '';
+        if (isBinaryFile(fileName)) {
+            // Handle binary file using the /files route
+            const repoName = repo?.name;
+            const cleanPath = filePath.replace('temp-working-directory/', '');
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                setDirectoryError('Authentication required');
+                return;
+            }
+            try {
+                const url = `http://localhost:5000/v1/api/preview/files/${repoName}?path=${encodeURIComponent(cleanPath)}`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) throw new Error('Failed to fetch file');
+                const blob = await response.blob();
+                const mimeType = response.headers.get('Content-Type') || '';
+                const objectUrl = URL.createObjectURL(blob);
+                setSelectedBinaryFile({ url: objectUrl, type: mimeType });
+            } catch (err) {
+                setDirectoryError(err instanceof Error ? err.message : 'Failed to load binary file');
+            }
+            return;
+        }
+
+        // Existing handling for text files
         try {
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
@@ -1746,99 +1784,18 @@ const UserOwnRepoPreview = () => {
                                                     <option value="nushell">NuShell</option>
                                                     <option value="zig">Zig</option>
                                                     <option value="wren">Wren</option>
-                                                    <option value="nim">Nim</option>
-                                                    <option value="crystal">Crystal</option>
-                                                    <option value="eiffel">Eiffel</option>
-                                                    <option value="forth">Forth</option>
-                                                    <option value="frege">Frege</option>
-                                                    <option value="gap">GAP</option>
-                                                    <option value="gdscript">GDScript</option>
-                                                    <option value="glsl">GLSL</option>
-                                                    <option value="gnuplot">Gnuplot</option>
-                                                    <option value="haxe">Haxe</option>
-                                                    <option value="hxsl">HXML</option>
-                                                    <option value="idris">Idris</option>
-                                                    <option value="janet">Janet</option>
-                                                    <option value="mercury">Mercury</option>
-                                                    <option value="moocode">Moo</option>
-                                                    <option value="nemerle">Nemerle</option>
-                                                    <option value="nl">NL</option>
-                                                    <option value="ocaml">OCaml</option>
-                                                    <option value="ml">OCaml</option>
-                                                    <option value="mli">OCaml</option>
-                                                    <option value="mll">OCaml</option>
-                                                    <option value="mly">OCaml</option>
-                                                    <option value="opa">Opa</option>
-                                                    <option value="p6">Perl 6</option>
-                                                    <option value="pl6">Perl 6</option>
-                                                    <option value="pm6">Perl 6</option>
-                                                    <option value="pogo">Pogo</option>
-                                                    <option value="pony">Pony</option>
-                                                    <option value="psc">Papyrus</option>
-                                                    <option value="pss">PowerShell</option>
-                                                    <option value="purs">PureScript</option>
-                                                    <option value="pyw">Python</option>
-                                                    <option value="pyi">Python</option>
-                                                    <option value="pyx">Cython</option>
-                                                    <option value="pxd">Cython</option>
-                                                    <option value="pxi">Cython</option>
-                                                    <option value="rkt">Racket</option>
-                                                    <option value="rktl">Racket</option>
-                                                    <option value="rl">Ragel</option>
-                                                    <option value="rst">reStructuredText</option>
-                                                    <option value="rs">Rust</option>
-                                                    <option value="sas">SAS</option>
-                                                    <option value="sc">Scala</option>
-                                                    <option value="scm">Scheme</option>
-                                                    <option value="scala">Scala</option>
-                                                    <option value="sc">SuperCollider</option>
-                                                    <option value="scd">SuperCollider</option>
-                                                    <option value="sls">Scheme</option>
-                                                    <option value="sml">SML</option>
-                                                    <option value="sol">Solidity</option>
-                                                    <option value="st">Smalltalk</option>
-                                                    <option value="stan">Stan</option>
-                                                    <option value="tac">TAC</option>
-                                                    <option value="tcsh">Tcsh</option>
-                                                    <option value="texi">Texinfo</option>
-                                                    <option value="tf">Terraform</option>
-                                                    <option value="thrift">Thrift</option>
-                                                    <option value="tl">TL</option>
-                                                    <option value="tla">TLA</option>
-                                                    <option value="tm">Tcl</option>
-                                                    <option value="tcl">Tcl</option>
-                                                    <option value="toml">TOML</option>
-                                                    <option value="tp">Turing</option>
-                                                    <option value="tu">Turing</option>
-                                                    <option value="uc">UnrealScript</option>
-                                                    <option value="upc">UPC</option>
-                                                    <option value="urs">URScript</option>
-                                                    <option value="v">Verilog</option>
-                                                    <option value="vb">VB.NET</option>
-                                                    <option value="vbs">VBScript</option>
-                                                    <option value="vcl">VCL</option>
-                                                    <option value="vhd">VHDL</option>
-                                                    <option value="vhdl">VHDL</option>
-                                                    <option value="vb">Visual Basic</option>
-                                                    <option value="vbs">VBScript</option>
-                                                    <option value="wast">WebAssembly</option>
-                                                    <option value="wat">WebAssembly</option>
-                                                    <option value="wisp">Wisp</option>
-                                                    <option value="wlk">Wollok</option>
-                                                    <option value="wls">Wollok</option>
-                                                    <option value="wren">Wren</option>
                                                     <option value="x10">X10</option>
-                                                    <option value="xpl">XProc</option>
-                                                    <option value="xq">XQuery</option>
-                                                    <option value="xql">XQuery</option>
-                                                    <option value="xqm">XQuery</option>
-                                                    <option value="xqy">XQuery</option>
+                                                    <option value="xproc">XProc</option>
+                                                    <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
                                                     <option value="xsl">XSL</option>
                                                     <option value="xslt">XSLT</option>
-                                                    <option value="y">Yacc</option>
+                                                    <option value="yacc">Yacc</option>
                                                     <option value="yaml">YAML</option>
-                                                    <option value="yml">YAML</option>
-                                                    <option value="zep">Zephir</option>
+                                                    <option value="yaml">YAML</option>
+                                                    <option value="zephir">Zephir</option>
                                                     <option value="zimpl">Zimpl</option>
                                                     <option value="zil">Zil</option>
                                                     <option value="zpl">ZPL</option>
@@ -2033,6 +1990,61 @@ const UserOwnRepoPreview = () => {
                                             darkMode ? 'text-violet-300' : 'text-cyan-400'
                                         } transform rotate-45`}
                                     />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Add the binary file preview modal */}
+                        <AnimatePresence>
+                            {selectedBinaryFile && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+                                >
+                                    <div className={`p-6 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} max-w-4xl max-h-[90vh] overflow-auto`}>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-lg font-semibold">File Preview</h3>
+                                            <button
+                                                onClick={() => {
+                                                    URL.revokeObjectURL(selectedBinaryFile.url);
+                                                    setSelectedBinaryFile(null);
+                                                }}
+                                                className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                            >
+                                                <X size={24} />
+                                            </button>
+                                        </div>
+                                        {selectedBinaryFile.type.startsWith('image/') && (
+                                            <img
+                                                src={selectedBinaryFile.url}
+                                                alt="Preview"
+                                                className="max-w-full max-h-[70vh] object-contain"
+                                            />
+                                        )}
+                                        {selectedBinaryFile.type.startsWith('video/') && (
+                                            <video
+                                                controls
+                                                className="max-w-full max-h-[70vh]"
+                                            >
+                                                <source src={selectedBinaryFile.url} type={selectedBinaryFile.type} />
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        )}
+                                        {!selectedBinaryFile.type.startsWith('image/') && !selectedBinaryFile.type.startsWith('video/') && (
+                                            <div className="text-center p-4">
+                                                <p className="mb-4">This file type cannot be previewed directly.</p>
+                                                <a
+                                                    href={selectedBinaryFile.url}
+                                                    download
+                                                    className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-cyan-600 hover:bg-cyan-700'} text-white transition-colors`}
+                                                >
+                                                    Download File
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
