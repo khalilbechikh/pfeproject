@@ -4,7 +4,7 @@ import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 import { injectable, inject } from 'inversify'; // Added imports
 import { TYPES } from '../di/types'; // Added import (assuming types file exists)
 import * as fs from 'fs'; // Added import for file system
-import * as mime from 'mime'; // Added import for mime types
+import mime from 'mime'; // Changed import for mime types
 import path from 'path'; // Added import for path
 
 // Helper to determine HTTP status code based on API response
@@ -281,29 +281,30 @@ export class FolderPreviewController {
         }
         const username = req.user.username;
         const { repoName } = req.params;
-        const filePath = req.params[0]; // The '*' part of the route
+        const { path: filePathFromQuery } = req.query; // Get path from query parameter
 
         if (!repoName || typeof repoName !== 'string') {
-            res.status(400).json({ status: ResponseStatus.FAILED, message: 'Repository name is required', error: 'Missing parameter' });
+            res.status(400).json({ status: ResponseStatus.FAILED, message: 'Repository name is required as a route parameter', error: 'Missing or invalid repoName parameter' });
             return;
         }
 
-        if (!filePath || typeof filePath !== 'string') {
-            res.status(400).json({ status: ResponseStatus.FAILED, message: 'File path is required', error: 'Missing parameter' });
+        if (!filePathFromQuery || typeof filePathFromQuery !== 'string') {
+            res.status(400).json({ status: ResponseStatus.FAILED, message: 'File path is required as a query parameter (e.g., ?path=file.txt)', error: 'Missing or invalid path query parameter' });
             return;
         }
 
         // Construct the relative path within the temp workdir
-        const relativePath = path.join(repoName, filePath);
+        const relativePath = path.join(repoName, filePathFromQuery);
 
-        const fileStreamPath = await this.folderPreviewService.getFilePathForStreaming(username, relativePath);
+        const fileStreamPathResult = await this.folderPreviewService.getFilePathForStreaming(username, relativePath);
 
-        if (fileStreamPath.status === ResponseStatus.SUCCESS && fileStreamPath.data) {
+        if (fileStreamPathResult.status === ResponseStatus.SUCCESS && fileStreamPathResult.data) {
+            const fullFilePath = fileStreamPathResult.data;
             // Determine content type based on file extension
-            const contentType = mime.getType(fileStreamPath.data) || 'application/octet-stream';
+            const contentType = mime.getType(fullFilePath) || 'application/octet-stream';
             res.setHeader('Content-Type', contentType);
             
-            const stream = fs.createReadStream(fileStreamPath.data);
+            const stream = fs.createReadStream(fullFilePath);
             stream.on('error', (err) => {
                 console.error('Stream error:', err);
                 // Check if headers have been sent
@@ -318,8 +319,9 @@ export class FolderPreviewController {
             });
             stream.pipe(res);
         } else {
-            const statusCode = getStatusCode(fileStreamPath as ApiResponse<any>); // Cast because data might be null
-            res.status(statusCode).json(fileStreamPath);
+            // Use a type assertion if you are sure about the structure of fileStreamPathResult when status is FAILED
+            const statusCode = getStatusCode(fileStreamPathResult as ApiResponse<any>);
+            res.status(statusCode).json(fileStreamPathResult);
         }
     }
 }
