@@ -7,10 +7,11 @@ receivers:
         endpoint: "0.0.0.0:4317"
 
 exporters:
+  # 🔥 use the OTLP exporter, point it at Jaeger’s OTLP gRPC port
   otlp/jaeger:
-    endpoint: jaeger:14250
+    endpoint: jaeger:4317
     tls:
-      insecure: true
+      insecure: true          # collector and jaeger are on the same bridge network
 
   prometheus:
     endpoint: "0.0.0.0:9464"
@@ -21,11 +22,10 @@ processors:
 service:
   pipelines:
     traces:
-      receivers: [otlp]
+      receivers:  [otlp]
       processors: [batch]
-      exporters: [otlp/jaeger]
-
+      exporters:  [otlp/jaeger]   # <- updated
     metrics:
-      receivers: [otlp]
+      receivers:  [otlp]
       processors: [batch]
-      exporters: [prometheus]
+      exporters:  [prometheus]
