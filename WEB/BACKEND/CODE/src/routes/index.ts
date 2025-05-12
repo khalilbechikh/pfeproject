@@ -7,6 +7,7 @@ import folderPreviewRoutes from './folder.preview.routes'; // Import the new rou
 import { configurePullRequestRoutes } from './pullRequest.routes'; // Import pull request routes
 import issueRoutes from './issue.routes'; // Import issue routes default export
 import twoFactorAuthRouter from './2fa.routes'; // Import 2FA routes
+import adminRouter from './admin.routes'; // Import admin routes
 
 export const configureRoutes = (): Router => {
     const router = Router();
@@ -19,6 +20,7 @@ export const configureRoutes = (): Router => {
     router.use('/pull-requests', configurePullRequestRoutes()); // Add pull request routes
     router.use('/issues', issueRoutes); // Use the imported issue router directly
     router.use('/2fa', twoFactorAuthRouter); // Add 2FA routes
+    router.use('/admin', adminRouter); // Add admin routes
 
     return router;
 };
