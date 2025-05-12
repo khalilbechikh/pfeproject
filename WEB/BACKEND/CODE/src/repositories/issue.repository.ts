@@ -373,7 +373,7 @@ export class IssueRepository {
      * @param searchQuery Search query string
      * @returns Promise with ApiResponse containing array of matching issues
      */
-    async findAllIssues(searchQuery: string): Promise<ApiResponse<issue[]>> {
+    async findAllIssues(searchQuery: string): Promise<ApiResponse<any[]>> {
         try {
             let issues;
             if (!searchQuery || searchQuery.trim() === '') {
@@ -381,7 +381,11 @@ export class IssueRepository {
                 issues = await this.prisma.issue.findMany({
                     include: {
                         author: true,
-                        repository: true
+                        repository: {
+                            select: {
+                                name: true
+                            }
+                        }
                     }
                 });
             } else {
@@ -404,15 +408,28 @@ export class IssueRepository {
                     },
                     include: {
                         author: true,
-                        repository: true // Include repository info as well
+                        repository: {
+                            select: {
+                                name: true
+                            }
+                        }
                     }
                 });
             }
 
+            // Map issues to include repositoryName at the top level and remove repository object
+            const issuesWithRepoName = issues.map((issue: any) => {
+                const { repository, ...rest } = issue;
+                return {
+                    ...rest,
+                    repositoryName: repository?.name
+                };
+            });
+
             return {
                 status: ResponseStatus.SUCCESS,
                 message: "Global issues search completed successfully",
-                data: issues
+                data: issuesWithRepoName
             };
         } catch (error) {
             console.error('Error in IssueRepository.findAllIssues:', error);

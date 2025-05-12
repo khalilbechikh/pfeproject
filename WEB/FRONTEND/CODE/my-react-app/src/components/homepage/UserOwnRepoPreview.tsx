@@ -101,7 +101,7 @@ const UserOwnRepoPreview = () => {
 
     // Helper function to determine if a file is a binary (image/video)
     const isBinaryFile = (fileName: string): boolean => {
-        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'];
+        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'ico','pdf'];
         const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv'];
         const ext = fileName.split('.').pop()?.toLowerCase() || '';
         return imageExtensions.includes(ext) || videoExtensions.includes(ext);
@@ -1070,7 +1070,7 @@ const UserOwnRepoPreview = () => {
                 return;
             }
             try {
-                const url = `http://localhost:5000/v1/api/preview/files/${repoName}?path=${encodeURIComponent(cleanPath)}`;
+                const url = `http://localhost:5000/v1/api/preview/files?path=${encodeURIComponent(cleanPath)}`;
                 const response = await fetch(url, {
                     headers: {
                         'Authorization': `Bearer ${token}`

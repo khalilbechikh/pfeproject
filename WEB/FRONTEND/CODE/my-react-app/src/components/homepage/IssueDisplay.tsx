@@ -21,6 +21,7 @@ export interface Issue {
         username: string;
         avatar_path: string;
     };
+    repositoryName: string; // Add this line
 }
 
 interface Comment {
@@ -99,54 +100,68 @@ const IssueItem: React.FC<IssueItemProps> = ({
             exit={{ opacity: 0, y: -20 }}
             className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
         >
-            <div className="flex justify-between items-start mb-3">
-                <div>
-                    <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        {issue.title}
-                    </h3>
-                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {issue.description}
-                    </p>
-                </div>
-                {issue.author_id === userId && (
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => onEdit(issue)}
-                            className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
-                        >
-                            <Edit size={18} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
-                        </button>
-                        <button
-                            onClick={() => onDelete(issue.id)}
-                            className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
-                        >
-                            <Trash2 size={18} className={darkMode ? 'text-red-400' : 'text-red-600'} />
-                        </button>
+            <div className="space-y-4">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {issue.title}
+                        </h3>
+                        <p className={`text-sm mt-1 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                            {issue.repositoryName}
+                        </p>
                     </div>
-                )}
+                    {issue.author_id === userId && (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onEdit(issue)}
+                                className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
+                            >
+                                <Edit size={18} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
+                            </button>
+                            <button
+                                onClick={() => onDelete(issue.id)}
+                                className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
+                            >
+                                <Trash2 size={18} className={darkMode ? 'text-red-400' : 'text-red-600'} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <span className={`text-sm px-2 py-1 rounded-full ${
+                        issue.status === 'open'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                        {issue.status}
+                    </span>
+
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center space-x-1">
+                            <img
+                                src={issue.author.avatar_path
+                                    ? `http://localhost:5000${issue.author.avatar_path}`
+                                    : '/default-avatar.png'}
+                                alt="avatar"
+                                className="w-6 h-6 rounded-full"
+                            />
+                            <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {issue.author.username}
+                            </span>
+                        </div>
+
+                        <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>•</span>
+                        <span className={`text-sm ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                            {issue.repositoryName}
+                        </span>
+                    </div>
+                </div>
             </div>
 
-            <div className="flex items-center space-x-3 mb-3">
-                <span className={`text-sm px-2 py-1 rounded-full ${
-                    issue.status === 'open'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-green-100 text-green-800'
-                }`}>
-                    {issue.status}
-                </span>
-                <div className="flex items-center space-x-1">
-                    <img
-                        src={issue.author.avatar_path
-                            ? `http://localhost:5000${issue.author.avatar_path}`
-                            : '/default-avatar.png'}
-                        alt="avatar"
-                        className="w-6 h-6 rounded-full"
-                    />
-                    <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {issue.author.username}
-                    </span>
-                </div>
-            </div>
+            <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {issue.description}
+            </p>
 
             <button
                 onClick={toggleComments}

@@ -1,4 +1,0 @@
-### Get user by email
-GET http://localhost:5000/v1/api/users/email/job@gmail.com
-Accept: application/json
-Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoia2hhbGlsIiwiaWF0IjoxNzQ2NDU0MjI3LCJleHAiOjE3NDkwNDYyMjd9.-cLUB1tXV9gVGUei7qaczCYVhxPDuADNbTMVCXCzkjY

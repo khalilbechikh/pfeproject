@@ -281,7 +281,7 @@ export class FolderPreviewService {
             const fileExtension = path.extname(fullPath).toLowerCase();
             const binaryExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', // images
                                       '.mp4', '.mov', '.avi', '.wmv', '.mkv', '.flv', // videos
-                                      '.mp3', '.wav', '.ogg', '.aac', '.flac']; // audio
+                                      '.mp3', '.wav', '.ogg', '.aac', '.flac','.ico','.pdf']; // audio
 
             if (stats.isDirectory()) {
                 const items = await fsp.readdir(fullPath);
