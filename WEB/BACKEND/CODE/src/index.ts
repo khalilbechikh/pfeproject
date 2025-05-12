@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { configureRoutes } from './routes';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './docs/swagger';
@@ -22,7 +22,7 @@ const resource = resourceFromAttributes({
 
 /* === Tracing === */
 const traceExporter = new OTLPTraceExporter({
-  url: 'http://otel-collector:4318/v1/traces',     // OTLP/HTTP → Collector
+  url: 'http://otel-collector:4318/v1/traces',
 });
 
 const sdk = new NodeSDK({
@@ -31,16 +31,17 @@ const sdk = new NodeSDK({
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
-sdk.start().then(() => console.log('✅ OpenTelemetry tracing initialized'));
+sdk.start();                                   // start() is synchronous in SDK 2.x
+console.log('✅ OpenTelemetry tracing initialized');
 
 /* === Metrics === */
 const metricExporter = new OTLPMetricExporter({
-  url: 'http://otel-collector:4318/v1/metrics',    // OTLP/HTTP → Collector
+  url: 'http://otel-collector:4318/v1/metrics',
 });
 
 const metricReader = new PeriodicExportingMetricReader({
   exporter: metricExporter,
-  exportIntervalMillis: 60_000,                    // every 60 s
+  exportIntervalMillis: 60_000,
 });
 
 new MeterProvider({ resource, readers: [metricReader] });
@@ -55,9 +56,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.get('/welcome', (_req: Request, res: Response) =>
-  res.send('Welcome User Management API! Use /v1/api routes for the API.'),
-);
+
 
 // Mount all API routes
 app.use('/v1/api', configureRoutes());
@@ -70,7 +69,7 @@ const server = app.listen(port, () => {
 /* === Graceful shutdown === */
 async function shutdown() {
   console.log('Shutting down…');
-  await sdk.shutdown();           // flush telemetry
+  await sdk.shutdown();                         // flush telemetry
   server.close(() => process.exit(0));
 }
 

@@ -38,6 +38,9 @@ services:
     environment:
       - NODE_ENV=development
       - OTEL_RESOURCE_ATTRIBUTES=service.name=backend,service.version=1.0.0,deployment.environment=development
+      - OTEL_LOG_LEVEL=debug
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
     depends_on:
       - database
       - git-server
