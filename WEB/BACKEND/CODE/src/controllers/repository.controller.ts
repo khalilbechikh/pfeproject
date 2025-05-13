@@ -2,11 +2,11 @@ import { Request, Response } from 'express';
 import { inject, injectable } from 'inversify';
 import { RepositoryService, UpdateRepositoryDto } from '../services/repository.service';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
-
+import  { TYPES } from '../di/types';
 @injectable()
 export class RepositoryController {
     constructor(
-        @inject(RepositoryService) private repositoryService: RepositoryService
+        @inject(TYPES.RepositoryService) private repositoryService: RepositoryService
     ) {
         console.log("RepositoryContjroller constructor called");
     }

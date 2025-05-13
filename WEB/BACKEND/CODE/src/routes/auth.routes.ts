@@ -1,18 +1,33 @@
 import { Router } from 'express';
-// Correct the import for the default export
 import container from '../di/inversify.config';
-import { AuthenticationController } from '../controllers/authentication.controller';
 import { TYPES } from '../di/types';
+import { AuthenticationController } from '../controllers/authentication.controller';
 
-const authRouter = Router();
-const authController = container.get<AuthenticationController>(TYPES.AuthenticationController);
+/**
+ * Factory that returns a new auth router each time.
+ * The resolved controller instance is proxied by the Inversify tracing
+ * middleware, so every method call becomes a Jaeger span.
+ */
+export const authenticationRoutes = (): Router => {
+  const router = Router();
 
-// Existing routes
-authRouter.post('/signup', (req, res) => authController.signUp(req, res));
-authRouter.post('/signin', (req, res) => authController.signIn(req, res));
+  const authCtrl = container.get<AuthenticationController>(
+    TYPES.AuthenticationController,
+  );
 
-// New routes for password reset
-authRouter.post('/request-password-reset', (req, res) => authController.requestPasswordReset(req, res));
-authRouter.post('/set-password', (req, res) => authController.setPassword(req, res));
+  /* ───────── Authentication ───────── */
+  router.post('/signup',  authCtrl.signUp.bind(authCtrl));
+  router.post('/signin',  authCtrl.signIn.bind(authCtrl));
 
-export default authRouter;
+  /* ───────── Password‑reset flow ───────── */
+  router.post(
+    '/request-password-reset',
+    authCtrl.requestPasswordReset.bind(authCtrl),
+  );
+  router.post('/set-password', authCtrl.setPassword.bind(authCtrl));
+
+  return router;
+};
+
+/* default export to keep existing imports working */
+export default authenticationRoutes;

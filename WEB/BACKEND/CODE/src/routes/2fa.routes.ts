@@ -1,49 +1,48 @@
-import express from 'express';
-import { TwoFactorAuthController } from '../controllers/2fa';
+import { Router } from 'express';
 import container from '../di/inversify.config';
+
 import { TYPES } from '../di/types';
-import { authenticateJWT } from '../middlewares/auth.middleware';
-
-const twoFactorAuthRouter = express.Router();
-const twoFactorAuthController = container.get<TwoFactorAuthController>(TYPES.TwoFactorAuthController);
+import { TwoFactorAuthController } from '../controllers/2fa';
+import { AuthMiddleware } from '../middlewares/auth.middleware';
 
 /**
- * @route   GET /api/2fa/generate
- * @desc    Generate a new 2FA QR code for the authenticated user
- * @access  Private (requires valid JWT token)
+ * Factory that returns a fresh router every time it’s imported.
+ * All controller methods are `bind`‑ed so `this` works, and every call
+ * is auto‑traced by the Inversify tracing middleware you added earlier.
  */
-twoFactorAuthRouter.get('/generate', 
-    authenticateJWT, 
-    (req, res) => twoFactorAuthController.generateTwoFactorAuth(req, res)
-);
+export const twoFactorAuthRoutes = (): Router => {
+  const router = Router();
 
-/**
- * @route   POST /api/2fa/verify
- * @desc    Verify a 2FA token and enable 2FA for the user
- * @access  Private (requires valid JWT token)
- */
-twoFactorAuthRouter.post('/verify', 
-    authenticateJWT, 
-    (req, res) => twoFactorAuthController.verifyAndEnableTwoFactor(req, res)
-);
+  /* Resolve singletons from the container (they’ll be proxied for tracing) */
+  const ctrl  = container.get<TwoFactorAuthController>(TYPES.TwoFactorAuthController);
+  const auth  = container.get<AuthMiddleware>(TYPES.AuthMiddleware);
 
-/**
- * @route   POST /api/2fa/validate
- * @desc    Validate a 2FA token during login process
- * @access  Public
- */
-twoFactorAuthRouter.post('/validate', 
-    (req, res) => twoFactorAuthController.validateTwoFactorToken(req, res)
-);
+  /** @route GET /2fa/generate – Generate a new 2FA QR code (private) */
+  router.get(
+    '/generate',
+    auth.authenticate.bind(auth),
+    ctrl.generateTwoFactorAuth.bind(ctrl),
+  );
 
-/**
- * @route   DELETE /api/2fa
- * @desc    Disable 2FA for the authenticated user
- * @access  Private (requires valid JWT token)
- */
-twoFactorAuthRouter.delete('/', 
-    authenticateJWT, 
-    (req, res) => twoFactorAuthController.disableTwoFactor(req, res)
-);
+  /** @route POST /2fa/verify – Verify a 2FA token & enable 2FA (private) */
+  router.post(
+    '/verify',
+    auth.authenticate.bind(auth),
+    ctrl.verifyAndEnableTwoFactor.bind(ctrl),
+  );
 
-export default twoFactorAuthRouter;
+  /** @route POST /2fa/validate – Validate a supplied 2FA token (public) */
+  router.post('/validate', ctrl.validateTwoFactorToken.bind(ctrl));
+
+  /** @route DELETE /2fa – Disable 2FA (private) */
+  router.delete(
+    '/',
+    auth.authenticate.bind(auth),
+    ctrl.disableTwoFactor.bind(ctrl),
+  );
+
+  return router;
+};
+
+/* default export keeps existing import lines working */
+export default twoFactorAuthRoutes;

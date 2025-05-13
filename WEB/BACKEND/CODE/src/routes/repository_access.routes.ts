@@ -1,27 +1,57 @@
-import express from 'express';
+import { Router } from 'express';
 import container from '../di/inversify.config';
-import { RepositoryAccessController } from '../controllers/repository_access.controller';
 import { TYPES } from '../di/types';
+import { RepositoryAccessController } from '../controllers/repository_access.controller';
 
-const router = express.Router();
-const repositoryAccessController = container.get<RepositoryAccessController>(TYPES.RepositoryAccessController);
+/**
+ * Factory that builds the “repository access” router.
+ * The controller instance is resolved via Inversify, so every method call
+ * is proxied by your tracing middleware and shows up as a span in Jaeger.
+ */
+export const repositoryAccessRoutes = (): Router => {
+  const router = Router();
 
-// Get all repositories a user has access to
-router.get('/users/:userId/repositories', repositoryAccessController.getUserRepositoryAccess);
+  const ctrl = container.get<RepositoryAccessController>(
+    TYPES.RepositoryAccessController,
+  );
 
-// Get all users who have access to a repository
-router.get('/repositories/:repositoryId/users', repositoryAccessController.getRepositoryUserAccess);
+  /* ───────── Access‑management endpoints ───────── */
 
-// Verify if a user has the specified level of access to a repository
-router.get('/repositories/:repositoryId/users/:userId/verify', repositoryAccessController.verifyRepositoryAccess);
+  // List repositories a user can access
+  router.get(
+    '/users/:userId/repositories',
+    ctrl.getUserRepositoryAccess.bind(ctrl),
+  );
 
-// Add repository access for a user
-router.post('/access', repositoryAccessController.addRepositoryAccess);
+  // List users who can access a given repository
+  router.get(
+    '/repositories/:repositoryId/users',
+    ctrl.getRepositoryUserAccess.bind(ctrl),
+  );
 
-// Remove repository access for a user
-router.delete('/repositories/:repositoryId/users/:userId', repositoryAccessController.removeRepositoryAccess);
+  // Verify a user’s access level
+  router.get(
+    '/repositories/:repositoryId/users/:userId/verify',
+    ctrl.verifyRepositoryAccess.bind(ctrl),
+  );
 
-// Update repository access level for a user
-router.put('/repositories/:repositoryId/users/:userId', repositoryAccessController.updateRepositoryAccess);
+  // Grant access
+  router.post('/access', ctrl.addRepositoryAccess.bind(ctrl));
 
-export default router;
+  // Revoke access
+  router.delete(
+    '/repositories/:repositoryId/users/:userId',
+    ctrl.removeRepositoryAccess.bind(ctrl),
+  );
+
+  // Update access level
+  router.put(
+    '/repositories/:repositoryId/users/:userId',
+    ctrl.updateRepositoryAccess.bind(ctrl),
+  );
+
+  return router;
+};
+
+/* default export keeps existing imports working */
+export default repositoryAccessRoutes;

@@ -5,7 +5,8 @@ import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
 import * as bcrypt from 'bcrypt';
 import { z } from 'zod';
 import * as jwt from 'jsonwebtoken'; // Import jwt
-import * as nodemailer from 'nodemailer'; // Import nodemailer
+import * as nodemailer from 'nodemailer';
+import {TYPES} from "../di/types"; // Import nodemailer
 
 export const CreateUserDto = z.object({
     username: z
@@ -71,7 +72,7 @@ const FRONTEND_URL = 'http://localhost:5173';
 export class AuthService {
     private mailerTransporter;
 
-    constructor(@inject(UserRepository) private userRepository: UserRepository) {
+    constructor(@inject(TYPES.UserRepository) private userRepository: UserRepository) {
         console.log("auth service constructor called ");
         this.mailerTransporter = nodemailer.createTransport({
             service: 'gmail',

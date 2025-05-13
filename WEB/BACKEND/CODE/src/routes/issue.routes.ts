@@ -1,61 +1,53 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import container from '../di/inversify.config';
+import { TYPES } from '../di/types';
 import { IssueController } from '../controllers/issue.controller';
 
-const router = Router();
-const issueController = container.get<IssueController>(IssueController);
+/**
+ * Factory that returns a router for all “issue” operations.
+ * The resolved controller is proxied by the Inversify tracing middleware,
+ * so every method call becomes its own span in Jaeger.
+ */
+export const issueRoutes = (): Router => {
+  const router = Router();
 
-// Global issue search (across all repositories)
-// IMPORTANT: Place this before routes with parameters like /:issueId to avoid conflicts
-router.get('/search', (req: Request, res: Response) => {
-    issueController.findAllIssues(req, res);
-});
+  const issueCtrl = container.get<IssueController>(TYPES.IssueController);
 
-// Repository issues
-router.get('/repository/:repositoryId', (req: Request, res: Response) => {
-    issueController.getRepositoryIssues(req, res);
-});
+  /* ───────── Global search (across all repos) ───────── */
+  // NOTE: place before dynamic /:issueId routes to avoid conflicts
+  router.get('/search', issueCtrl.findAllIssues.bind(issueCtrl));
 
-// Search issues in repository
-router.get('/repository/:repositoryId/search', (req: Request, res: Response) => {
-    issueController.searchIssues(req, res);
-});
+  /* ───────── Repository‑level operations ───────── */
+  router.get(
+    '/repository/:repositoryId',
+    issueCtrl.getRepositoryIssues.bind(issueCtrl),
+  );
 
-// Get all comments for a repository's issues
-router.get('/repository/:repositoryId/comments', (req: Request, res: Response) => {
-    issueController.getRepositoryIssueComments(req, res);
-});
+  router.get(
+    '/repository/:repositoryId/search',
+    issueCtrl.searchIssues.bind(issueCtrl),
+  );
 
-// Individual issue operations
-router.get('/:issueId', (req: Request, res: Response) => {
-    issueController.getIssueById(req, res);
-});
+  router.get(
+    '/repository/:repositoryId/comments',
+    issueCtrl.getRepositoryIssueComments.bind(issueCtrl),
+  );
 
-// Get comments for a specific issue
-router.get('/:issueId/comments', (req: Request, res: Response) => {
-    issueController.getIssueComments(req, res);
-});
+  /* ───────── Individual issue operations ───────── */
+  router.get('/:issueId', issueCtrl.getIssueById.bind(issueCtrl));
+  router.get('/:issueId/comments', issueCtrl.getIssueComments.bind(issueCtrl));
+  router.post('/', issueCtrl.createIssue.bind(issueCtrl));
+  router.put('/:issueId', issueCtrl.updateIssue.bind(issueCtrl));
+  router.delete('/:issueId', issueCtrl.deleteIssue.bind(issueCtrl));
 
-router.post('/', (req: Request, res: Response) => {
-    issueController.createIssue(req, res);
-});
+  /* ───────── Issue comments (stand‑alone) ───────── */
+  router.post('/comments', issueCtrl.addIssueComment.bind(issueCtrl));
 
-router.put('/:issueId', (req: Request, res: Response) => {
-    issueController.updateIssue(req, res);
-});
+  /* ───────── User issues ───────── */
+  router.get('/user/:userId', issueCtrl.getUserIssues.bind(issueCtrl));
 
-router.delete('/:issueId', (req: Request, res: Response) => {
-    issueController.deleteIssue(req, res);
-});
+  return router;
+};
 
-// Issue comments
-router.post('/comments', (req: Request, res: Response) => {
-    issueController.addIssueComment(req, res);
-});
-
-// User issues
-router.get('/user/:userId', (req: Request, res: Response) => {
-    issueController.getUserIssues(req, res);
-});
-
-export default router;
+/* default export for backward‑compatibility */
+export default issueRoutes;

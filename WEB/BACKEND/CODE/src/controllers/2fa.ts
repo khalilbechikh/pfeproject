@@ -11,7 +11,7 @@ import { TYPES } from '../di/types';
 @injectable()
 export class TwoFactorAuthController {
     constructor(
-        @inject(UserService) private userService: UserService
+        @inject(TYPES.UserService) private userService: UserService
     ) {}
 
     /**

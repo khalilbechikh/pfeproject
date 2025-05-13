@@ -2,11 +2,12 @@ import { Request, Response } from 'express';
 import { injectable, inject } from 'inversify';
 import { RepositoryAccessService } from '../services/repository_access.service';
 import { ResponseStatus } from '../DTO/apiResponse.DTO';
+import {TYPES} from "../di/types";
 
 @injectable()
 export class RepositoryAccessController {
     constructor(
-        @inject(RepositoryAccessService) private repositoryAccessService: RepositoryAccessService
+        @inject(TYPES.RepositoryAccessService) private repositoryAccessService: RepositoryAccessService
     ) {}
 
     /**

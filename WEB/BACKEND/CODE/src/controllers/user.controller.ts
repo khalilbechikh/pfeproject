@@ -4,6 +4,8 @@ import { UserService } from '../services/user.service'; // Keep UserService impo
 import { Prisma } from '@prisma/client'; // Import Prisma
 import { ResponseStatus } from '../DTO/apiResponse.DTO'; // Import ResponseStatus
 import { UpdateUserDto } from '../DTO/user.dto'; // <-- Add this import
+import { TYPES } from '../di/types';          // ← add this
+
 
 @injectable()
 export class UserController {

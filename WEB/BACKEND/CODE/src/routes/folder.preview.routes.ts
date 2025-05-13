@@ -1,42 +1,81 @@
 import { Router } from 'express';
-import { FolderPreviewController } from '../controllers/folder.preview.controller'; 
-import { authenticateJWT } from '../middlewares/auth.middleware'; 
-import  container  from '../di/inversify.config'; // Added import for DI container
-import { TYPES } from '../di/types'; // Added import for DI types
+import container from '../di/inversify.config';
+import { TYPES } from '../di/types';
 
-const router = Router();
-// Use dependency injection instead of direct instantiation
-const folderPreviewController = container.get<FolderPreviewController>(TYPES.FolderPreviewController);
+import { FolderPreviewController } from '../controllers/folder.preview.controller';
+import { AuthMiddleware } from '../middlewares/auth.middleware';
 
-// Route to clone a git repository into the temporary working directory
-router.post('/clone/:repoName', authenticateJWT, folderPreviewController.cloneGitFolder);
+/**
+ * Factory that returns a fresh router for “folder preview” features.
+ * All controller/middleware instances are resolved through Inversify
+ * (and therefore auto‑traced by the proxy middleware you added earlier).
+ */
+export const folderPreviewRoutes = (): Router => {
+  const router = Router();
 
-// Route to get the content of a file or directory within the temporary working directory
-router.get('/content', authenticateJWT, folderPreviewController.getPathContent);
+  const ctrl  = container.get<FolderPreviewController>(TYPES.FolderPreviewController);
+  const auth  = container.get<AuthMiddleware>(TYPES.AuthMiddleware);
 
-// Route to modify the content of a file within the temporary working directory
-router.put('/content', authenticateJWT, folderPreviewController.modifyFileContent);
+  /* ───────── Git‑folder preview endpoints ───────── */
 
-// Route to create a new file or folder
-// POST /item - Body: { "relativePath": "path/to/new", "type": "file" | "folder", "content"?: "..." }
-router.post('/item', authenticateJWT, folderPreviewController.createItem);
+  // Clone a Git repo into the temp working directory
+  router.post(
+    '/clone/:repoName',
+    auth.authenticate.bind(auth),
+    ctrl.cloneGitFolder.bind(ctrl),
+  );
 
-// Route to remove a file or folder
-// DELETE /item?relativePath=path/to/remove
-router.delete('/item', authenticateJWT, folderPreviewController.removeItem);
+  // Read file or directory contents
+  router.get(
+    '/content',
+    auth.authenticate.bind(auth),
+    ctrl.getPathContent.bind(ctrl),
+  );
 
-// Route to rename/move a file or folder
-// PATCH /item - Body: { "oldRelativePath": "path/old", "newRelativePath": "path/new" }
-router.patch('/item', authenticateJWT, folderPreviewController.renameItem);
+  // Modify file content
+  router.put(
+    '/content',
+    auth.authenticate.bind(auth),
+    ctrl.modifyFileContent.bind(ctrl),
+  );
 
-// Route to serve a raw file from within a repository in the temporary working directory
-// The 'path' query parameter should be the full relative path within the user's 
-// temporary working directory, including the repository name.
-// e.g., GET /files?path=repoName/path/to/file.jpg
-router.get('/files', authenticateJWT, folderPreviewController.serveFile);
+  // Create a new file or folder
+  router.post(
+    '/item',
+    auth.authenticate.bind(auth),
+    ctrl.createItem.bind(ctrl),
+  );
 
-// Add missing route for pushing changes to git repository
-// POST /push/:repoName - Body: { "commitMessage"?: "..." }
-router.post('/push/:repoName', authenticateJWT, folderPreviewController.pushGitFolder);
+  // Remove a file or folder
+  router.delete(
+    '/item',
+    auth.authenticate.bind(auth),
+    ctrl.removeItem.bind(ctrl),
+  );
 
-export default router;
+  // Rename/move a file or folder
+  router.patch(
+    '/item',
+    auth.authenticate.bind(auth),
+    ctrl.renameItem.bind(ctrl),
+  );
+
+  // Serve raw file bytes out of the temp repo
+  router.get(
+    '/files',
+    auth.authenticate.bind(auth),
+    ctrl.serveFile.bind(ctrl),
+  );
+
+  // Push local changes back to the Git remote
+  router.post(
+    '/push/:repoName',
+    auth.authenticate.bind(auth),
+    ctrl.pushGitFolder.bind(ctrl),
+  );
+
+  return router;
+};
+
+/* default export keeps “import folderPreviewRoutes from …” working */
+export default folderPreviewRoutes;

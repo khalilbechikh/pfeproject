@@ -1,36 +1,50 @@
 import { Router } from 'express';
-import container from "../di/inversify.config";
+import container from '../di/inversify.config';
+import { TYPES } from '../di/types';
+
 import { RepositoryController } from '../controllers/repository.controller';
 import { UserController } from '../controllers/user.controller';
-// Assuming you have an auth middleware, e.g., isAdminMiddleware
-// import { isAdminMiddleware } from '../middlewares/auth.middleware'; // Example, adjust as needed
+// import { isAdminMiddleware } from '../middlewares/auth.middleware'; // ← add if you have one
 
-const adminRouter = Router();
+/**
+ * Factory that returns a fresh Admin router.
+ * Controller instances are resolved through Inversify, so every method call
+ * is automatically wrapped in a tracing span by your middleware.
+ */
+export const adminRoutes = (): Router => {
+  const router = Router();
 
-const repositoryController = container.get(RepositoryController);
-const userController = container.get(UserController);
+  /* Resolve singleton controllers (proxied for tracing) */
+  const repoCtrl  = container.get<RepositoryController>(TYPES.RepositoryController);
+  const userCtrl  = container.get<UserController>(TYPES.UserController);
 
-// Apply admin-specific middleware if you have one
-// adminRouter.use(isAdminMiddleware); // Example: Protect all admin routes
+  /* Optional: protect all admin routes */
+  // router.use(isAdminMiddleware);
 
-// Repository management routes
-adminRouter.get(
+  /* ───────── Repository management ───────── */
+  router.get(
     '/repositories',
-    repositoryController.getAllRepositories.bind(repositoryController)
-);
-adminRouter.delete(
+    repoCtrl.getAllRepositories.bind(repoCtrl),
+  );
+
+  router.delete(
     '/repositories/:id',
-    repositoryController.deleteRepository.bind(repositoryController)
-);
+    repoCtrl.deleteRepository.bind(repoCtrl),
+  );
 
-// User management routes
-adminRouter.get(
+  /* ───────── User management ───────── */
+  router.get(
     '/users',
-    userController.getAllUsers.bind(userController)
-);
-adminRouter.delete(
-    '/users/:id',
-    userController.deleteUser.bind(userController)
-);
+    userCtrl.getAllUsers.bind(userCtrl),
+  );
 
-export default adminRouter;
+  router.delete(
+    '/users/:id',
+    userCtrl.deleteUser.bind(userCtrl),
+  );
+
+  return router;
+};
+
+/* default export for backward‑compatible imports */
+export default adminRoutes;

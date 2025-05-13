@@ -62,7 +62,7 @@ export const UpdateUserSchema = z.object({
 export class UserService {
     constructor(
         @inject(TYPES.PrismaClient) private prismaClient: PrismaClient,
-        @inject(UserRepository) private userRepository: UserRepository
+        @inject(TYPES.UserRepository) private userRepository: UserRepository
     ) {}
 
     /**

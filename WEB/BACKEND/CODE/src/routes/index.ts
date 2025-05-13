@@ -1,28 +1,41 @@
 import { Router } from 'express';
-import { configureUserRoutes } from './user.routes';
 
-import { authenticationRoutes } from './authentication.routes';
-import { configureRepositoryRoutes } from './repository.routes';
-import folderPreviewRoutes from './folder.preview.routes'; // Import the new routes
-import { configurePullRequestRoutes } from './pullRequest.routes'; // Import pull request routes
-import issueRoutes from './issue.routes'; // Import issue routes default 
-import repositoryAccessController  from './repository_access.routes'; 
-import twoFactorAuthRouter from './2fa.routes'; // Import 2FA routes
-import adminRouter from './admin.routes'; // Import admin routes
+/* Per‑domain route factories */
+import configureUserRoutes         from './user.routes';
+import authenticationRoutes        from './authentication.routes';
+// import configureGitRoutes       from './git.routes';   // keep commented if unused
+import configureRepositoryRoutes   from './repository.routes';
+import folderPreviewRoutes         from './folder.preview.routes';
+import configurePullRequestRoutes  from './pullRequest.routes';
+import issueRoutes                 from './issue.routes';
+import twoFactorAuthRoutes         from './2fa.routes';
+import adminRoutes                 from './admin.routes';
+import repositoryAccessRoutes      from './repository_access.routes';   // optional
 
+/**
+ * Builds the top‑level API router.  
+ * Every child router is invoked as a **factory** (note the `()`),
+ * so each call gets its own fresh Router and all controller instances
+ * are resolved through Inversify → automatically proxied for tracing.
+ */
 export const configureRoutes = (): Router => {
-    const router = Router();
+  const router = Router();
 
-    router.use('/users', configureUserRoutes());
-    // router.use('/git', configureGitRoutes());
-    router.use('', authenticationRoutes());
-    router.use('/repositories', configureRepositoryRoutes());
-    router.use('/preview', folderPreviewRoutes); // Use the new routes with a base path like '/preview'
-    router.use('/pull-requests', configurePullRequestRoutes()); // Add pull request routes
-    router.use('/issues', issueRoutes); // Use the imported issue router directly
-    router.use('/2fa', twoFactorAuthRouter); // Add 2FA routes
-    router.use('/repository-access', repositoryAccessController); // Add repository access routes
-    router.use('/admin', adminRouter); // Add admin routes
+  /* ───────── Domain routers ───────── */
+  router.use('/users',          configureUserRoutes());
+  // router.use('/git',         configureGitRoutes());
 
-    return router;
+  router.use('',                authenticationRoutes());     // base path = ''
+  router.use('/repositories',   configureRepositoryRoutes());
+  router.use('/preview',        folderPreviewRoutes());       // repo file‑preview
+  router.use('/pull-requests',  configurePullRequestRoutes());
+  router.use('/issues',         issueRoutes());
+  router.use('/2fa',            twoFactorAuthRoutes());
+  router.use('/admin',          adminRoutes());
+  router.use('/access',         repositoryAccessRoutes());    // repo‑access mgmt
+
+  return router;
 };
+
+/* default export keeps existing imports working */
+export default configureRoutes;
