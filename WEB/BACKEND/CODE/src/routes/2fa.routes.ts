@@ -6,7 +6,6 @@ import { AuthMiddleware } from '../middlewares/auth.middleware'; // Import the c
 
 const twoFactorAuthRouter = express.Router();
 const twoFactorAuthController = container.get<TwoFactorAuthController>(TYPES.TwoFactorAuthController);
-// Get AuthMiddleware from container
 const authMiddleware = container.get<AuthMiddleware>(TYPES.AuthMiddleware);
 
 /**
@@ -22,26 +21,26 @@ twoFactorAuthRouter.get('/generate',
 /**
  * @route   POST /api/2fa/verify
  * @desc    Verify a 2FA token and enable 2FA for the user
- * @access  Private (requires valid JWT token)
+ * @access  
  */
 twoFactorAuthRouter.post('/verify', 
-    authMiddleware.authenticate, // Use the new middleware
+    authMiddleware.authenticate, 
     (req, res) => twoFactorAuthController.verifyAndEnableTwoFactor(req, res)
 );
 
 /**
- * @route   POST /api/2fa/validate
- * @desc    Validate a 2FA token during login process
- * @access  Public
+ * @route   
+ * @desc    
+ * @access  
  */
 twoFactorAuthRouter.post('/validate', 
     (req, res) => twoFactorAuthController.validateTwoFactorToken(req, res)
 );
 
 /**
- * @route   DELETE /api/2fa
- * @desc    Disable 2FA for the authenticated user
- * @access  Private (requires valid JWT token)
+ * @route   
+ * @desc    
+ * @access  
  */
 twoFactorAuthRouter.delete('/', 
     authMiddleware.authenticate, // Use the new middleware
