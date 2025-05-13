@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, CheckCircleIcon, Share2, Moon, Sun } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { CreateUserSchema, LoginUserSchema } from '../auth/authzod'; // Import the Zod schemas
-import { jwtDecode } from "jwt-decode"; // Add jwtDecode import
+import { jwtDecode, JwtPayload } from "jwt-decode"; // Add jwtDecode import
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -129,19 +129,25 @@ export default function AuthPage() {
               const storedToken = localStorage.getItem('authToken');
               if (!storedToken) throw new Error("No token found");
 
-              const decoded: { userId: number } = jwtDecode(storedToken);
+              const decoded = jwtDecode<JwtPayload>(storedToken);
               const userResponse = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}`, {
                 headers: { 'Authorization': `Bearer ${storedToken}` }
               });
 
               const userData = await userResponse.json();
+
               if (userData.data.twoFactorEnabled) {
                 navigate('/verify-2fa');
               } else {
-                navigate('/dashboard');
+                // Redirect to admin interface if user is admin
+                if (userData.data.is_admin) {
+                  navigate('/admin');
+                } else {
+                  navigate('/dashboard');
+                }
               }
             } catch (error) {
-              console.error("2FA check failed:", error);
+              console.error("User check failed:", error);
               navigate('/dashboard');
             }
           } else {

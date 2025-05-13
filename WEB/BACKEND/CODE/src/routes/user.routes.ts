@@ -33,5 +33,7 @@ export const configureUserRoutes = (): Router => {
         userController.uploadAvatar.bind(userController)
     );
 
+    router.patch('/:id/suspend', userController.suspendUnsuspendUser);
+
     return router;
 };

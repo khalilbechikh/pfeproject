@@ -192,6 +192,14 @@ export class AuthService {
                 };
             }
 
+            if (user.suspended) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Sorry, you can't login. You are suspended.",
+                    error: 'User is suspended',
+                };
+            }
+
             const isPasswordValid = await this.comparePassword(validatedData.password, user.password_hash);
             console.log("Password validation result:", isPasswordValid ? "Valid" : "Invalid");
 

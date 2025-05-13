@@ -33,7 +33,14 @@ export class UserRepository {
                 for (const tableName of tableNamesToInclude) {
                     const relationName = this.userRelationMap[tableName];
                     if (relationName) {
-                        includeRelations[relationName] = true;
+                        // Special handling for repositories: exclude archived
+                        if (relationName === 'repository') {
+                            includeRelations[relationName] = {
+                                where: { archived: false }
+                            };
+                        } else {
+                            includeRelations[relationName] = true;
+                        }
                     } else {
                         console.warn(`Warning: Table name "${tableName}" is not a valid relation for users model and will be ignored.`);
                     }
@@ -296,5 +303,28 @@ export class UserRepository {
         return this.prisma.users.findUnique({
             where: { email }
         });
+    }
+
+    async suspendUnsuspendUser(id: number, suspend: boolean): Promise<ApiResponse<users | null>> {
+        try {
+            const updatedUser = await this.prisma.users.update({
+                where: { id },
+                data: { suspended: suspend }
+            });
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: suspend
+                    ? 'User suspended successfully'
+                    : 'User unsuspended successfully',
+                data: updatedUser
+            };
+        } catch (error) {
+            console.error('Error in UserRepository.suspendUnsuspendUser:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Error updating user suspension status',
+                error: (error as Error).message
+            };
+        }
     }
 }

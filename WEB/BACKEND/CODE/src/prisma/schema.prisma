@@ -20,6 +20,7 @@ model users {
   twoFactorSecret String?           @db.Text
   twoFactorEnabled Boolean          @default(false) @db.Boolean
   contribution_count Int?                @default(0) @db.Integer
+  suspended      Boolean            @default(false) @db.Boolean
   created_at    DateTime            @default(now()) @db.Timestamp(6)
   updated_at    DateTime            @default(now()) @updatedAt @db.Timestamp(6)
   repository    repository[]
@@ -41,6 +42,7 @@ model repository {
   forked_at         DateTime?            @db.Timestamp(6) 
   created_at        DateTime             @default(now()) @db.Timestamp(6)
   updated_at        DateTime             @default(now()) @updatedAt @db.Timestamp(6)
+  archived          Boolean              @default(false) @db.Boolean // <--- Add this line
 
   owner             users                @relation(fields: [owner_user_id], references: [id], onDelete: Cascade)
   parent            repository?          @relation("ForkRelation", fields: [parent_id], references: [id], onDelete: SetNull)

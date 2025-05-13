@@ -13,6 +13,11 @@ export const configureRepositoryRoutes = (): Router => {
         repositoryController.getAllRepositories(req, res)
     );
 
+    // GET all repositories including archived (admin only)
+    router.get('/all-including-archived', authenticateJWT, (req, res) =>
+        repositoryController.getAllRepositoriesIncludingArchived(req, res)
+    );
+
     // PUT endpoint to update a repository
     router.put('/:id', authenticateJWT, (req, res) => 
         repositoryController.updateRepository(req, res));
@@ -30,6 +35,21 @@ export const configureRepositoryRoutes = (): Router => {
     // POST endpoint to fork a repository
     router.post('/:id/fork', authenticateJWT, (req, res) =>
         repositoryController.forkRepository(req, res)
+    );
+
+    // PATCH endpoint to change repository ownership
+    router.patch('/:id/change-ownership', authenticateJWT, (req, res) =>
+        repositoryController.changeOwnership(req, res)
+    );
+
+    // PATCH archive a repository (admin)
+    router.patch('/:id/archive', authenticateJWT, (req, res) =>
+        repositoryController.archiveRepository(req, res)
+    );
+
+    // PATCH restore a repository (admin)
+    router.patch('/:id/restore', authenticateJWT, (req, res) =>
+        repositoryController.restoreRepository(req, res)
     );
 
     // GET endpoint to retrieve a repository by ID

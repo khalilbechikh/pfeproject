@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises'; // Use promises version of fs
+import { sendEmail } from '../utils/email.util';
 
 // TODO: Move this to configuration/environment variables, ensure consistency with GitService
 const GIT_REPO_BASE_PATH = '/srv/git';
@@ -70,6 +71,59 @@ export class RepositoryService {
                 error: error instanceof Error ? error.message : String(error)
             };
         }
+    }
+
+    // New: Get all repositories including archived
+    async getAllRepositoriesIncludingArchived(): Promise<ApiResponse<repository[]>> {
+        return this.repositoryRepository.findAllIncludingArchived();
+    }
+
+    // New: Archive a repository and notify owner
+    async archiveRepository(repoId: number): Promise<ApiResponse<repository | null>> {
+        const repoResp = await this.repositoryRepository.findById(repoId, ['owner']);
+        if (!repoResp.data) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Repository not found",
+                error: "Repository not found",
+                data: null
+            };
+        }
+        // Type guard for owner
+        const owner = (repoResp.data as any).owner;
+        const archiveResp = await this.repositoryRepository.archiveRepository(repoId);
+        if (archiveResp.status === ResponseStatus.SUCCESS && owner?.email) {
+            await sendEmail(
+                owner.email,
+                "Repository Archived",
+                `Hello from admin, your repository ${repoResp.data.name} is archived and from now you will not be able to see it in your list until it will be restored.`
+            );
+        }
+        return archiveResp;
+    }
+
+    // New: Restore a repository and notify owner
+    async restoreRepository(repoId: number): Promise<ApiResponse<repository | null>> {
+        const repoResp = await this.repositoryRepository.findById(repoId, ['owner']);
+        if (!repoResp.data) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Repository not found",
+                error: "Repository not found",
+                data: null
+            };
+        }
+        // Type guard for owner
+        const owner = (repoResp.data as any).owner;
+        const restoreResp = await this.repositoryRepository.restoreRepository(repoId);
+        if (restoreResp.status === ResponseStatus.SUCCESS && owner?.email) {
+            await sendEmail(
+                owner.email,
+                "Repository Restored",
+                `Hello from admin, your repository ${repoResp.data.name} is restored and you will be able to read and edit it.`
+            );
+        }
+        return restoreResp;
     }
 
     /**
@@ -361,7 +415,9 @@ export class RepositoryService {
                 console.log(`Using stored repoPath: ${repoFullPath}`);
             } else {
                 console.warn(`repoPath not found in DB for ID ${id}. Falling back to reconstruction.`);
-                if (!repositoryData.owner?.username) {
+                // Type guard for owner
+                const owner = (repositoryData as any).owner;
+                if (!owner?.username) {
                     console.error(`Fallback failed: Owner details missing for repo ID ${id}. Cannot reconstruct path.`);
                     return {
                         status: ResponseStatus.FAILED,
@@ -371,7 +427,7 @@ export class RepositoryService {
                     };
                 }
 
-                const ownerUsername = repositoryData.owner.username;
+                const ownerUsername = owner.username;
                 const repoName = repositoryData.name;
 
                 if (repositoryData.parent_id && repoName.includes('/')) {
@@ -467,7 +523,7 @@ export class RepositoryService {
                 console.error(`Failed to get source repo data for fork (RepoID: ${repoId}):`, sourceRepoResponse.error);
                 return sourceRepoResponse;
             }
-            if (!sourceRepoResponse.data || !sourceRepoResponse.data.owner?.username) {
+            if (!sourceRepoResponse.data) {
                 console.error(`Source repository or its owner details not found (RepoID: ${repoId})`);
                 return {
                     status: ResponseStatus.FAILED,
@@ -477,7 +533,18 @@ export class RepositoryService {
                 };
             }
             const sourceRepo = sourceRepoResponse.data!;
-            const ownerUsername = sourceRepo.owner!.username;
+            // Type guard for owner
+            const owner = (sourceRepo as any).owner;
+            if (!owner?.username) {
+                console.error(`Source repository or its owner details not found (RepoID: ${repoId})`);
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Source repository or owner details not found.',
+                    error: `Repository or owner details missing for ID ${repoId}.`,
+                    data: null
+                };
+            }
+            const ownerUsername = owner.username;
             const repoName = sourceRepo.name;
             console.log(`Source repo details found: Owner=${ownerUsername}, Name=${repoName}`);
 
@@ -586,6 +653,44 @@ export class RepositoryService {
                 status: ResponseStatus.FAILED,
                 message: 'Unexpected error during fork operation.',
                 error: err?.message || String(err),
+                data: null
+            };
+        }
+    }
+
+    /**
+     * Change the owner of a repository by new owner's email.
+     * @param repoId Repository ID
+     * @param newOwnerEmail New owner's email
+     */
+    async changeOwnership(repoId: number, newOwnerEmail: string): Promise<ApiResponse<repository | null>> {
+        try {
+            // Validate email
+            if (!newOwnerEmail || typeof newOwnerEmail !== 'string') {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Invalid email",
+                    error: "A valid email must be provided",
+                    data: null
+                };
+            }
+            // Find user by email
+            const user = await this.repositoryRepository['prisma'].users.findUnique({ where: { email: newOwnerEmail } });
+            if (!user) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "User not found",
+                    error: "No user found with the provided email",
+                    data: null
+                };
+            }
+            // Change ownership
+            return await this.repositoryRepository.changeOwnership(repoId, user.id);
+        } catch (error: unknown) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to change repository ownership",
+                error: error instanceof Error ? error.message : String(error),
                 data: null
             };
         }

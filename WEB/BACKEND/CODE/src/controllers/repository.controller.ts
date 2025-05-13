@@ -46,6 +46,22 @@ export class RepositoryController {
     }
 
     /**
+     * Get all repositories including archived (admin only)
+     */
+    async getAllRepositoriesIncludingArchived(req: Request, res: Response): Promise<void> {
+        try {
+            const result = await this.repositoryService.getAllRepositoriesIncludingArchived();
+            res.status(200).json(result);
+        } catch (error) {
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve repositories (including archived)',
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    /**
      * Get a repository by its ID, optionally including related data.
      * GET /api/repositories/:id?relations=tableName1,tableName2
      */
@@ -337,6 +353,97 @@ export class RepositoryController {
             res.status(500).json({
                 status: ResponseStatus.FAILED,
                 message: 'Failed to fork repository due to a server error',
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    /**
+     * Archive a repository (admin)
+     */
+    async archiveRepository(req: Request, res: Response): Promise<void> {
+        try {
+            const repositoryId = parseInt(req.params.id);
+            if (isNaN(repositoryId)) {
+                res.status(400).json({
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID',
+                    error: 'Repository ID must be a number',
+                });
+                return;
+            }
+            const result = await this.repositoryService.archiveRepository(repositoryId);
+            res.status(result.status === ResponseStatus.SUCCESS ? 200 : 400).json(result);
+        } catch (error) {
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to archive repository',
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    /**
+     * Restore a repository (admin)
+     */
+    async restoreRepository(req: Request, res: Response): Promise<void> {
+        try {
+            const repositoryId = parseInt(req.params.id);
+            if (isNaN(repositoryId)) {
+                res.status(400).json({
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID',
+                    error: 'Repository ID must be a number',
+                });
+                return;
+            }
+            const result = await this.repositoryService.restoreRepository(repositoryId);
+            res.status(result.status === ResponseStatus.SUCCESS ? 200 : 400).json(result);
+        } catch (error) {
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to restore repository',
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    /**
+     * Change the owner of a repository
+     * PATCH /api/repositories/:id/change-ownership
+     */
+    async changeOwnership(req: Request, res: Response): Promise<void> {
+        try {
+            const repositoryId = parseInt(req.params.id);
+            if (isNaN(repositoryId)) {
+                res.status(400).json({
+                    status: ResponseStatus.FAILED,
+                    message: 'Invalid repository ID',
+                    error: 'Repository ID must be a number',
+                });
+                return;
+            }
+            const { email } = req.body;
+            if (!email || typeof email !== 'string') {
+                res.status(400).json({
+                    status: ResponseStatus.FAILED,
+                    message: 'Email is required',
+                    error: 'A valid email must be provided',
+                });
+                return;
+            }
+            const result = await this.repositoryService.changeOwnership(repositoryId, email);
+            let statusCode = 200;
+            if (result.status === ResponseStatus.FAILED) {
+                if (result.message === 'Repository not found') statusCode = 404;
+                else if (result.message === 'User not found' || result.message === 'Invalid email') statusCode = 400;
+                else statusCode = 500;
+            }
+            res.status(statusCode).json(result);
+        } catch (error) {
+            res.status(500).json({
+                status: ResponseStatus.FAILED,
+                message: 'Failed to change repository ownership due to a server error',
                 error: error instanceof Error ? error.message : String(error),
             });
         }

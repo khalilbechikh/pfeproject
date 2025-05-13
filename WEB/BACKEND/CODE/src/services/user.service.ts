@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { TYPES } from '../di/types';
 import * as bcrypt from 'bcrypt';
+import { sendEmail } from '../utils/email.util';
 
 // Zod schema for user creation
 export const CreateUserSchema = z.object({
@@ -391,6 +392,64 @@ export class UserService {
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Failed to retrieve user by email',
+                error: (error as Error).message
+            };
+        }
+    }
+
+    /**
+     * Suspend or unsuspend a user by ID
+     * @param id User ID
+     * @param suspend true to suspend, false to unsuspend
+     * @returns ApiResponse with updated user object or error
+     */
+    async suspendUnsuspendUser(id: number, suspend: boolean): Promise<ApiResponse<users | null>> {
+        try {
+            // Check if user exists
+            const user = await this.userRepository.findById(id);
+            if (!user.data) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'User not found',
+                    error: 'User not found'
+                };
+            }
+            // If already in desired state
+            if (user.data.suspended === suspend) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: suspend
+                        ? 'User is already suspended'
+                        : 'User is not suspended',
+                    data: user.data
+                };
+            }
+            // Update suspension status
+            const response = await this.userRepository.suspendUnsuspendUser(id, suspend);
+
+            // Send email notification if update succeeded and user has email
+            if (response.status === ResponseStatus.SUCCESS && user.data.email) {
+                if (suspend) {
+                    await sendEmail(
+                        user.data.email,
+                        "Account Suspended",
+                        `Hello, your account has been suspended by the administrator. You will not be able to access your account until it is restored.`
+                    );
+                } else {
+                    await sendEmail(
+                        user.data.email,
+                        "Account Restored",
+                        `Hello, your account has been restored by the administrator. You can now access your account.`
+                    );
+                }
+            }
+
+            return response;
+        } catch (error) {
+            console.error('Error in UserService.suspendUnsuspendUser:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to update user suspension status',
                 error: (error as Error).message
             };
         }

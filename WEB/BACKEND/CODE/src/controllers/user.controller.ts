@@ -323,4 +323,35 @@ export class UserController {
             });
         }
     };
+
+    /**
+     * Suspend or unsuspend a user by ID
+     * @param req Express request object
+     * @param res Express response object
+     */
+    suspendUnsuspendUser = async (req: Request, res: Response): Promise<void> => {
+        try {
+            const userId = parseInt(req.params.id, 10);
+            if (isNaN(userId)) {
+                res.status(400).json({ error: 'Invalid user ID' });
+                return;
+            }
+            const { suspend } = req.body;
+            if (typeof suspend !== 'boolean') {
+                res.status(400).json({ error: 'suspend field must be boolean' });
+                return;
+            }
+            const response = await this.userService.suspendUnsuspendUser(userId, suspend);
+            let statusCode = 200;
+            if (response.status === ResponseStatus.FAILED) statusCode = 404;
+            res.status(statusCode).json(response);
+        } catch (error) {
+            console.error('Error in UserController.suspendUnsuspendUser:', error);
+            res.status(500).json({
+                status: 'failed',
+                message: 'Failed to update user suspension status',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
 }
