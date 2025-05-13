@@ -1,44 +1,43 @@
 import { Router } from 'express';
 import container from '../di/inversify.config';
+import { TYPES } from '../di/types';
+
 import { RepositoryController } from '../controllers/repository.controller';
-import { AuthMiddleware } from '../middlewares/auth.middleware'; // Import the class
-import { TYPES } from '../di/types'; // Import TYPES
+import { AuthMiddleware } from '../middlewares/auth.middleware';
 
+/**
+ * Factory that builds the Repository router.
+ * Controller and middleware instances are resolved via Inversify and are
+ * therefore proxied by your tracing middleware—every call shows up in Jaeger.
+ */
 export const configureRepositoryRoutes = (): Router => {
-    const router = Router();
-    const repositoryController = container.get<RepositoryController>(RepositoryController);
-    // Get AuthMiddleware from container
-    const authMiddleware = container.get<AuthMiddleware>(TYPES.AuthMiddleware);
+  const router = Router();
 
-    // GET endpoint to retrieve all repositories (optionally filtered by name)
-    // IMPORTANT: Place this before the '/:id' route to avoid conflicts
-    router.get('/', authMiddleware.authenticate, (req, res) =>
-        repositoryController.getAllRepositories(req, res)
-    );
+  const repoCtrl = container.get<RepositoryController>(TYPES.RepositoryController);
+  const auth     = container.get<AuthMiddleware>(TYPES.AuthMiddleware);
 
-    // PUT endpoint to update a repository
-    router.put('/:id', authMiddleware.authenticate, (req, res) => 
-        repositoryController.updateRepository(req, res));
+  /* ───────── Repository CRUD / actions ───────── */
 
-    // POST endpoint to create a repository
-    router.post('/', authMiddleware.authenticate, (req, res) =>
-        repositoryController.createRepository(req, res)
-    );
+  // List / search repositories
+  router.get('/', auth.authenticate.bind(auth), repoCtrl.getAllRepositories.bind(repoCtrl));
 
-    // DELETE endpoint to delete a repository
-    router.delete('/:id', authMiddleware.authenticate, (req, res) =>
-        repositoryController.deleteRepository(req, res)
-    );
+  // Create repository
+  router.post('/', auth.authenticate.bind(auth), repoCtrl.createRepository.bind(repoCtrl));
 
-    // POST endpoint to fork a repository
-    router.post('/:id/fork', authMiddleware.authenticate, (req, res) =>
-        repositoryController.forkRepository(req, res)
-    );
+  // Update repository
+  router.put('/:id', auth.authenticate.bind(auth), repoCtrl.updateRepository.bind(repoCtrl));
 
-    // GET endpoint to retrieve a repository by ID
-    router.get('/:id', authMiddleware.authenticate, (req, res) =>
-        repositoryController.getRepositoryById(req, res)
-    );
+  // Delete repository
+  router.delete('/:id', auth.authenticate.bind(auth), repoCtrl.deleteRepository.bind(repoCtrl));
 
-    return router;
+  // Fork repository
+  router.post('/:id/fork', auth.authenticate.bind(auth), repoCtrl.forkRepository.bind(repoCtrl));
+
+  // Get repository by ID  (placed last to avoid conflicts)
+  router.get('/:id', auth.authenticate.bind(auth), repoCtrl.getRepositoryById.bind(repoCtrl));
+
+  return router;
 };
+
+/* default export keeps existing imports working */
+export default configureRepositoryRoutes;

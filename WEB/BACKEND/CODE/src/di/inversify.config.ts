@@ -1,175 +1,88 @@
 import 'reflect-metadata';
 import { Container } from 'inversify';
-import { UserRepository } from '../repositories/user.repository';
-import { UserService } from '../services/user.service';
-import { UserController } from '../controllers/user.controller';
-import { getPrismaClient } from '../prisma/prisma-client';
 import { PrismaClient } from '@prisma/client';
-import { AuthService } from "../services/auth.service";
-import { AuthenticationController } from "../controllers/authentication.controller";
-import { RepositoryRepository } from "../repositories/repository.repository";
-import { RepositoryService } from "../services/repository.service";
-import { RepositoryController } from "../controllers/repository.controller";
-import { RepositoryAccessRepository } from "../repositories/repository_access.repository";
-import { RepositoryAccessService } from "../services/repository_access.service";
-import { RepositoryAccessController } from "../controllers/repository_access.controller";
-import { IssueRepository } from "../repositories/issue.repository";
-//import { GitCrud } from "../git/git.crud";
+import { getPrismaClient } from '../prisma/prisma-client';
+
 import { TYPES } from './types';
-import { IssueService } from "../services/issue.service";
-// Import new IssueComment components
-import { IssueCommentRepository } from '../repositories/issue_comment.repository';
-import { IssueCommentService } from '../services/issue_comment.service';
-import { IssueCommentController } from '../controllers/issue_comment.controller';
-// Import PullRequestRepository
+import { tracingMiddleware } from './tracing-middleware';   // ← NEW
+
+/* ───── repositories ───── */
+import { UserRepository } from '../repositories/user.repository';
+import { RepositoryRepository } from '../repositories/repository.repository';
+import { RepositoryAccessRepository } from '../repositories/repository_access.repository';
+import { IssueRepository } from '../repositories/issue.repository';
 import { PullRequestRepository } from '../repositories/pullRequest.repository';
-// Import PullRequestService
+import { IssueCommentRepository } from '../repositories/issue_comment.repository';
+
+/* ───── services ───── */
+import { UserService } from '../services/user.service';
+import { AuthService } from '../services/auth.service';
+import { RepositoryService } from '../services/repository.service';
+import { RepositoryAccessService } from '../services/repository_access.service';
+import { IssueService } from '../services/issue.service';
 import { PullRequestService } from '../services/pullRequest.services';
-// Import PullRequestController
-import { PullRequestController } from '../controllers/pullRequest.controller';
-// Import Folder Preview components
+import { IssueCommentService } from '../services/issue_comment.service';
 import { FolderPreviewService } from '../services/folder.preview.service';
-import { FolderPreviewController } from '../controllers/folder.preview.controller';
-// Import GitService
-//import { GitService } from '../services/git.service';
-// Import IssueController
+
+/* ───── controllers ───── */
+import { UserController } from '../controllers/user.controller';
+import { AuthenticationController } from '../controllers/authentication.controller';
+import { RepositoryController } from '../controllers/repository.controller';
+import { RepositoryAccessController } from '../controllers/repository_access.controller';
 import { IssueController } from '../controllers/issue.controller';
-// Import TwoFactorAuthController
+import { PullRequestController } from '../controllers/pullRequest.controller';
+import { IssueCommentController } from '../controllers/issue_comment.controller';
+import { FolderPreviewController } from '../controllers/folder.preview.controller';
 import { TwoFactorAuthController } from '../controllers/2fa';
-// Import AuthMiddleware
+
+/* ───── middleware classes ───── */
 import { AuthMiddleware } from '../middlewares/auth.middleware';
 
-// Create a single InversifyJS Container
+/* ───── container ───── */
 const container = new Container();
-console.log("Inversify Container Instance:", container);
 
-// Bind database client
-container.bind<PrismaClient>(TYPES.PrismaClient)
+/* ───────── Bindings ───────── */
+
+/* Prisma client */
+container
+    .bind<PrismaClient>(TYPES.PrismaClient)
     .toDynamicValue(() => getPrismaClient())
     .inSingletonScope();
 
-// Bind repositories
-container.bind<UserRepository>(UserRepository)
-    .toSelf()
-    .inSingletonScope();
+/* Repositories */
+container.bind<UserRepository>(TYPES.UserRepository).to(UserRepository).inSingletonScope();
+container.bind<RepositoryRepository>(TYPES.RepositoryRepository).to(RepositoryRepository).inSingletonScope();
+container.bind<RepositoryAccessRepository>(TYPES.RepositoryAccessRepository).to(RepositoryAccessRepository).inSingletonScope();
+container.bind<IssueRepository>(TYPES.IssueRepository).to(IssueRepository).inSingletonScope();
+container.bind<PullRequestRepository>(TYPES.PullRequestRepository).to(PullRequestRepository).inSingletonScope();
+container.bind<IssueCommentRepository>(TYPES.IssueCommentRepository).to(IssueCommentRepository).inSingletonScope();
 
-container.bind<RepositoryRepository>(TYPES.RepositoryRepository)
-    .to(RepositoryRepository)
-    .inSingletonScope();
+/* Services */
+container.bind<UserService>(TYPES.UserService).to(UserService).inSingletonScope();
+container.bind<AuthService>(TYPES.AuthService).to(AuthService).inSingletonScope();
+container.bind<RepositoryService>(TYPES.RepositoryService).to(RepositoryService).inSingletonScope();
+container.bind<RepositoryAccessService>(TYPES.RepositoryAccessService).to(RepositoryAccessService).inSingletonScope();
+container.bind<IssueService>(TYPES.IssueService).to(IssueService).inSingletonScope();
+container.bind<PullRequestService>(TYPES.PullRequestService).to(PullRequestService).inSingletonScope();
+container.bind<IssueCommentService>(TYPES.IssueCommentService).to(IssueCommentService).inSingletonScope();
+container.bind<FolderPreviewService>(TYPES.FolderPreviewService).to(FolderPreviewService).inSingletonScope();
 
-container.bind<RepositoryAccessRepository>(TYPES.RepositoryAccessRepository)
-    .to(RepositoryAccessRepository)
-    .inSingletonScope();
+/* Controllers */
+container.bind<UserController>(TYPES.UserController).to(UserController).inRequestScope();
+container.bind<AuthenticationController>(TYPES.AuthenticationController).to(AuthenticationController).inSingletonScope();
+container.bind<RepositoryController>(TYPES.RepositoryController).to(RepositoryController).inSingletonScope();
+container.bind<RepositoryAccessController>(TYPES.RepositoryAccessController).to(RepositoryAccessController).inSingletonScope();
+container.bind<IssueController>(TYPES.IssueController).to(IssueController).inSingletonScope();
+container.bind<PullRequestController>(TYPES.PullRequestController).to(PullRequestController).inSingletonScope();
+container.bind<IssueCommentController>(TYPES.IssueCommentController).to(IssueCommentController).inSingletonScope();
+container.bind<FolderPreviewController>(TYPES.FolderPreviewController).to(FolderPreviewController).inRequestScope();
+container.bind<TwoFactorAuthController>(TYPES.TwoFactorAuthController).to(TwoFactorAuthController).inSingletonScope();
 
-container.bind<IssueRepository>(TYPES.IssueRepository)
-    .to(IssueRepository)
-    .inSingletonScope();
+/* Middleware classes */
+container.bind<AuthMiddleware>(TYPES.AuthMiddleware).to(AuthMiddleware).inSingletonScope();
 
-// Bind PullRequestRepository
-container.bind<PullRequestRepository>(TYPES.PullRequestRepository)
-    .to(PullRequestRepository)
-    .inSingletonScope();
+/* ───────── Attach tracing middleware (NEW) ───────── */
+container.applyMiddleware(tracingMiddleware);              // NEW
 
-// Bind IssueCommentRepository
-container.bind<IssueCommentRepository>(TYPES.IssueCommentRepository)
-    .to(IssueCommentRepository)
-    .inSingletonScope();
-
-// Bind services
-container.bind<UserService>(UserService)
-    .toSelf()
-    .inSingletonScope();
-
-container.bind<AuthService>(AuthService)
-    .toSelf()
-    .inSingletonScope();
-
-container.bind<RepositoryService>(RepositoryService)
-    .toSelf()
-    .inSingletonScope();
-
-container.bind<RepositoryAccessService>(RepositoryAccessService)
-    .toSelf()
-    .inSingletonScope();
-
-container.bind<IssueService>(IssueService)
-    .toSelf()
-    .inSingletonScope();
-
-// Bind PullRequestService
-container.bind<PullRequestService>(TYPES.PullRequestService)
-    .to(PullRequestService)
-    .inSingletonScope();
-
-// Bind IssueCommentService
-container.bind<IssueCommentService>(TYPES.IssueCommentService)
-    .to(IssueCommentService)
-    .inSingletonScope();
-
-// Bind FolderPreviewService
-container.bind<FolderPreviewService>(TYPES.FolderPreviewService)
-    .to(FolderPreviewService)
-    .inSingletonScope();
-
-/*
-container.bind<GitCrud>(GitCrud)
-    .toSelf()
-    .inSingletonScope();
-*/
-// Bind GitService
-/*
-container.bind<GitService>(TYPES.GitService)
-    .to(GitService)
-    .inSingletonScope();
-*/
-
-// Bind controllers
-container.bind<UserController>(UserController)
-    .toSelf()
-    .inRequestScope();
-
-// FIX: Use TYPES.AuthenticationController instead of AuthenticationController class
-container.bind<AuthenticationController>(TYPES.AuthenticationController)
-    .to(AuthenticationController)
-    .inSingletonScope();
-
-container.bind<RepositoryController>(RepositoryController)
-    .toSelf()
-    .inSingletonScope();
-
-container.bind<RepositoryAccessController>(TYPES.RepositoryAccessController)
-    .to(RepositoryAccessController)
-    .inSingletonScope();
-
-
-// Bind PullRequestController
-container.bind<PullRequestController>(TYPES.PullRequestController)
-    .to(PullRequestController)
-    .inSingletonScope(); // Or .inRequestScope() if preferred
-
-// Bind IssueCommentController
-container.bind<IssueCommentController>(TYPES.IssueCommentController)
-    .to(IssueCommentController)
-    .inSingletonScope(); // Or .inRequestScope() depending on preference
-
-// Bind IssueController
-container.bind<IssueController>(IssueController)
-    .toSelf()
-    .inSingletonScope();
-
-// Bind FolderPreviewController
-container.bind<FolderPreviewController>(TYPES.FolderPreviewController)
-    .to(FolderPreviewController)
-    .inRequestScope();
-
-// Bind TwoFactorAuthController
-container.bind<TwoFactorAuthController>(TYPES.TwoFactorAuthController)
-    .to(TwoFactorAuthController)
-    .inSingletonScope();
-
-// Bind AuthMiddleware
-container.bind<AuthMiddleware>(TYPES.AuthMiddleware)
-    .to(AuthMiddleware)
-    .inSingletonScope();
-
+/* ───────── Export the singleton container ───────── */
 export default container;

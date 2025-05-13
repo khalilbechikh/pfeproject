@@ -3,12 +3,13 @@ import { injectable, inject } from "inversify";
 import { AuthService } from "../services/auth.service";
 import jwt from 'jsonwebtoken';
 import { ResponseStatus } from "../DTO/apiResponse.DTO";
+import {TYPES} from "../di/types";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key_here';
 
 @injectable()
 export class AuthenticationController {
-    constructor(@inject(AuthService) private authService: AuthService) {}
+    constructor(@inject(TYPES.AuthService) private authService: AuthService) {}
 
     public async signUp(req: Request, res: Response): Promise<void> {
         try {

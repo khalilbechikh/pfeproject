@@ -1,24 +1,39 @@
-import express from 'express';
+import { Router } from 'express';
 import container from '../di/inversify.config';
-import { IssueCommentController } from '../controllers/issue_comment.controller';
 import { TYPES } from '../di/types';
+import { IssueCommentController } from '../controllers/issue_comment.controller';
 
-const router = express.Router();
-const issueCommentController = container.get<IssueCommentController>(TYPES.IssueCommentController);
+/**
+ * Factory that returns a router for issue‑comment operations.
+ * The controller instance is resolved via Inversify, so every method call
+ * is automatically wrapped in a tracing span by your middleware.
+ */
+export const issueCommentRoutes = (): Router => {
+  const router = Router();
 
-// Get a specific comment by its ID
-router.get('/comments/:commentId', issueCommentController.getCommentById);
+  const ctrl = container.get<IssueCommentController>(
+    TYPES.IssueCommentController,
+  );
 
-// Get all comments for a specific issue
-router.get('/issues/:issueId/comments', issueCommentController.getCommentsByIssueId);
+  /* ───────── Issue‑comment endpoints ───────── */
 
-// Create a new issue comment
-router.post('/comments', issueCommentController.createComment);
+  // Get a specific comment by ID
+  router.get('/comments/:commentId', ctrl.getCommentById.bind(ctrl));
 
-// Update an existjjjing issue comment
-router.put('/comments/:commentId', issueCommentController.updateComment);
+  // Get all comments for a specific issue
+  router.get('/issues/:issueId/comments', ctrl.getCommentsByIssueId.bind(ctrl));
 
-// Delete an issue comment
-router.delete('/comments/:commentId', issueCommentController.deleteComment);
+  // Create a new comment
+  router.post('/comments', ctrl.createComment.bind(ctrl));
 
-export default router;
+  // Update an existing comment
+  router.put('/comments/:commentId', ctrl.updateComment.bind(ctrl));
+
+  // Delete a comment
+  router.delete('/comments/:commentId', ctrl.deleteComment.bind(ctrl));
+
+  return router;
+};
+
+/* default export for backward‑compatibility */
+export default issueCommentRoutes;

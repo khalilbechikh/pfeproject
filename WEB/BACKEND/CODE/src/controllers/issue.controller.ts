@@ -3,11 +3,11 @@ import { injectable, inject } from 'inversify';
 import { IssueService, CreateIssueDto, UpdateIssueDto, AddCommentDto, SearchIssuesDto, SearchAllIssuesDto } from '../services/issue.service'; // Added SearchAllIssuesDto
 import { ResponseStatus } from '../DTO/apiResponse.DTO';
 import { z } from 'zod'; // Import Zod for potential controller-level validation if needed
-
+import {TYPES} from "../di/types";
 @injectable()
 export class IssueController {
     constructor(
-        @inject(IssueService) private issueService: IssueService
+        @inject(TYPES.IssueService) private issueService: IssueService
     ) {}
 
     /**

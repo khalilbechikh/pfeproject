@@ -1,39 +1,40 @@
-const TYPES = {
-    PrismaClient: Symbol.for('PrismaClient'),
-    UserRepository: Symbol.for('UserRepository'),
-    UserService: Symbol.for('UserService'),
-    UserController: Symbol.for('UserController'),
-    AuthService: Symbol.for('AuthService'),
-    AuthenticationController: Symbol.for('AuthenticationController'),
-    RepositoryRepository: Symbol.for('RepositoryRepository'),
-    PullRequestRepository: Symbol.for('PullRequestRepository'), // Added this line
-    RepositoryService: Symbol.for('RepositoryService'),
-    RepositoryController: Symbol.for('RepositoryController'),
-    RepositoryAccessRepository: Symbol.for('RepositoryAccessRepository'),
-    RepositoryAccessService: Symbol.for('RepositoryAccessService'),
-    RepositoryAccessController: Symbol.for('RepositoryAccessController'),
-    IssueRepository: Symbol.for('IssueRepository'),
-    IssueService: Symbol.for('IssueService'),
-    IssueController: Symbol.for('IssueController'),
-    GitCrud: Symbol.for('GitCrud'),
-    // Add new types for IssueComment
-    IssueCommentRepository: Symbol.for('IssueCommentRepository'),
-    IssueCommentService: Symbol.for('IssueCommentService'),
-    IssueCommentController: Symbol.for('IssueCommentController'),
-    GitService: Symbol.for('GitService'), // Add this line
+export const TYPES = {
+    /* ───── Core / infrastructure ───── */
+    PrismaClient:                Symbol.for('PrismaClient'),
 
-    // Add new types for Folder Preview
-    FolderPreviewService: Symbol.for('FolderPreviewService'),
-    FolderPreviewController: Symbol.for('FolderPreviewController'),
+    /* ───── Repositories ───── */
+    UserRepository:              Symbol.for('UserRepository'),
+    RepositoryRepository:        Symbol.for('RepositoryRepository'),
+    RepositoryAccessRepository:  Symbol.for('RepositoryAccessRepository'),
+    IssueRepository:             Symbol.for('IssueRepository'),
+    PullRequestRepository:       Symbol.for('PullRequestRepository'),
+    IssueCommentRepository:      Symbol.for('IssueCommentRepository'),
 
-    // Add new types for Pull Request
-    PullRequestService: Symbol.for('PullRequestService'),
-    PullRequestController: Symbol.for('PullRequestController'),
+    /* ───── Services ───── */
+    UserService:                 Symbol.for('UserService'),
+    AuthService:                 Symbol.for('AuthService'),
+    RepositoryService:           Symbol.for('RepositoryService'),
+    RepositoryAccessService:     Symbol.for('RepositoryAccessService'),
+    IssueService:                Symbol.for('IssueService'),
+    PullRequestService:          Symbol.for('PullRequestService'),
+    IssueCommentService:         Symbol.for('IssueCommentService'),
+    FolderPreviewService:        Symbol.for('FolderPreviewService'),
+    // GitService:              Symbol.for('GitService'),  // uncomment if/when used
 
-    // Add new symbol for TwoFactorAuthController
-    TwoFactorAuthController: Symbol.for('TwoFactorAuthController'),
-    // Add new symbol for AuthMiddleware
-    AuthMiddleware: Symbol.for('AuthMiddleware'),
-};
+    /* ───── Controllers ───── */
+    UserController:              Symbol.for('UserController'),
+    AuthenticationController:    Symbol.for('AuthenticationController'),
+    RepositoryController:        Symbol.for('RepositoryController'),
+    RepositoryAccessController:  Symbol.for('RepositoryAccessController'),
+    IssueController:             Symbol.for('IssueController'),
+    PullRequestController:       Symbol.for('PullRequestController'),
+    IssueCommentController:      Symbol.for('IssueCommentController'),
+    FolderPreviewController:     Symbol.for('FolderPreviewController'),
+    TwoFactorAuthController:     Symbol.for('TwoFactorAuthController'),
 
-export { TYPES };
+    /* ───── Middleware ───── */
+    AuthMiddleware:              Symbol.for('AuthMiddleware'),
+
+    /* ───── Utilities (optional) ───── */
+    // GitCrud:                 Symbol.for('GitCrud'),
+} as const;

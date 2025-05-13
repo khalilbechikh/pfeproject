@@ -3,13 +3,14 @@ import { injectable, inject } from 'inversify';
 import { UserService } from '../services/user.service'; // Keep UserService import
 import { Prisma } from '@prisma/client'; // Import Prisma
 import { ResponseStatus } from '../DTO/apiResponse.DTO'; // Import ResponseStatus
+import { TYPES } from '../di/types';          // ← add this
+
 
 @injectable()
 export class UserController {
 
     constructor(
-        @inject(UserService) private userService: UserService
-    ) {}
+        @inject(TYPES.UserService) private userService: UserService,    ) {}
 
     /**
      * Get all users

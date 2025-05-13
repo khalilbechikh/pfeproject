@@ -1,25 +1,37 @@
 import { Router } from 'express';
-import { UserController } from '../controllers/user.controller';
 import container from '../di/inversify.config';
+import { TYPES } from '../di/types';
+import { UserController } from '../controllers/user.controller';
 
+/**
+ * Factory that builds the User router.
+ * The controller instance is resolved via Inversify and automatically
+ * proxied for Jaeger tracing.
+ */
 export const configureUserRoutes = (): Router => {
-    const router = Router();
-    const userController = container.get<UserController>(UserController);
+  const router = Router();
 
-    // GET /api/users - Get all users
-    router.get('/', userController.getAllUsers);
+  const userCtrl = container.get<UserController>(TYPES.UserController);
 
-    // GET /api/users/:id - Get a user by ID
-    router.get('/:id', userController.getUserById);
+  /* ───────── User CRUD endpoints ───────── */
 
-    // POST /api/users - Create a new user
-    router.post('/', userController.createUser);
+  // GET /users – list all users
+  router.get('/', userCtrl.getAllUsers.bind(userCtrl));
 
-    // PUT /api/users/:id - Update a user by ID
-    router.put('/:id', userController.updateUser);
+  // GET /users/:id – fetch single user
+  router.get('/:id', userCtrl.getUserById.bind(userCtrl));
 
-    // DELETE /api/users/:id - Delete a user by ID
-    router.delete('/:id', userController.deleteUser);
+  // POST /users – create user
+  router.post('/', userCtrl.createUser.bind(userCtrl));
 
-    return router;
+  // PUT /users/:id – update user
+  router.put('/:id', userCtrl.updateUser.bind(userCtrl));
+
+  // DELETE /users/:id – remove user
+  router.delete('/:id', userCtrl.deleteUser.bind(userCtrl));
+
+  return router;
 };
+
+/* default export keeps existing imports working */
+export default configureUserRoutes;

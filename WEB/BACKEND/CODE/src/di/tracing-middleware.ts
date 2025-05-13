@@ -1,7 +1,6 @@
-import { interfaces } from 'inversify';
+import type { interfaces } from 'inversify';
 import { trace, SpanStatusCode, context } from '@opentelemetry/api';
 
-/** Helper: safe JSON that never explodes Jaeger & trims to 4 KB */
 function safeJson(data: unknown, limit = 4_096): string {
     try {
         return JSON.stringify(data).slice(0, limit);
@@ -12,40 +11,36 @@ function safeJson(data: unknown, limit = 4_096): string {
 
 const tracer = trace.getTracer('backend');
 
-/**
- * Inversify middleware: every resolved instance is proxied so that
- * each public method call starts a child span named
- *   ClassName.methodName
- */
 export const tracingMiddleware: interfaces.Middleware = (next) => (args) => {
     const instance = next(args);
 
-    if (typeof instance !== 'object' || instance === null) {
-        return instance; // nothing to proxy (primitive or undefined)
-    }
+    if (typeof instance !== 'object' || instance === null) return instance;
 
     return new Proxy(instance, {
         get(target, prop, receiver) {
             const original = Reflect.get(target, prop, receiver);
-            if (typeof original !== 'function') return original; // not a method
+            if (typeof original !== 'function') return original;
 
-            return function (...methodArgs: unknown[]) {
-                const spanName = `${target.constructor.name}.${String(prop)}`;
-                const span     = tracer.startSpan(spanName, undefined, context.active());
+            /* `this` inside this function refers to the proxied object.
+               We annotate it so TS doesn’t infer `any`. */
+            return function (this: any, ...methodArgs: unknown[]) {
+                const span = tracer.startSpan(
+                    `${target.constructor.name}.${String(prop)}`,
+                    undefined,
+                    context.active(),
+                );
                 span.setAttribute('code.args', safeJson(methodArgs));
 
-                try {
-                    // run the original method in the new span context
-                    const result = context.with(trace.setSpan(context.active(), span), () =>
-                        original.apply(this, methodArgs),
-                    );
+                const runOriginal = () => original.apply(this, methodArgs); // keep proper `this`
 
-                    // handle promise vs. sync return
+                try {
+                    const result = context.with(trace.setSpan(context.active(), span), runOriginal);
+
                     if (result instanceof Promise) {
                         return result
-                            .then((data) => {
-                                span.setAttribute('code.result', safeJson(data));
-                                return data;
+                            .then((r) => {
+                                span.setAttribute('code.result', safeJson(r));
+                                return r;
                             })
                             .catch((err) => {
                                 span.recordException(err as Error);
