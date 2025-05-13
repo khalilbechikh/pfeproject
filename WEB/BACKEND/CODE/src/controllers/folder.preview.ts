@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises'; // Import promises API
 import * as path from 'path';
 import * as util from 'util';
+import { injectable } from 'inversify';
 
 const execPromise = util.promisify(exec);
 const readFilePromise = util.promisify(fs.readFile);
@@ -11,6 +12,7 @@ const writeFilePromise = util.promisify(fs.writeFile);
 const readdirPromise = util.promisify(fs.readdir);
 const statPromise = util.promisify(fs.stat);
 
+@injectable()
 export class FolderPreviewController {
   private readonly sourceGitPathRoot = '/srv/git/';
 

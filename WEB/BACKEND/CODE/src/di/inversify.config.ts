@@ -36,6 +36,8 @@ import { FolderPreviewController } from '../controllers/folder.preview.controlle
 import { IssueController } from '../controllers/issue.controller';
 // Import TwoFactorAuthController
 import { TwoFactorAuthController } from '../controllers/2fa';
+// Import AuthMiddleware
+import { AuthMiddleware } from '../middlewares/auth.middleware';
 
 // Create a single InversifyJS Container
 const container = new Container();
@@ -163,6 +165,11 @@ container.bind<FolderPreviewController>(TYPES.FolderPreviewController)
 // Bind TwoFactorAuthController
 container.bind<TwoFactorAuthController>(TYPES.TwoFactorAuthController)
     .to(TwoFactorAuthController)
+    .inSingletonScope();
+
+// Bind AuthMiddleware
+container.bind<AuthMiddleware>(TYPES.AuthMiddleware)
+    .to(AuthMiddleware)
     .inSingletonScope();
 
 export default container;

@@ -32,6 +32,8 @@ const TYPES = {
 
     // Add new symbol for TwoFactorAuthController
     TwoFactorAuthController: Symbol.for('TwoFactorAuthController'),
+    // Add new symbol for AuthMiddleware
+    AuthMiddleware: Symbol.for('AuthMiddleware'),
 };
 
 export { TYPES };

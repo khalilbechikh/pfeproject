@@ -2,10 +2,12 @@ import express from 'express';
 import { TwoFactorAuthController } from '../controllers/2fa';
 import container from '../di/inversify.config';
 import { TYPES } from '../di/types';
-import { authenticateJWT } from '../middlewares/auth.middleware';
+import { AuthMiddleware } from '../middlewares/auth.middleware'; // Import the class
 
 const twoFactorAuthRouter = express.Router();
 const twoFactorAuthController = container.get<TwoFactorAuthController>(TYPES.TwoFactorAuthController);
+// Get AuthMiddleware from container
+const authMiddleware = container.get<AuthMiddleware>(TYPES.AuthMiddleware);
 
 /**
  * @route   GET /api/2fa/generate
@@ -13,7 +15,7 @@ const twoFactorAuthController = container.get<TwoFactorAuthController>(TYPES.Two
  * @access  Private (requires valid JWT token)
  */
 twoFactorAuthRouter.get('/generate', 
-    authenticateJWT, 
+    authMiddleware.authenticate, // Use the new middleware
     (req, res) => twoFactorAuthController.generateTwoFactorAuth(req, res)
 );
 
@@ -23,7 +25,7 @@ twoFactorAuthRouter.get('/generate',
  * @access  Private (requires valid JWT token)
  */
 twoFactorAuthRouter.post('/verify', 
-    authenticateJWT, 
+    authMiddleware.authenticate, // Use the new middleware
     (req, res) => twoFactorAuthController.verifyAndEnableTwoFactor(req, res)
 );
 
@@ -42,7 +44,7 @@ twoFactorAuthRouter.post('/validate',
  * @access  Private (requires valid JWT token)
  */
 twoFactorAuthRouter.delete('/', 
-    authenticateJWT, 
+    authMiddleware.authenticate, // Use the new middleware
     (req, res) => twoFactorAuthController.disableTwoFactor(req, res)
 );
 
