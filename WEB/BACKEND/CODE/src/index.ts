@@ -68,10 +68,7 @@ export const otelSDK = new NodeSDK({
   ],
 });
 
-otelSDK.start();
-console.log('✅ OpenTelemetry tracing & metrics initialized');
-
-/* ──────────── Express application (AFTER SDK.start()) ──────────── */
+/* ──────────── Express-related imports (AFTER OTEL init code) ──────────── */
 import express, { Request, Response, NextFunction } from 'express';
 import { trace } from '@opentelemetry/api';
 import { configureRoutes } from './routes';
@@ -79,65 +76,73 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './docs/swagger';
 import cors from 'cors';
 
-const tracer = trace.getTracer('backend');
-const app = express();
+async function main() {
+  try {
+    otelSDK.start();
+    console.log('✅ OpenTelemetry tracing & metrics initialized');
+  } catch (err) {
+    console.error('❌ OpenTelemetry failed to initialize:', err);
+  }
 
-// CORS configuration
-const corsOptions = {
-  origin: 'http://localhost:5173', // Explicit origin
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], 
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Authorization']
-};
+  /* ──────────── Express application (AFTER SDK.start()) ──────────── */
+  const tracer = trace.getTracer('backend');
+  const app = express();
 
-app.use(cors(corsOptions));
+  // CORS configuration
+  const corsOptions = {
+    origin: 'http://localhost:5173', // Explicit origin
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], 
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization']
+  };
 
+  app.use(cors(corsOptions));
 
+  const port = process.env.PORT || 5000;
 
+  /* Body parsers */
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true }));
 
-const port = process.env.PORT || 5000;
+  /* Pipeline‑wide span for each request */
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const span = tracer.startSpan('request.pipeline', {
+      attributes: {
+        'http.method': req.method,
+        'http.target': req.originalUrl,
+      },
+    });
 
-/* Body parsers */
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
+    res.on('finish', () => {
+      span.setAttribute('http.status_code', res.statusCode);
+      span.setAttribute('http.response.headers', JSON.stringify(res.getHeaders()));
+      span.end();
+    });
 
-/* Pipeline‑wide span for each request */
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const span = tracer.startSpan('request.pipeline', {
-    attributes: {
-      'http.method': req.method,
-      'http.target': req.originalUrl,
-    },
+    next();
+  });
+  app.use('/uploads/avatars', express.static('uploads/avatars'));
+
+  /* Swagger & feature routes */
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use('/v1/api', configureRoutes());
+
+  /* Start server */
+  const server = app.listen(port, () => {
+    console.log(`🚀 Server running at http://localhost:${port}`);
+    console.log(`📄 API Docs     at http://localhost:${port}/api-docs`);
   });
 
-  res.on('finish', () => {
-    span.setAttribute('http.status_code', res.statusCode);
-    span.setAttribute('http.response.headers', JSON.stringify(res.getHeaders()));
-    span.end();
-  });
-
-  next();
-});
-app.use('/uploads/avatars', express.static('uploads/avatars'));
-
-/* Swagger & feature routes */
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use('/v1/api', configureRoutes());
-
-/* Start server */
-const server = app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
-  console.log(`📄 API Docs     at http://localhost:${port}/api-docs`);
-});
-
-/* Graceful shutdown */
-async function shutdown() {
-  console.log('Shutting down…');
-  await otelSDK.shutdown();
-  server.close(() => process.exit(0));
+  /* Graceful shutdown */
+  async function shutdown() {
+    console.log('Shutting down…');
+    await otelSDK.shutdown();
+    server.close(() => process.exit(0));
+  }
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
 
-export default app;
+// Run the main function
+main();
