@@ -28,7 +28,10 @@ import {
   Sun,
   Moon,
   MoreHorizontal,
-  ArrowRight
+  ArrowRight,
+  Maximize2,
+  Minimize2,
+  Gauge
 } from 'lucide-react';
 
 interface User {
@@ -185,6 +188,10 @@ const AdminInterface = () => {
   const [actionInProgress, setActionInProgress] = useState<{ id: number; type: string } | null>(null);
   const [actionSuccess, setActionSuccess] = useState<{ message: string; timestamp: number } | null>(null);
   const [actionError, setActionError] = useState<{ message: string; timestamp: number } | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [isFrameLoading, setIsFrameLoading] = useState(true);
+  const [isResourceFrameLoading, setIsResourceFrameLoading] = useState(true);
+  const [resourceFullscreen, setResourceFullscreen] = useState(false);
 
   const [particles, setParticles] = useState<Particle[]>(Array(15).fill(null).map(() => ({
     size: Math.random() * 4 + 1,
@@ -242,7 +249,7 @@ const AdminInterface = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/v1/api/repositories/all-including-archived', {
+      const response = await fetch('http://localhost:5000/v1/api/repositories/archived/all', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -694,7 +701,7 @@ const AdminInterface = () => {
             {/* Quick Actions */}
             <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg p-6 backdrop-blur-sm`}>
               <h3 className={`text-lg font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'} mb-4`}>Quick Actions</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <button
                   onClick={() => setCurrentTab('users')}
                   className={`flex flex-col items-center justify-center p-6 bg-${darkMode ? 'gray-700/50' : 'gray-100'} hover:bg-${darkMode ? 'violet-600/20' : 'violet-200'} border border-${darkMode ? 'gray-600' : 'gray-300'} hover:border-${darkMode ? 'violet-500/50' : 'violet-300'} rounded-xl transition-all duration-300`}
@@ -709,9 +716,18 @@ const AdminInterface = () => {
                   <Database size={24} className="text-cyan-400 mb-2" />
                   <span className={`text-${darkMode ? 'gray-300' : 'gray-700'}`}>Manage Repositories</span>
                 </button>
-                <button className={`flex flex-col items-center justify-center p-6 bg-${darkMode ? 'gray-700/50' : 'gray-100'} hover:bg-${darkMode ? 'emerald-600/20' : 'emerald-200'} border border-${darkMode ? 'gray-600' : 'gray-300'} hover:border-${darkMode ? 'emerald-500/50' : 'emerald-300'} rounded-xl transition-all duration-300`}>
+                <button
+                  onClick={() => setCurrentTab('systemlogs')}
+                  className={`flex flex-col items-center justify-center p-6 bg-${darkMode ? 'gray-700/50' : 'gray-100'} hover:bg-${darkMode ? 'emerald-600/20' : 'emerald-200'} border border-${darkMode ? 'gray-600' : 'gray-300'} hover:border-${darkMode ? 'emerald-500/50' : 'emerald-300'} rounded-xl transition-all duration-300`}>
                   <Activity size={24} className="text-emerald-400 mb-2" />
                   <span className={`text-${darkMode ? 'gray-300' : 'gray-700'}`}>System Logs</span>
+                </button>
+                <button
+                  onClick={() => setCurrentTab('resources')}
+                  className={`flex flex-col items-center justify-center p-6 bg-${darkMode ? 'gray-700/50' : 'gray-100'} hover:bg-${darkMode ? 'cyan-600/20' : 'cyan-200'} border border-${darkMode ? 'gray-600' : 'gray-300'} hover:border-${darkMode ? 'cyan-500/50' : 'cyan-300'} rounded-xl transition-all duration-300`}
+                >
+                  <Gauge size={24} className="text-cyan-400 mb-2" />
+                  <span className={`text-${darkMode ? 'gray-300' : 'gray-700'}`}>Resource Monitoring</span>
                 </button>
               </div>
             </div>
@@ -1012,6 +1028,120 @@ const AdminInterface = () => {
           </div>
         );
 
+      case 'systemlogs':
+        return (
+          <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg backdrop-blur-sm overflow-hidden transition-all duration-300 ${
+            fullscreen ? 'fixed inset-0 z-50' : 'relative'
+          }`}>
+            <div className={`p-6 border-b border-${darkMode ? 'gray-700' : 'gray-200'} flex justify-between items-center`}>
+              <div>
+                <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 flex items-center`}>
+                  <Activity className="mr-2 text-violet-400" size={24} />
+                  System Logs & Traces
+                </h2>
+                <p className={`text-${darkMode ? 'gray-400' : 'gray-600'}`}>
+                  Monitor system performance and trace requests across services
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => window.open('http://localhost:16686', '_blank')}
+                  className={`px-4 py-2 rounded-md bg-violet-600/20 text-violet-400 hover:bg-violet-600/30 transition-colors flex items-center`}
+                >
+                  <ExternalLink size={16} className="mr-2" />
+                  Open in New Window
+                </button>
+                <button
+                  onClick={() => setFullscreen(!fullscreen)}
+                  className={`p-2 rounded-md bg-${darkMode ? 'gray-700/50' : 'gray-200'} hover:bg-${darkMode ? 'gray-700' : 'gray-300'} transition-colors`}
+                >
+                  {fullscreen ? (
+                    <Minimize2 size={16} className="text-gray-400" />
+                  ) : (
+                    <Maximize2 size={16} className="text-gray-400" />
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            <div className={`relative ${fullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-280px)]'}`}>
+              <div className="absolute inset-0">
+                <iframe
+                  src="http://localhost:16686"
+                  className="w-full h-full"
+                  title="Jaeger UI"
+                />
+              </div>
+              
+              {/* Fancy loading overlay */}
+              <div className={`absolute inset-0 bg-${darkMode ? 'gray-900/90' : 'white/90'} flex items-center justify-center transition-opacity duration-500 ${isFrameLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-violet-400/20 border-t-violet-400 rounded-full animate-spin" />
+                  <div className="mt-4 text-center text-violet-400">Loading Traces</div>
+                  <div className="absolute -inset-4 bg-violet-400/10 rounded-full blur-xl animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'resources':
+        return (
+          <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg backdrop-blur-sm overflow-hidden transition-all duration-300 ${
+            resourceFullscreen ? 'fixed inset-0 z-50' : 'relative'
+          }`}>
+            <div className={`p-6 border-b border-${darkMode ? 'gray-700' : 'gray-200'} flex justify-between items-center`}>
+              <div>
+                <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 flex items-center`}>
+                  <Gauge className="mr-2 text-cyan-400" size={24} />
+                  Resource Monitoring
+                </h2>
+                <p className={`text-${darkMode ? 'gray-400' : 'gray-600'}`}>
+                  Real-time system resource usage and performance metrics
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => window.open('http://localhost:3000/dashboards', '_blank')}
+                  className={`px-4 py-2 rounded-md bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 transition-colors flex items-center`}
+                >
+                  <ExternalLink size={16} className="mr-2" />
+                  Open in Grafana
+                </button>
+                <button
+                  onClick={() => setResourceFullscreen(!resourceFullscreen)}
+                  className={`p-2 rounded-md bg-${darkMode ? 'gray-700/50' : 'gray-200'} hover:bg-${darkMode ? 'gray-700' : 'gray-300'} transition-colors`}
+                >
+                  {resourceFullscreen ? (
+                    <Minimize2 size={16} className="text-gray-400" />
+                  ) : (
+                    <Maximize2 size={16} className="text-gray-400" />
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            <div className={`relative ${resourceFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-280px)]'}`}>
+              <div className="absolute inset-0">
+                <iframe
+                  src="http://localhost:3000"
+                  className="w-full h-full"
+                  title="Resource Monitoring"
+                />
+              </div>
+              
+              {/* Loading overlay */}
+              <div className={`absolute inset-0 bg-${darkMode ? 'gray-900/90' : 'white/90'} flex items-center justify-center transition-opacity duration-500 ${isResourceFrameLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin" />
+                  <div className="mt-4 text-center text-cyan-400">Loading Metrics</div>
+                  <div className="absolute -inset-4 bg-cyan-400/10 rounded-full blur-xl animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return (
           <div className={`p-8 text-center ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1021,6 +1151,22 @@ const AdminInterface = () => {
         );
     }
   };
+
+  useEffect(() => {
+    if (currentTab === 'systemlogs') {
+      setIsFrameLoading(true);
+      const timer = setTimeout(() => setIsFrameLoading(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentTab]);
+
+  useEffect(() => {
+    if (currentTab === 'resources') {
+      setIsResourceFrameLoading(true);
+      const timer = setTimeout(() => setIsResourceFrameLoading(false), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentTab]);
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-white'} ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -1070,7 +1216,7 @@ const AdminInterface = () => {
 
         {/* Tabs */}
         <div className="flex space-x-4 mb-6">
-          {['dashboard', 'users', 'repositories'].map(tab => (
+          {['dashboard', 'users', 'repositories', 'systemlogs', 'resources'].map(tab => (
             <button
               key={tab}
               onClick={() => setCurrentTab(tab)}
@@ -1083,7 +1229,12 @@ const AdminInterface = () => {
               {tab === 'dashboard' && <Activity size={16} />}
               {tab === 'users' && <Users size={16} />}
               {tab === 'repositories' && <Database size={16} />}
-              <span className="capitalize">{tab}</span>
+              {tab === 'systemlogs' && <Activity size={16} />}
+              {tab === 'resources' && <Gauge size={16} />}
+              <span className="capitalize">
+                {tab === 'systemlogs' ? 'System Logs' : 
+                 tab === 'resources' ? 'Resources' : tab}
+              </span>
             </button>
           ))}
         </div>

@@ -21,6 +21,9 @@ export const configureRepositoryRoutes = (): Router => {
   // List / search repositories
   router.get('/', auth.authenticate.bind(auth), repoCtrl.getAllRepositories.bind(repoCtrl));
 
+  // Get all repositories including archived (moved before /:id and renamed to avoid conflict)
+  router.get('/archived/all', auth.authenticate.bind(auth), repoCtrl.getAllRepositoriesIncludingArchived.bind(repoCtrl));
+
   // Create repository
   router.post('/', auth.authenticate.bind(auth), repoCtrl.createRepository.bind(repoCtrl));
 
@@ -35,6 +38,7 @@ export const configureRepositoryRoutes = (): Router => {
 
   // Get repository by ID  (placed last to avoid conflicts)
   router.get('/:id', auth.authenticate.bind(auth), repoCtrl.getRepositoryById.bind(repoCtrl));
+  
 
   return router;
 };
