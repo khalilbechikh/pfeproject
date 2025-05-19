@@ -18,7 +18,19 @@ interface JwtPayload {
 }
 
 function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme === 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   // Regular protected route
   const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -77,17 +89,17 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<LoginSignup />} />
+        <Route path="/" element={<LoginSignup darkMode={darkMode} setDarkMode={setDarkMode} />} />
         <Route path="/styled" element={<StyledPage />} />
-        <Route path="/request-reset-password" element={<RequestResetPassword />} />
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/request-reset-password" element={<RequestResetPassword darkMode={darkMode} setDarkMode={setDarkMode} />} />
+        <Route path="/reset-password/:token" element={<ResetPassword darkMode={darkMode} setDarkMode={setDarkMode} />} />
 
         {/* Protected Admin Route */}
         <Route
           path="/admin"
           element={
             <ProtectedAdminRoute>
-              <AdminInterface />
+              <AdminInterface darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedAdminRoute>
           }
         />
@@ -97,7 +109,7 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Dashboard darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }
         />
@@ -113,7 +125,7 @@ function App() {
           path="/repositories/:id"
           element={
             <ProtectedRoute>
-              <Preview darkMode={darkMode} />
+              <Preview darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }
         />
@@ -121,7 +133,7 @@ function App() {
           path="/userownrepopreview/:id"
           element={
             <ProtectedRoute>
-              <UserOwnRepoPreview darkMode={darkMode} />
+              <UserOwnRepoPreview darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }
         />
@@ -129,7 +141,7 @@ function App() {
           path="/verify-2fa"
           element={
             <ProtectedRoute>
-              <Verify2FA />
+              <Verify2FA darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }
         />

@@ -10,7 +10,12 @@ interface Particle {
     speedY: number;
 }
 
-export default function Verify2FA() {
+interface Verify2FAProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void; // Or just darkMode if no toggle here
+}
+
+export default function Verify2FA({ darkMode }: Verify2FAProps) { // Assuming setDarkMode is not used here
     const [token, setToken] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
@@ -69,7 +74,7 @@ export default function Verify2FA() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}> {/* Applied darkMode prop */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-transparent">
                     {particles.map((particle, idx) => (
@@ -82,7 +87,7 @@ export default function Verify2FA() {
                                 width: `${particle.size}px`,
                                 height: `${particle.size}px`,
                                 borderRadius: '50%',
-                                backgroundColor: document.documentElement.classList.contains('dark')
+                                backgroundColor: darkMode // Use darkMode prop
                                     ? `rgba(139, 92, 246, ${0.2 * (particle.size / 5)})`
                                     : `rgba(6, 182, 212, ${0.2 * (particle.size / 5)})`,
                                 transition: 'background-color 0.5s ease'
@@ -93,13 +98,13 @@ export default function Verify2FA() {
             </div>
 
             <div className={`w-full max-w-md p-8 space-y-8 backdrop-blur-sm border rounded-xl shadow-xl 
-                dark:bg-gray-800/70 dark:border-gray-700 bg-white/90 border-gray-200`}>
+                ${darkMode ? 'bg-gray-800/70 border-gray-700' : 'bg-white/90 border-gray-200'}`}> {/* Applied darkMode prop */}
                 <div className="text-center space-y-2">
-                    <Shield className="mx-auto h-12 w-12 dark:text-violet-500 text-cyan-600" />
-                    <h1 className="text-2xl font-bold dark:text-white text-gray-900">
+                    <Shield className={`mx-auto h-12 w-12 ${darkMode ? 'text-violet-500' : 'text-cyan-600'}`} /> {/* Applied darkMode prop */}
+                    <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}> {/* Applied darkMode prop */}
                         Two-Factor Verification
                     </h1>
-                    <p className="dark:text-gray-400 text-gray-600">
+                    <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}> {/* Applied darkMode prop */}
                         Enter the 6-digit code from your authenticator app
                     </p>
                 </div>
@@ -111,16 +116,16 @@ export default function Verify2FA() {
                             value={token}
                             onChange={(e) => setToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
                             placeholder="123456"
-                            className="w-full px-4 py-3 text-center text-xl font-mono rounded-lg border 
-                                dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-violet-500
-                                border-gray-300 bg-white text-gray-900 focus:border-cyan-500 focus:outline-none"
+                            className={`w-full px-4 py-3 text-center text-xl font-mono rounded-lg border 
+                                ${darkMode ? 'border-gray-600 bg-gray-700 text-white focus:border-violet-500' : 
+                                'border-gray-300 bg-white text-gray-900 focus:border-cyan-500'} focus:outline-none`} // Applied darkMode prop
                             disabled={loading}
                         />
                     </div>
 
                     {error && (
-                        <div className={`p-3 rounded-lg dark:bg-red-900/30 dark:border-red-800 dark:text-red-400
-                            bg-red-100 border-red-200 text-red-800 border`}>
+                        <div className={`p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border-red-800 text-red-400' : 
+                            'bg-red-100 border-red-200 text-red-800'} border`}> {/* Applied darkMode prop */}
                             <div className="flex items-center justify-center gap-2">
                                 <AlertCircle size={16} />
                                 {error}
@@ -132,9 +137,9 @@ export default function Verify2FA() {
                         type="submit"
                         disabled={loading || token.length !== 6}
                         className={`w-full py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center gap-2
-                            dark:bg-violet-600 dark:hover:bg-violet-500 dark:hover:shadow-violet-500/30
-                            bg-cyan-600 hover:bg-cyan-500 hover:shadow-cyan-500/30 text-white
-                            disabled:opacity-50 disabled:cursor-not-allowed`}
+                            ${darkMode ? 'bg-violet-600 hover:bg-violet-500 hover:shadow-violet-500/30' : 
+                            'bg-cyan-600 hover:bg-cyan-500 hover:shadow-cyan-500/30'} text-white
+                            disabled:opacity-50 disabled:cursor-not-allowed`} // Applied darkMode prop
                     >
                         {loading ? (
                             <>

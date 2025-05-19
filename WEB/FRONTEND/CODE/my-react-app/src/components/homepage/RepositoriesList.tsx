@@ -294,7 +294,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             if (!token) throw new Error('No authentication token found');
 
             const response = await fetch(
-                `http://localhost:5000/v1/api/repository-access/repositories/${repositoryId}/users`,
+                `http://localhost:5000/v1/api/access/repositories/${repositoryId}/users`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -352,7 +352,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
 
             // Step 2: Add access with obtained user ID
             const accessResponse = await fetch(
-                `http://localhost:5000/v1/api/repository-access/access`,
+                `http://localhost:5000/v1/api/access/access`,
                 {
                     method: 'POST',
                     headers: {
@@ -389,7 +389,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             if (!token || !managingAccessRepoId) throw new Error('No authentication token found');
 
             const response = await fetch(
-                `http://localhost:5000/v1/api/repository-access/repositories/${managingAccessRepoId}/users/${userId}`,
+                `http://localhost:5000/v1/api/access/repositories/${managingAccessRepoId}/users/${userId}`,
                 {
                     method: 'PUT',
                     headers: {
@@ -418,7 +418,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             if (!token || !managingAccessRepoId) throw new Error('No authentication token found');
 
             const response = await fetch(
-                `http://localhost:5000/v1/api/repository-access/repositories/${managingAccessRepoId}/users/${userId}`,
+                `http://localhost:5000/v1/api/access/repositories/${managingAccessRepoId}/users/${userId}`,
                 {
                     method: 'DELETE',
                     headers: {

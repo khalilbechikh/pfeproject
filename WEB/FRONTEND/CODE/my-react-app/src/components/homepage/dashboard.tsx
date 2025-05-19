@@ -39,11 +39,15 @@ interface MenuItem {
     id: string;
 }
 
-export default function EnhancedSharecodeDashboard() {
+interface EnhancedSharecodeDashboardProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void;
+}
+
+export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: EnhancedSharecodeDashboardProps) {
     const navigate = useNavigate();
     const [currentTab, setCurrentTab] = useState<string>('repositories');
     const [menuCollapsed, setMenuCollapsed] = useState<boolean>(false);
-    const [darkMode, setDarkMode] = useState<boolean>(true);
     const [issuesTab, setIssuesTab] = useState<string>('open');
     const [particles, setParticles] = useState<Particle[]>(Array(15).fill(null).map(() => ({
         size: Math.random() * 4 + 1,
@@ -170,9 +174,9 @@ export default function EnhancedSharecodeDashboard() {
 
     useEffect(() => {
         if (darkMode) {
-            document.body.classList.add('dark-mode');
+            document.documentElement.classList.add('dark');
         } else {
-            document.body.classList.remove('dark-mode');
+            document.documentElement.classList.remove('dark');
         }
     }, [darkMode]);
 

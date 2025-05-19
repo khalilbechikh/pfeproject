@@ -43,20 +43,25 @@ interface TreeNode {
     parentPath?: string;
 }
 
-const Preview = () => {
+interface PreviewProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void;
+}
+
+const Preview = ({ darkMode, setDarkMode }: PreviewProps) => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const location = useLocation();
+    // const location = useLocation(); // No longer needed for darkMode
     const [repo, setRepo] = useState<Repository | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [forkStatus, setForkStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [forkError, setForkError] = useState<string | null>(null);
-    const [darkMode, setDarkMode] = useState(
-        location.state && typeof location.state.darkMode === 'boolean'
-            ? location.state.darkMode
-            : true
-    );
+    // const [darkMode, setDarkMode] = useState( // Removed local state
+    //     location.state && typeof location.state.darkMode === 'boolean'
+    //         ? location.state.darkMode
+    //         : true
+    // );
     const [currentPath, setCurrentPath] = useState<string>('');
     const [displayPath, setDisplayPath] = useState<string>('');
     const [directoryContents, setDirectoryContents] = useState<DirectoryItem[]>([]);

@@ -21,7 +21,12 @@ interface JwtPayload {
   userId: string;
 }
 
-export default function ResetPassword() {
+interface ResetPasswordProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void; // Or just darkMode if no toggle here
+}
+
+export default function ResetPassword({ darkMode }: ResetPasswordProps) { // Assuming setDarkMode is not used here
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState("");
@@ -30,7 +35,6 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [darkMode] = useState(true);
   const [particles, setParticles] = useState(
     Array(15).fill(null).map(() => ({
       size: Math.random() * 4 + 1,

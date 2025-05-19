@@ -1,0 +1,90 @@
+###
+# Pull Request API Tests
+# Replace placeholders like {{baseUrl}}, {{token}}, {{prId}}, {{repoId}}, {{userId}} with actual values.
+
+# Base URL for the API - adjust if your port or base path is different
+@baseUrl = http://localhost:5000/v1/api
+# Assuming you have a way to get an auth token if your routes are protected
+@token = Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjcsInVzZXJuYW1lIjoiQWRtaW4iLCJpYXQiOjE3NDc2MzkzMTEsImV4cCI6MTc1MDIzMTMxMX0.TjMyz7OBahD6VInN2w5vlt_0U0T_IsurHDJ7GVHilZM
+
+### 1. Create a new Pull Request
+# POST {{baseUrl}}/pull-requests/
+# Requires a JSON body with pull_requestCreateInput data.
+# Adjust the body according to your Prisma schema for pull_request.
+POST {{baseUrl}}/pull-requests/
+Content-Type: application/json
+Authorization: {{token}}
+
+{
+  "title": "My New Feature",
+  "description": "Adds an amazing new feature to the project.",
+  "source_branch": "feature-branch-name",
+  "target_branch": "main",
+  "status": "OPEN", # Or other initial status like "DRAFT"
+  "author_id": 1, # Replace with an actual user ID
+  "repository_id": 1, # Replace with the target repository ID
+  "source_repository_id": 2, # Replace with the source repository ID (can be same as target_repository_id)
+  "target_repository_id": 1 # Replace with the target repository ID
+}
+
+### 2. Get All Pull Requests
+# GET {{baseUrl}}/pull-requests/
+GET {{baseUrl}}/pull-requests/
+Authorization: {{token}}
+
+### 3. Get All Pull Requests (with filters)
+# GET {{baseUrl}}/pull-requests/?ownerUserId={{userId}}&sourceRepoId={{repoId}}&targetRepoId={{repoId}}
+GET {{baseUrl}}/pull-requests/?ownerUserId=1&sourceRepoId=2&targetRepoId=1
+Authorization: {{token}}
+
+
+### 4. Preview changes in a Pull Request
+# GET {{baseUrl}}/pull-requests/{{prId}}/preview
+# Replace {{prId}} with an actual Pull Request ID
+GET {{baseUrl}}/pull-requests/1/preview
+Authorization: {{token}}
+
+
+### 5. Prepare Pull Request Merge
+# POST {{baseUrl}}/pull-requests/{{prId}}/prepare-merge
+# Replace {{prId}} with an actual Pull Request ID
+POST {{baseUrl}}/pull-requests/1/prepare-merge
+Authorization: {{token}}
+Content-Type: application/json
+
+{}
+
+### 6. Finalize Pull Request Merge
+# POST {{baseUrl}}/pull-requests/{{prId}}/finalize-merge
+# Replace {{prId}} with an actual Pull Request ID
+POST {{baseUrl}}/pull-requests/1/finalize-merge
+Authorization: {{token}}
+Content-Type: application/json
+
+{}
+
+### 7. Update Pull Request Status
+# PATCH {{baseUrl}}/pull-requests/{{prId}}/status
+# Replace {{prId}} with an actual Pull Request ID
+# Valid statuses are defined in your PullRequestStatus enum (e.g., OPEN, MERGED, CLOSED, DRAFT)
+PATCH {{baseUrl}}/pull-requests/1/status
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "status": "CLOSED" 
+}
+
+### 8. Delete a Pull Request
+# DELETE {{baseUrl}}/pull-requests/{{prId}}
+# Replace {{prId}} with an actual Pull Request ID
+DELETE {{baseUrl}}/pull-requests/1
+Authorization: {{token}}
+
+
+### 9. Get Pull Request Diff (Deprecated, uses preview logic)
+# GET {{baseUrl}}/pull-requests/{{prId}}/diff
+# Replace {{prId}} with an actual Pull Request ID
+GET {{baseUrl}}/pull-requests/1/diff
+Authorization: {{token}}
+

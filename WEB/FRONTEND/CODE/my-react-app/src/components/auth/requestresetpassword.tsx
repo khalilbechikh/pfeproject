@@ -16,7 +16,12 @@ const ResetPasswordSchema = z.object({
   path: ["confirmPassword"]
 });
 
-export default function ResetPassword() {
+interface RequestResetPasswordProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void; // Or just darkMode if no toggle here
+}
+
+export default function ResetPassword({ darkMode }: RequestResetPasswordProps) { // Assuming setDarkMode is not used here
   const { token } = useParams();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -26,7 +31,6 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [darkMode, setDarkMode] = useState(true);
   const [particles, setParticles] = useState(Array(15).fill(null).map(() => ({
     size: Math.random() * 4 + 1,
     x: Math.random() * 100,

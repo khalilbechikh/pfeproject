@@ -171,9 +171,13 @@ const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository
   );
 };
 
-const AdminInterface = () => {
+interface AdminInterfaceProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void;
+}
+
+const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState<boolean>(true);
   const [users, setUsers] = useState<User[]>([]);
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);

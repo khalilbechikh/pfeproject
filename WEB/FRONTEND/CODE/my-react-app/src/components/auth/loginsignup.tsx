@@ -2,9 +2,14 @@ import { useState, useEffect } from "react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, CheckCircleIcon, Share2, Moon, Sun } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { CreateUserSchema, LoginUserSchema } from '../auth/authzod'; // Import the Zod schemas
-import { jwtDecode, JwtPayload } from "jwt-decode"; // Add jwtDecode import
+import { jwtDecode, JwtPayload as DecodedJwtPayload } from "jwt-decode"; // Renamed to avoid conflict
 
-export default function AuthPage() {
+interface AuthPageProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void;
+}
+
+export default function AuthPage({ darkMode, setDarkMode }: AuthPageProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -13,7 +18,6 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [formSuccess, setFormSuccess] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [particles, setParticles] = useState(Array(15).fill(null).map(() => ({
@@ -129,7 +133,7 @@ export default function AuthPage() {
               const storedToken = localStorage.getItem('authToken');
               if (!storedToken) throw new Error("No token found");
 
-              const decoded = jwtDecode<JwtPayload>(storedToken);
+              const decoded = jwtDecode<DecodedJwtPayload>(storedToken);
               const userResponse = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}`, {
                 headers: { 'Authorization': `Bearer ${storedToken}` }
               });

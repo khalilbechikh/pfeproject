@@ -46,14 +46,17 @@ interface TreeNode {
     isNew?: boolean;
 }
 
-const UserOwnRepoPreview = () => {
+interface UserOwnRepoPreviewProps {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void;
+}
+
+const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [repo, setRepo] = useState<Repository | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const location = useLocation();
-    const [darkMode, setDarkMode] = useState(location.state?.darkMode ?? true);
     const [currentPath, setCurrentPath] = useState<string>('');
     const [displayPath, setDisplayPath] = useState<string>('');
     const [directoryContents, setDirectoryContents] = useState<DirectoryItem[]>([]);
