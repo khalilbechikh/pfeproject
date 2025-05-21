@@ -92,12 +92,12 @@ interface TransferModalProps {
   onClose: () => void;
   repository: Repository | null;
   users: User[];
-  onTransfer: (repoId: number, newOwnerId: number) => void;
+  onTransfer: (repoId: number, newOwnerEmail: string) => void;
   darkMode: boolean;
 }
 
 const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository, users, onTransfer, darkMode }) => {
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUserEmail, setSelectedUserEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   if (!show || !repository) return null;
@@ -131,9 +131,9 @@ const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository
             {filteredUsers.map(user => (
               <div
                 key={user.id}
-                onClick={() => setSelectedUserId(user.id)}
+                onClick={() => setSelectedUserEmail(user.email)}
                 className={`p-2 hover:bg-${darkMode ? 'gray-700' : 'gray-200'} cursor-pointer rounded-md ${
-                  selectedUserId === user.id ? 'bg-violet-600/20' : ''
+                  selectedUserEmail === user.email ? 'bg-violet-600/20' : ''
                 }`}
               >
                 {user.username} ({user.email})
@@ -150,14 +150,14 @@ const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository
           </button>
           <button
             onClick={() => {
-              if (selectedUserId) {
-                onTransfer(repository.id, selectedUserId);
+              if (selectedUserEmail) {
+                onTransfer(repository.id, selectedUserEmail);
                 onClose();
               }
             }}
-            disabled={!selectedUserId}
+            disabled={!selectedUserEmail}
             className={`px-4 py-2 rounded-md flex items-center ${
-              selectedUserId
+              selectedUserEmail
                 ? 'bg-violet-600 hover:bg-violet-700 text-white'
                 : 'bg-gray-700 text-gray-400 cursor-not-allowed'
             } transition-colors`}
@@ -457,7 +457,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
     }
   };
 
-  const handleTransferRepository = async (repoId: number, newOwnerId: number) => {
+  const handleTransferRepository = async (repoId: number, newOwnerEmail: string) => {
     try {
       setActionInProgress({ id: repoId, type: 'transfer' });
 
@@ -473,14 +473,20 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ newOwnerId })
+        body: JSON.stringify({ email: newOwnerEmail })
       });
 
       if (!response.ok) throw new Error('Failed to transfer repository');
 
+      // Optionally update owner_user_id if you want to reflect the change in UI
       setRepositories(prevRepos =>
         prevRepos.map(repo =>
-          repo.id === repoId ? { ...repo, owner_user_id: newOwnerId } : repo
+          repo.id === repoId
+            ? {
+                ...repo,
+                owner_user_id: users.find(u => u.email === newOwnerEmail)?.id || repo.owner_user_id
+              }
+            : repo
         )
       );
 

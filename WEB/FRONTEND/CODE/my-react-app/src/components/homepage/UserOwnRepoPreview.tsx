@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, Save, GitBranch, GitCommit, Search, Terminal, Bot } from 'lucide-react';
-import { jwtDecode } from 'jwt-decode';
+import { useParams, useNavigate, } from 'react-router-dom';
+import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, GitBranch, GitCommit, Search, Terminal, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Rocket } from 'lucide-react';
 import Confetti from 'react-dom-confetti';
@@ -83,6 +82,72 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
     const [selectedBinaryFile, setSelectedBinaryFile] = useState<{ url: string; type: string } | null>(null);
     const [showShareCodeAgent, setShowShareCodeAgent] = useState(false);
 
+    // Inside the UserOwnRepoPreview component
+    const [agentWidth, setAgentWidth] = useState(384); // Default width 384px (w-96)
+    const [isResizing, setIsResizing] = useState(false);
+    const [initialX, setInitialX] = useState(0);
+    const [initialWidth, setInitialWidth] = useState(384);
+
+    const handleResizeStart = useCallback((e: React.MouseEvent) => {
+      setIsResizing(true);
+      setInitialX(e.clientX);
+      setInitialWidth(agentWidth);
+    }, [agentWidth]);
+
+    const handleResize = useCallback((e: MouseEvent) => {
+      if (isResizing) {
+        const widthDelta = initialX - e.clientX;
+        const newWidth = Math.min(Math.max(initialWidth + widthDelta, 300), 800); // Min 300px, max 800px
+        setAgentWidth(newWidth);
+      }
+    }, [isResizing, initialX, initialWidth]);
+
+    const handleResizeEnd = useCallback(() => {
+      setIsResizing(false);
+    }, []);
+
+    useEffect(() => {
+      if (isResizing) {
+        window.addEventListener('mousemove', handleResize);
+        window.addEventListener('mouseup', handleResizeEnd);
+      }
+      return () => {
+        window.removeEventListener('mousemove', handleResize);
+        window.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }, [isResizing, handleResize, handleResizeEnd]);
+
+    const handleApplyChanges = async (fileName: string, newContent: string) => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const fullPath = `${currentPath}/${fileName}`.replace('temp-working-directory/', '');
+
+        await fetch(`http://localhost:5000/v1/api/preview/content`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            relativePath: fullPath,
+            newContent: newContent
+          })
+        });
+
+        // Refresh the file in editor if open
+        if (selectedFile?.path.endsWith(fileName)) {
+          setNewFileContent(newContent);
+          setSelectedFile({...selectedFile, content: newContent});
+        }
+
+        // Refresh directory contents
+        fetchDirectoryContents();
+
+      } catch (err) {
+        setDirectoryError('Failed to apply changes: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      }
+    };
+
     // Add this helper function to check name existence on the server
     const checkNameExists = async (parentPath: string, name: string): Promise<boolean> => {
         try {
@@ -114,7 +179,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
 
     const filteredContents = directoryContents
         .filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()) && !item.name.endsWith('.git'))
-        .sort((a, b) => a.type === 'folder' ? -1 : 1);
+        .sort((a, ) => a.type === 'folder' ? -1 : 1);
 
     const handleScroll = useCallback(() => {
         setHeaderScrolled(window.scrollY > 50);
@@ -579,42 +644,42 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
         </div>
     );
 
-    useEffect(() => {
-        const fetchDirectoryContents = async () => {
-            if (!repo || !currentPath) return;
+    const fetchDirectoryContents = async () => {
+        if (!repo || !currentPath) return;
 
-            setDirectoryLoading(true);
-            setDirectoryError(null);
+        setDirectoryLoading(true);
+        setDirectoryError(null);
 
-            try {
-                const token = localStorage.getItem('authToken');
-                if (!token) throw new Error('No authentication token found');
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('No authentication token found');
 
-                const cleanPath = currentPath.replace('temp-working-directory/', '');
-                const response = await fetch(
-                    `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo.owner.username)}`,
-                    { headers: { 'Authorization': `Bearer ${token}` } }
-                );
+            const cleanPath = currentPath.replace('temp-working-directory/', '');
+            const response = await fetch(
+                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo.owner.username)}`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+            );
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to fetch directory contents');
-                }
-
-                const responseData = await response.json();
-
-                if (responseData.data.type === 'folder') {
-                    setDirectoryContents(responseData.data.content.filter((item: DirectoryItem) => !(item.type === 'folder' && item.name.endsWith('.git'))));
-                } else {
-                    throw new Error('Expected folder content');
-                }
-            } catch (err) {
-                setDirectoryError(err instanceof Error ? err.message : 'Failed to load directory contents');
-            } finally {
-                setDirectoryLoading(false);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch directory contents');
             }
-        };
 
+            const responseData = await response.json();
+
+            if (responseData.data.type === 'folder') {
+                setDirectoryContents(responseData.data.content.filter((item: DirectoryItem) => !(item.type === 'folder' && item.name.endsWith('.git'))));
+            } else {
+                throw new Error('Expected folder content');
+            }
+        } catch (err) {
+            setDirectoryError(err instanceof Error ? err.message : 'Failed to load directory contents');
+        } finally {
+            setDirectoryLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchDirectoryContents();
     }, [currentPath, repo]);
 
@@ -1047,6 +1112,12 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             case 'xql':
                 return 'xquery';
             case 'xqm':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'xqy':
                 return 'xquery';
             case 'xqy':
                 return 'xquery';
@@ -1819,6 +1890,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                     <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
                                                     <option value="xsl">XSL</option>
                                                     <option value="xslt">XSLT</option>
                                                     <option value="yacc">Yacc</option>
@@ -2086,14 +2158,24 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                         initial={{ x: 300, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: 300, opacity: 0 }}
-                        className={`fixed right-0 top-0 h-[calc(100vh-4rem)] w-96 ${darkMode ? 'bg-gray-900' : 'bg-white'} border-l ${darkMode ? 'border-gray-800' : 'border-gray-200'} shadow-xl z-50`}
-                        style={{ top: '4rem' }}
+                        className={`fixed right-0 top-0 h-[calc(100vh-4rem)] ${darkMode ? 'bg-gray-900' : 'bg-white'} border-l ${darkMode ? 'border-gray-800' : 'border-gray-200'} shadow-xl z-50`}
+                        style={{
+                            top: '4rem',
+                            width: agentWidth,
+                            cursor: isResizing ? 'col-resize' : 'auto'
+                        }}
                     >
+                        {/* Resize handle */}
+                        <div
+                            className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize ${darkMode ? 'hover:bg-violet-500' : 'hover:bg-cyan-500'} transition-colors z-50`}
+                            onMouseDown={handleResizeStart}
+                        />
                         <ShareCodeAgent
                             darkMode={darkMode}
                             onClose={() => setShowShareCodeAgent(false)}
                             repoOwner={repo?.owner.username || ''}
                             authToken={localStorage.getItem('authToken') || ''}
+                            onApplyChanges={handleApplyChanges}
                         />
                     </motion.div>
                 )}

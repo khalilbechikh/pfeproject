@@ -36,6 +36,15 @@ export const configureRepositoryRoutes = (): Router => {
   // Fork repository
   router.post('/:id/fork', auth.authenticate.bind(auth), repoCtrl.forkRepository.bind(repoCtrl));
 
+  // Archive repository
+  router.patch('/:id/archive', auth.authenticate.bind(auth), repoCtrl.archiveRepository.bind(repoCtrl));
+
+  // Restore repository
+  router.patch('/:id/restore', auth.authenticate.bind(auth), repoCtrl.restoreRepository.bind(repoCtrl));
+
+  // Transfer repository ownership
+  router.patch('/:id/transfer', auth.authenticate.bind(auth), repoCtrl.changeOwnership.bind(repoCtrl));
+
   // Get repository by ID  (placed last to avoid conflicts)
   router.get('/:id', auth.authenticate.bind(auth), repoCtrl.getRepositoryById.bind(repoCtrl));
   
