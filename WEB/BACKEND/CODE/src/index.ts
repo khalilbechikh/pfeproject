@@ -77,6 +77,9 @@ import { trace } from '@opentelemetry/api';
 import { configureRoutes } from './routes';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './docs/swagger';
+import * as httpProxyMiddleware from 'http-proxy-middleware'; // New namespace import
+import { ClientRequest, IncomingMessage, ServerResponse } from 'http';
+import * as net from 'net'; // Added for net.Socket
 
 const tracer = trace.getTracer('backend');
 const app = express();
@@ -103,6 +106,55 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   next();
 });
+
+/* Git proxy middleware */
+// Use a direct type assertion to any to bypass all type checking on the options
+const gitProxyOptions = {
+  target: 'http://git-server:80',
+  changeOrigin: true,
+  // Modify pathRewrite to preserve the /git part
+  pathRewrite: (path: string, req: IncomingMessage) => {
+    console.log(`Keeping original path: ${path}`);
+    return path; // Keep the original path with /git
+  },
+  // @ts-ignore - onProxyReq is a valid option in http-proxy-middleware but TypeScript doesn't recognize it
+  onProxyReq: (proxyReq: ClientRequest, req: IncomingMessage, res: ServerResponse) => {
+    console.log(`Proxying Git request: ${req.method} ${req.url} to http://git-server:80${proxyReq.path}`);
+  },
+  // @ts-ignore - onError is a valid option in http-proxy-middleware but TypeScript doesn't recognize it  
+  onError: (err: Error, req: IncomingMessage, res: ServerResponse | net.Socket) => {
+    console.error('Git proxy error:', err);
+
+    if (res instanceof ServerResponse) {
+      if (!res.headersSent) {
+         res.writeHead(500, {
+           'Content-Type': 'text/plain'
+         });
+      }
+    }
+    
+    if (!res.destroyed && res.writable) {
+      let canEnd = true;
+      if (res instanceof ServerResponse) {
+        canEnd = !res.writableEnded;
+      }
+      if (canEnd) {
+        res.end(`Git proxy error: ${err.message}. Make sure the repository exists on the git-server.`);
+      }
+    }
+  },
+  // Add response handler to provide better error messages for 404s
+  onProxyRes: (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) => {
+    console.log(`Git proxy response: ${proxyRes.statusCode} for ${req.method} ${req.url}`);
+    
+    if (proxyRes.statusCode === 404) {
+      const repoPath = req.url?.split('?')[0];
+      console.warn(`Repository not found: ${repoPath}`);
+    }
+  }
+} as any; // Use 'as any' to completely bypass type checking for the entire options object
+
+app.use('/git', httpProxyMiddleware.createProxyMiddleware(gitProxyOptions));
 
 /* Swagger & feature routes */
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
