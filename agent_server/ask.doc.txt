@@ -1,0 +1,176 @@
+/ask Endpoint DocumentationThe /ask endpoint provides access to a conversational AI assistant for Q&A, code help, or general dialog. This endpoint maintains session context using a conversation_id, allowing for multi-turn conversations where each request can build on previous context.
+
+
+Overview
+
+
+Endpoint: POST /ask
+
+
+Purpose: Engage in a conversation with the AI assistant for code-related or general questions, debugging, explanations, or brainstorming. The AI maintains context across turns within the same conversation.
+
+
+Context: Use the conversation_id field to keep the conversation history. This allows the AI to provide context-aware responses for ongoing discussions.
+
+
+
+Request
+Fields
+
+
+
+Field
+Type
+Required
+Description
+
+
+
+
+message
+string
+Yes
+The user’s question, instruction, or statement for the AI assistant.
+
+
+conversation_id
+string (optional)
+No
+Continue a previous conversation by passing this; omit to start a new session.
+
+
+
+Example Request
+{
+  "message": "What does this function do in Python?",
+  "conversation_id": "abc1234-5678-90de-fghij"  // Optional
+}
+
+
+
+Response
+Fields
+
+
+
+Field
+Type
+Description
+
+
+
+
+conversation_id
+string
+Unique session ID. Use this in your next request for continuity.
+
+
+message
+string
+The AI assistant’s response, answer, or explanation.
+
+
+
+Example Response
+{
+  "conversation_id": "abc1234-5678-90de-fghij",
+  "message": "This function calculates the factorial of a given number by using recursion..."
+}
+
+
+
+Conversation Handling
+
+
+Always retain and reuse the conversation_id from the API response if you want to continue the discussion.
+
+
+For new, unrelated questions, omit the conversation_id to start a new conversation context.
+
+
+The assistant uses previous exchanges to give more accurate, contextual answers.
+
+
+
+Error Handling
+
+
+If a non-existent or invalid conversation_id is provided, the API will respond with a 404 error.
+
+
+Missing required fields (like message) will result in a 400 or 422 validation error.
+
+
+
+Usage Scenarios
+
+
+General Q&A: “What is a Python list comprehension?”
+
+
+Code Review/Help: “Can you explain what this block of code does?”
+
+
+Debugging: “Why does my code throw an IndexError?”
+
+
+Brainstorming: “Suggest some test cases for this function.”
+
+
+Follow-up: “Can you refactor this for readability?” (using same conversation)
+
+
+
+Best Practices
+
+
+Maintain the conversation ID for best multi-turn results.
+
+
+Display the AI’s response to the user verbatim; the assistant is designed to be polite and clear.
+
+
+Keep user messages concise but include all necessary context/code snippets for the best results.
+
+
+
+Example: Multi-Turn Conversation
+User
+{
+  "message": "Explain what this Python function does: def foo(x): return x * 2"
+}
+
+
+API Response
+{
+  "conversation_id": "conv-112233",
+  "message": "This function takes an input x and returns its double..."
+}
+
+
+User (follow-up, same conversation)
+{
+  "message": "How would you write a test for it?",
+  "conversation_id": "conv-112233"
+}
+
+
+API Response
+{
+  "conversation_id": "conv-112233",
+  "message": "You can test the function by asserting foo(3) == 6..."
+}
+
+
+
+Contact and Support
+
+
+For questions, integration help, or troubleshooting, contact your backend or API engineering team.
+
+
+For improvements or new features, submit a feature request.
+
+
+
+End of /ask endpoint documentation

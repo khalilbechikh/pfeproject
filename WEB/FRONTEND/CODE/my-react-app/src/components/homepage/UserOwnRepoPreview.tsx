@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, Save, GitBranch, GitCommit, Search, Terminal } from 'lucide-react';
+import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, Save, GitBranch, GitCommit, Search, Terminal, Bot } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Rocket } from 'lucide-react';
 import Confetti from 'react-dom-confetti';
 import Editor from '@monaco-editor/react';
+import ShareCodeAgent from './sharecodeagent';
 
 interface JwtPayload {
     userId: number;
@@ -80,6 +81,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
     const [newItemParentPath, setNewItemParentPath] = useState<string>('');
     const [isTypeFixed, setIsTypeFixed] = useState(false);
     const [selectedBinaryFile, setSelectedBinaryFile] = useState<{ url: string; type: string } | null>(null);
+    const [showShareCodeAgent, setShowShareCodeAgent] = useState(false);
 
     // Add this helper function to check name existence on the server
     const checkNameExists = async (parentPath: string, name: string): Promise<boolean> => {
@@ -325,6 +327,12 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
         );
     };
 
+    // Add handleFileDragStart function
+    const handleFileDragStart = (e: React.DragEvent, node: TreeNode) => {
+        e.dataTransfer.setData('text/plain', node.path);
+        e.dataTransfer.effectAllowed = 'copy';
+    };
+
     // Updated handleKeyDown function for TreeView items
     const handleKeyDown = async (e: React.KeyboardEvent, node: TreeNode) => {
         if (e.key === 'Enter') {
@@ -528,6 +536,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                 onFileClick(node.path);
                                             }
                                         }}
+                                        draggable={node.type === 'file'}
+                                        onDragStart={(e) => handleFileDragStart(e, node)}
                                     >
                                         {node.name}
                                     </span>
@@ -678,7 +688,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'dart';
             case 'jl':
                 return 'julia';
-            case 'hs':
+            case 'haskell':
                 return 'haskell';
             case 'elm':
                 return 'elm';
@@ -1037,6 +1047,14 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             case 'xql':
                 return 'xquery';
             case 'xqm':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'xqy':
+                return 'xquery';
+            case 'xqy':
                 return 'xquery';
             case 'xqy':
                 return 'xquery';
@@ -1457,6 +1475,14 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                             >
                                 <Terminal size={20} className={darkMode ? 'text-green-400' : 'text-green-600'} />
                             </button>
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                animate={{ rotate: showShareCodeAgent ? 360 : 0 }}
+                                onClick={() => setShowShareCodeAgent(!showShareCodeAgent)}
+                                className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+                            >
+                                <Bot size={20} className={darkMode ? 'text-purple-400' : 'text-purple-600'} />
+                            </motion.button>
                             <button
                                 onClick={() => setDarkMode(!darkMode)}
                                 className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
@@ -2054,6 +2080,24 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                     </div>
                 </main>
             </div>
+            <AnimatePresence>
+                {showShareCodeAgent && (
+                    <motion.div
+                        initial={{ x: 300, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: 300, opacity: 0 }}
+                        className={`fixed right-0 top-0 h-[calc(100vh-4rem)] w-96 ${darkMode ? 'bg-gray-900' : 'bg-white'} border-l ${darkMode ? 'border-gray-800' : 'border-gray-200'} shadow-xl z-50`}
+                        style={{ top: '4rem' }}
+                    >
+                        <ShareCodeAgent
+                            darkMode={darkMode}
+                            onClose={() => setShowShareCodeAgent(false)}
+                            repoOwner={repo?.owner.username || ''}
+                            authToken={localStorage.getItem('authToken') || ''}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
