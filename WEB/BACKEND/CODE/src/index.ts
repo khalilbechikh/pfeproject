@@ -110,13 +110,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 /* Git proxy middleware */
 // Use a direct type assertion to any to bypass all type checking on the options
 const gitProxyOptions = {
-  target: 'http://git-server:80',
+  target: 'http://git-server:80/git',
   changeOrigin: true,
-  // Modify pathRewrite to preserve the /git part
-  pathRewrite: (path: string, req: IncomingMessage) => {
-    console.log(`Keeping original path: ${path}`);
-    return path; // Keep the original path with /git
-  },
+  // Fix: Use a function that returns the original path unchanged instead of false
+  pathRewrite: (path: string) => path, // This keeps the original path as-is
   // @ts-ignore - onProxyReq is a valid option in http-proxy-middleware but TypeScript doesn't recognize it
   onProxyReq: (proxyReq: ClientRequest, req: IncomingMessage, res: ServerResponse) => {
     console.log(`Proxying Git request: ${req.method} ${req.url} to http://git-server:80${proxyReq.path}`);
