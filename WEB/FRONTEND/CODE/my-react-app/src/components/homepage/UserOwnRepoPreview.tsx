@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Folder, File, X, Moon, Sun, Plus, Edit, Trash, GitBranch, GitCommit, Search, Terminal, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, Rocket } from 'lucide-react';
 import Confetti from 'react-dom-confetti';
 import Editor from '@monaco-editor/react';
 import ShareCodeAgent from './sharecodeagent';
+import { diffLines } from 'diff';
+import * as monaco from 'monaco-editor';
 
 interface JwtPayload {
     userId: number;
@@ -51,6 +53,13 @@ interface UserOwnRepoPreviewProps {
   setDarkMode: (value: boolean) => void;
 }
 
+declare module 'monaco-editor' {
+  export interface IModelDeltaDecoration {
+    range: IRange;
+    options: IModelDecorationOptions;
+  }
+}
+
 const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -81,6 +90,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
     const [isTypeFixed, setIsTypeFixed] = useState(false);
     const [selectedBinaryFile, setSelectedBinaryFile] = useState<{ url: string; type: string } | null>(null);
     const [showShareCodeAgent, setShowShareCodeAgent] = useState(false);
+    const [editorRef, setEditorRef] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
 
     // Inside the UserOwnRepoPreview component
     const [agentWidth, setAgentWidth] = useState(384); // Default width 384px (w-96)
@@ -122,6 +132,10 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
         const token = localStorage.getItem('authToken');
         const fullPath = `${currentPath}/${fileName}`.replace('temp-working-directory/', '');
 
+        // Get current content before changes
+        const oldContent = selectedFile?.content || '';
+
+        // Save changes to server
         await fetch(`http://localhost:5000/v1/api/preview/content`, {
           method: 'PUT',
           headers: {
@@ -134,15 +148,56 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
           })
         });
 
-        // Refresh the file in editor if open
+        // Update selected file state
         if (selectedFile?.path.endsWith(fileName)) {
-          setNewFileContent(newContent);
           setSelectedFile({...selectedFile, content: newContent});
+          setNewFileContent(newContent);
         }
 
-        // Refresh directory contents
-        fetchDirectoryContents();
+        // Calculate line differences
+        const diffs = diffLines(oldContent, newContent);
+        const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+        let lineNumber = 1;
 
+        // Process diffs for decorations
+        diffs.forEach(part => {
+          const lines = part.value.split('\n');
+          if (lines[lines.length - 1] === '') lines.pop();
+
+          lines.forEach(line => {
+            if (part.added) {
+              decorations.push({
+                range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+                options: {
+                  isWholeLine: true,
+                  className: darkMode ? 'added-line-dark' : 'added-line-light',
+                  marginClassName: darkMode ? 'added-margin-dark' : 'added-margin-light',
+                },
+              });
+              lineNumber++;
+            } else if (part.removed) {
+              // Handle deletions in a separate gutter
+              decorations.push({
+                range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+                options: {
+                  isWholeLine: true,
+                  className: darkMode ? 'removed-line-dark' : 'removed-line-light',
+                  marginClassName: darkMode ? 'removed-margin-dark' : 'removed-margin-light',
+                  linesDecorationsClassName: 'line-decoration',
+                },
+              });
+            } else {
+              lineNumber += lines.length;
+            }
+          });
+        });
+
+        // Apply decorations
+        if (editorRef) {
+          editorRef.deltaDecorations([], decorations);
+        }
+
+        fetchDirectoryContents();
       } catch (err) {
         setDirectoryError('Failed to apply changes: ' + (err instanceof Error ? err.message : 'Unknown error'));
       }
@@ -1129,6 +1184,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'xquery';
             case 'xqy':
                 return 'xquery';
+            case 'xqy':
+                return 'xquery';
             case 'xsl':
                 return 'xsl';
             case 'xslt':
@@ -1891,6 +1948,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                     <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
                                                     <option value="xsl">XSL</option>
                                                     <option value="xslt">XSLT</option>
                                                     <option value="yacc">Yacc</option>
@@ -1925,6 +1984,20 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                 theme={darkMode ? 'vs-dark' : 'vs-light'}
                                                 value={newFileContent}
                                                 onChange={(value) => setNewFileContent(value || '')}
+                                                onMount={(editor, monaco) => {
+                                                    setEditorRef(editor);
+                                                    // Define custom theme for decorations
+                                                    monaco.editor.defineTheme('custom-theme', {
+                                                      base: darkMode ? 'vs-dark' : 'vs',
+                                                      inherit: true,
+                                                      rules: [],
+                                                      colors: {
+                                                        'editor.lineHighlightBackground': '#00000000',
+                                                        'editor.lineHighlightBorder': '#00000000',
+                                                      },
+                                                    });
+                                                    editor.updateOptions({ theme: 'custom-theme' });
+                                                  }}
                                                 options={{
                                                     minimap: { enabled: false },
                                                     automaticLayout: true,
