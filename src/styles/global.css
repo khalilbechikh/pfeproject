@@ -1,0 +1,43 @@
+/* ...existing code... */
+
+/* Light Theme */
+.added-line-light {
+  background: rgba(0, 255, 0, 0.1);
+}
+.added-margin-light {
+  background: rgba(0, 255, 0, 0.2);
+}
+.modified-line-light {
+  background: rgba(0, 0, 255, 0.1);
+}
+.removed-line-light {
+  background: rgba(255, 0, 0, 0.1);
+}
+.removed-margin-light {
+  background: rgba(255, 0, 0, 0.2);
+}
+
+/* Dark Theme */
+.added-line-dark {
+  background: rgba(0, 128, 0, 0.2);
+}
+.added-margin-dark {
+  background: rgba(0, 128, 0, 0.3);
+}
+.modified-line-dark {
+  background: rgba(0, 0, 255, 0.2);
+}
+.removed-line-dark {
+  background: rgba(128, 0, 0, 0.2);
+}
+.removed-margin-dark {
+  background: rgba(128, 0, 0, 0.3);
+}
+
+/* Gutter indicators */
+.line-decoration {
+  width: 5px !important;
+  margin-left: 3px;
+}
+
+/* ...existing code... */

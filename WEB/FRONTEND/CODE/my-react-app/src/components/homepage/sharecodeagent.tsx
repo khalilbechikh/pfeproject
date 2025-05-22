@@ -169,14 +169,16 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
           body: JSON.stringify({
             prompt: editPrompt,
             files,
-            ...(editConversationId && { conversation_id: editConversationId })
+         ...(askConversationId && { conversation_id: askConversationId })
           })
         });
 
         const apiResponse = await response.json();
+        
 
         // Extract and display only the message
         const assistantMessage = apiResponse.message;
+setAskConversationId(apiResponse.conversation_id || null);
 
         setEditConversation(prev => [
           ...prev,
