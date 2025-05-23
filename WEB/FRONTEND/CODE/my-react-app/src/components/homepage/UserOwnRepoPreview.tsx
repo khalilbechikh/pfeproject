@@ -9,11 +9,6 @@ import ShareCodeAgent from './sharecodeagent';
 import { diffLines } from 'diff';
 import * as monaco from 'monaco-editor';
 
-interface JwtPayload {
-    userId: number;
-    email: string;
-}
-
 interface Repository {
     id: number;
     name: string;
@@ -54,9 +49,11 @@ interface UserOwnRepoPreviewProps {
 }
 
 declare module 'monaco-editor' {
-  export interface IModelDeltaDecoration {
-    range: IRange;
-    options: IModelDecorationOptions;
+  namespace editor {
+    export interface IModelDeltaDecoration {
+      range: IRange;
+      options: IModelDecorationOptions;
+    }
   }
 }
 
@@ -164,7 +161,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
           const lines = part.value.split('\n');
           if (lines[lines.length - 1] === '') lines.pop();
 
-          lines.forEach(line => {
+          lines.forEach(() => {
             if (part.added) {
               decorations.push({
                 range: new monaco.Range(lineNumber, 1, lineNumber, 1),
@@ -537,7 +534,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
 
                 // Refresh directory if in current path
                 if (currentPath === parentPath) {
-                    const res = await fetchDirectoryContents(); // Implement this
+
                 }
 
                 // Enable push button when creating new file via tree
@@ -742,16 +739,6 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
         const newPath = `${currentPath}/${folderName}`;
         setCurrentPath(newPath);
         setDisplayPath(newPath.replace('temp-working-directory/', ''));
-    };
-
-    const handleBackClick = () => {
-        const pathSegments = currentPath.split('/');
-        if (pathSegments.length > 1) {
-            pathSegments.pop();
-            const newPath = pathSegments.join('/');
-            setCurrentPath(newPath);
-            setDisplayPath(newPath.replace('temp-working-directory/', ''));
-        }
     };
 
     const getLanguageFromExtension = (fileName: string): string => {
@@ -1211,7 +1198,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
         const fileName = filePath.split('/').pop() || '';
         if (isBinaryFile(fileName)) {
             // Handle binary file using the /files route
-            const repoName = repo?.name;
+
             const cleanPath = filePath.replace('temp-working-directory/', '');
             const token = localStorage.getItem('authToken');
             if (!token) {
@@ -1420,7 +1407,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             if (!token) throw new Error('No authentication token found');
 
             const response = await fetch(
-                `http://localhost:5000/v1/api/preview/push/${encodeURIComponent(repo?.name)}.git?ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                `http://localhost:5000/v1/api/preview/push/${encodeURIComponent(repo?.name || '')}.git?ownername=${encodeURIComponent(repo?.owner.username || '')}`,
                 {
                     method: 'POST',
                     headers: {
@@ -1943,6 +1930,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                     <option value="wren">Wren</option>
                                                     <option value="x10">X10</option>
                                                     <option value="xproc">XProc</option>
+                                                    <option value="xquery">XQuery</option>
+                                                    <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>
                                                     <option value="xquery">XQuery</option>

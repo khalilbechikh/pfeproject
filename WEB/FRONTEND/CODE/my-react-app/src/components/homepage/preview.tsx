@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Folder, File, X, Moon, Sun, GitBranch, GitFork, AlertCircle } from 'lucide-react';
-import { jwtDecode } from 'jwt-decode';
 import { motion, AnimatePresence } from 'framer-motion';
 import IssueReportModal from './IssueReportModal';
 import Editor from '@monaco-editor/react';
 
-interface JwtPayload {
-    userId: number;
-    email: string;
-}
 
 interface Repository {
     id: number;
@@ -649,15 +644,7 @@ const Preview = ({ darkMode, setDarkMode }: PreviewProps) => {
         setDisplayPath(newPath.replace('temp-working-directory/', ''));
     };
 
-    const handleBackClick = () => {
-        const pathSegments = currentPath.split('/');
-        if (pathSegments.length > 1) {
-            pathSegments.pop();
-            const newPath = pathSegments.join('/');
-            setCurrentPath(newPath);
-            setDisplayPath(newPath.replace('temp-working-directory/', ''));
-        }
-    };
+    
 
     const handleFileClick = async (filePath: string) => {
         try {

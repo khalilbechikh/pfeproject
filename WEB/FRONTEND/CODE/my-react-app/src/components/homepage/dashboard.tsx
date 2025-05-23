@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Home, Code, Star, GitFork, Users, Settings, FileText, Book, LogOut, Plus, Bell, MessageSquare, Moon, Sun, Share2, Clock, Filter, ChevronDown, User, AlertCircle, Bot } from 'lucide-react';
+import { Search, Code, GitFork, LogOut, Bell, Moon, Sun, Share2, User, AlertCircle, Bot } from 'lucide-react';
 import Profile from './profile';
 import RepositoriesList from './RepositoriesList';
 import ExplorerRepo from './explorerepo';
 import { jwtDecode } from 'jwt-decode';
-import IssueDisplay, { Issue } from './IssueDisplay';
+import IssueDisplay from './IssueDisplay';
+import OnlyAskAgent from './onlyaskagent';
 
 interface JwtPayload {
     userId: string;
@@ -41,14 +42,13 @@ interface MenuItem {
 
 interface EnhancedSharecodeDashboardProps {
   darkMode: boolean;
-  setDarkMode: (value: boolean) => void;
+  setDarkMode: Dispatch<SetStateAction<boolean>>;
 }
 
 export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: EnhancedSharecodeDashboardProps) {
     const navigate = useNavigate();
     const [currentTab, setCurrentTab] = useState<string>('repositories');
     const [menuCollapsed, setMenuCollapsed] = useState<boolean>(false);
-    const [issuesTab, setIssuesTab] = useState<string>('open');
     const [particles, setParticles] = useState<Particle[]>(Array(15).fill(null).map(() => ({
         size: Math.random() * 4 + 1,
         x: Math.random() * 100,
@@ -83,95 +83,6 @@ export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: En
         fetchUserData();
     }, [])
 
-    const issues: Issue[] = [
-        {
-            id: "ISS-1342",
-            title: "Neural network fails to visualize convolutional layers correctly",
-            project: "Neural Network Visualizer",
-            status: "open",
-            priority: "high",
-            labels: ["bug", "visualization", "core-functionality"],
-            assignee: "AlexC",
-            createdAt: "2025-04-23T10:30:00Z",
-            updatedAt: "2025-04-25T15:45:00Z",
-            comments: 7
-        },
-        {
-            id: "ISS-1341",
-            title: "Add export functionality for trained models",
-            project: "Neural Network Visualizer",
-            status: "open",
-            priority: "medium",
-            labels: ["enhancement", "user-request"],
-            assignee: "SarahK",
-            createdAt: "2025-04-22T08:15:00Z",
-            updatedAt: "2025-04-24T11:20:00Z",
-            comments: 4
-        },
-        {
-            id: "ISS-1338",
-            title: "Performance degradation with datasets over 100k samples",
-            project: "Quantum Algorithm Simulator",
-            status: "open",
-            priority: "critical",
-            labels: ["performance", "optimization"],
-            assignee: "MichaelR",
-            createdAt: "2025-04-20T14:25:00Z",
-            updatedAt: "2025-04-25T09:10:00Z",
-            comments: 12
-        },
-        {
-            id: "ISS-1335",
-            title: "Blockchain explorer crashes when analyzing custom tokens",
-            project: "Blockchain Explorer",
-            status: "closed",
-            priority: "high",
-            labels: ["bug", "crash", "fixed"],
-            assignee: "JenniferT",
-            createdAt: "2025-04-18T16:45:00Z",
-            updatedAt: "2025-04-24T13:30:00Z",
-            comments: 9,
-            closedAt: "2025-04-24T13:30:00Z"
-        },
-        {
-            id: "ISS-1332",
-            title: "3D visualization doesn't render properly on Firefox",
-            project: "3D Code Architecture",
-            status: "open",
-            priority: "medium",
-            labels: ["bug", "browser-compatibility"],
-            assignee: null,
-            createdAt: "2025-04-17T11:20:00Z",
-            updatedAt: "2025-04-23T16:15:00Z",
-            comments: 5
-        },
-        {
-            id: "ISS-1331",
-            title: "Add support for Solidity smart contracts",
-            project: "Blockchain Explorer",
-            status: "open",
-            priority: "low",
-            labels: ["enhancement", "feature-request"],
-            assignee: "DanielP",
-            createdAt: "2025-04-17T09:50:00Z",
-            updatedAt: "2025-04-20T14:40:00Z",
-            comments: 3
-        },
-        {
-            id: "ISS-1328",
-            title: "Implement dark mode theme for visualizations",
-            project: "Neural Network Visualizer",
-            status: "closed",
-            priority: "medium",
-            labels: ["enhancement", "ui", "fixed"],
-            assignee: "AlexC",
-            createdAt: "2025-04-15T13:10:00Z",
-            updatedAt: "2025-04-21T10:25:00Z",
-            comments: 6,
-            closedAt: "2025-04-21T10:25:00Z"
-        }
-    ];
-
     useEffect(() => {
         if (darkMode) {
             document.documentElement.classList.add('dark');
@@ -201,16 +112,15 @@ export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: En
             case 'issues':
                 return (
                     <IssueDisplay
-                        issues={issues}
                         darkMode={darkMode}
-                        issuesTab={issuesTab}
-                        setIssuesTab={setIssuesTab}
                     />
                 );
             case 'repositories':
                 return <RepositoriesList darkMode={darkMode} />;
             case 'explore':
                 return <ExplorerRepo darkMode={darkMode} />;
+            case 'ia-agent':
+                return <OnlyAskAgent darkMode={darkMode} />;
             default:
                 return (
                     <div className="text-center py-16">
@@ -231,7 +141,7 @@ export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: En
     ];
 
     return (
-        <div className={`min-h-screen flex flex-col ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-800'} transition-colors duration-300`}>
+        <div className={`h-screen flex flex-col ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-800'} transition-colors duration-300 overflow-hidden`}>
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
                 {particles.map((particle, idx) => (
                     <div
@@ -247,7 +157,7 @@ export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: En
                     ></div>
                 ))}
             </div>
-            <header className={`fixed top-0 left-0 right-0 z-10 ${darkMode ? 'bg-gray-900/80' : 'bg-white/80'} backdrop-blur-md border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+            <header className={`flex-shrink-0 ${darkMode ? 'bg-gray-900/80' : 'bg-white/80'} backdrop-blur-md border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'} z-10`}>
                 <div className="container mx-auto px-4 py-3 flex justify-between items-center">
                     <div className="flex items-center">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'} group hover:scale-110 transition-all duration-300 hover:rotate-12`}>
@@ -292,75 +202,89 @@ export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: En
                     </div>
                 </div>
             </header>
-            <aside className={`fixed top-16 left-0 bottom-0 ${menuCollapsed ? 'w-16' : 'w-60'} ${darkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'} backdrop-blur-md border-r transition-all duration-300 z-10`}>
-                <div className="h-full flex flex-col py-4">
-                    <nav className="flex-1">
-                        <ul className="space-y-1 px-2">
-                            {menuItems.map((item) => (
-                                <li key={item.id}>
-                                    <button
-                                        onClick={() => setCurrentTab(item.id)}
-                                        className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${currentTab === item.id
-                                            ? darkMode
-                                                ? 'bg-violet-600/20 text-violet-400'
-                                                : 'bg-cyan-50 text-cyan-600'
-                                            : darkMode
-                                                ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
-                                                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                            }`}
-                                    >
-                                        <span className={`${menuCollapsed ? 'mx-auto' : ''}`}>{item.icon}</span>
-                                        {!menuCollapsed && <span>{item.label}</span>}
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    </nav>
-                    <div className="px-2 mt-2">
-                        <button
-                            onClick={() => {
-                                localStorage.removeItem('authToken');
-                                navigate('/');
-                            }}
-                            className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${darkMode ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-300' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
-                        >
-                            <LogOut size={20} className={menuCollapsed ? 'mx-auto' : ''} />
-                            {!menuCollapsed && <span>Logout</span>}
-                        </button>
+            <div className="flex flex-1 overflow-hidden">
+                <aside className={`flex-shrink-0 ${menuCollapsed ? 'w-16' : 'w-60'} ${darkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'} backdrop-blur-md border-r transition-all duration-300 z-10`}>
+                    <div className="h-full flex flex-col py-4">
+                        <nav className="flex-1">
+                            <ul className="space-y-1 px-2">
+                                {menuItems.map((item) => (
+                                    <li key={item.id}>
+                                        <button
+                                            onClick={() => setCurrentTab(item.id)}
+                                            className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${currentTab === item.id
+                                                ? darkMode
+                                                    ? 'bg-violet-600/20 text-violet-400'
+                                                    : 'bg-cyan-50 text-cyan-600'
+                                                : darkMode
+                                                    ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+                                                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                                                }`}
+                                        >
+                                            <span className={`${menuCollapsed ? 'mx-auto' : ''}`}>{item.icon}</span>
+                                            {!menuCollapsed && <span>{item.label}</span>}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </nav>
+                        <div className="px-2 mt-2">
+                            <button
+                                onClick={() => {
+                                    localStorage.removeItem('authToken');
+                                    navigate('/');
+                                }}
+                                className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${darkMode ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-300' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
+                            >
+                                <LogOut size={20} className={menuCollapsed ? 'mx-auto' : ''} />
+                                {!menuCollapsed && <span>Logout</span>}
+                            </button>
+                        </div>
+                        <div className="px-2 mt-auto">
+                            <button
+                                onClick={() => setMenuCollapsed(!menuCollapsed)}
+                                className={`w-full flex items-center justify-center p-3 rounded-lg ${darkMode
+                                    ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
+                                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                                    } transition-colors`}
+                            >
+                                {menuCollapsed ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
                     </div>
-                    <div className="px-2 mt-auto">
-                        <button
-                            onClick={() => setMenuCollapsed(!menuCollapsed)}
-                            className={`w-full flex items-center justify-center p-3 rounded-lg ${darkMode
-                                ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-800'
-                                : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                } transition-colors`}
-                        >
-                            {menuCollapsed ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                </svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </aside>
-            <main className={`pt-16 flex-1 ${menuCollapsed ? 'pl-16' : 'pl-60'} transition-all duration-300`}>
-                <div className="container mx-auto px-6 py-8 h-full flex flex-col">
-                    <div className="flex-1">
-                        {renderTabContent()}
-                    </div>
-                    <footer className="mt-8 py-4 border-t dark:border-gray-700 border-gray-200">
-                        <p className={`text-center text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            &copy; 2025 ShareCode. All rights reserved.
-                        </p>
-                    </footer>
-                </div>
-            </main>
+                </aside>
+                <main className="flex-1 flex flex-col overflow-hidden">
+                    {currentTab === 'ia-agent' ? (
+                        // Full height layout for IA Agent
+                        <div className="flex-1 overflow-hidden">
+                            {renderTabContent()}
+                        </div>
+                    ) : (
+                        // Regular layout for other tabs
+                        <div className="flex-1 flex flex-col overflow-hidden">
+                            <div className="flex-1 overflow-y-auto">
+                                <div className="container mx-auto px-6 py-8">
+                                    {renderTabContent()}
+                                </div>
+                            </div>
+                            <footer className="flex-shrink-0 py-4 border-t dark:border-gray-700 border-gray-200">
+                                <div className="container mx-auto px-6">
+                                    <p className={`text-center text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                                        &copy; 2025 ShareCode. All rights reserved.
+                                    </p>
+                                </div>
+                            </footer>
+                        </div>
+                    )}
+                </main>
+            </div>
         </div>
     );
 }

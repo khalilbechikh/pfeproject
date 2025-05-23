@@ -8,14 +8,10 @@ import {
   User,
   Archive,
   ArchiveRestore,
-  Ban,
   Activity,
-  AlertTriangle,
   Trash2,
   ExternalLink,
   RefreshCw,
-  Eye,
-  EyeOff,
   Lock,
   Unlock,
   Share2,
@@ -23,11 +19,9 @@ import {
   CheckCircle,
   ChevronDown,
   ChevronUp,
-  Filter,
   LogOut,
   Sun,
   Moon,
-  MoreHorizontal,
   ArrowRight,
   Maximize2,
   Minimize2,
@@ -106,7 +100,7 @@ const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository
     user.id !== repository.owner_user_id &&
     !user.suspended &&
     (user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase()))
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -132,9 +126,8 @@ const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository
               <div
                 key={user.id}
                 onClick={() => setSelectedUserEmail(user.email)}
-                className={`p-2 hover:bg-${darkMode ? 'gray-700' : 'gray-200'} cursor-pointer rounded-md ${
-                  selectedUserEmail === user.email ? 'bg-violet-600/20' : ''
-                }`}
+                className={`p-2 hover:bg-${darkMode ? 'gray-700' : 'gray-200'} cursor-pointer rounded-md ${selectedUserEmail === user.email ? 'bg-violet-600/20' : ''
+                  }`}
               >
                 {user.username} ({user.email})
               </div>
@@ -156,11 +149,10 @@ const TransferModal: React.FC<TransferModalProps> = ({ show, onClose, repository
               }
             }}
             disabled={!selectedUserEmail}
-            className={`px-4 py-2 rounded-md flex items-center ${
-              selectedUserEmail
+            className={`px-4 py-2 rounded-md flex items-center ${selectedUserEmail
                 ? 'bg-violet-600 hover:bg-violet-700 text-white'
                 : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-            } transition-colors`}
+              } transition-colors`}
           >
             <ArrowRight size={16} className="mr-1" />
             Transfer
@@ -483,9 +475,9 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
         prevRepos.map(repo =>
           repo.id === repoId
             ? {
-                ...repo,
-                owner_user_id: users.find(u => u.email === newOwnerEmail)?.id || repo.owner_user_id
-              }
+              ...repo,
+              owner_user_id: users.find(u => u.email === newOwnerEmail)?.id || repo.owner_user_id
+            }
             : repo
         )
       );
@@ -757,7 +749,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                 <thead>
                   <tr className={`bg-${darkMode ? 'gray-800/90' : 'gray-100'}`}>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('username', true)}>
+                      onClick={() => toggleSort('username', true)}>
                       <div className="flex items-center">
                         Username
                         {userSortBy === 'username' && (
@@ -766,7 +758,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                       </div>
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('email', true)}>
+                      onClick={() => toggleSort('email', true)}>
                       <div className="flex items-center">
                         Email
                         {userSortBy === 'email' && (
@@ -775,7 +767,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                       </div>
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('created_at', true)}>
+                      onClick={() => toggleSort('created_at', true)}>
                       <div className="flex items-center">
                         Joined
                         {userSortBy === 'created_at' && (
@@ -787,7 +779,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                       Status
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('repos', true)}>
+                      onClick={() => toggleSort('repos', true)}>
                       <div className="flex items-center">
                         Repos
                         {userSortBy === 'repos' && (
@@ -831,11 +823,10 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                         {formatDate(user.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.suspended
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.suspended
                             ? 'bg-red-600/20 text-red-400'
                             : 'bg-emerald-600/20 text-emerald-400'
-                        }`}>
+                          }`}>
                           {user.suspended ? 'Suspended' : 'Active'}
                         </span>
                       </td>
@@ -846,11 +837,10 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                         <button
                           onClick={() => handleSuspendUser(user.id, !user.suspended)}
                           disabled={actionInProgress?.id === user.id}
-                          className={`px-3 py-1 rounded-md flex items-center ${
-                            user.suspended
+                          className={`px-3 py-1 rounded-md flex items-center ${user.suspended
                               ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
                               : 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
-                          } transition-colors`}
+                            } transition-colors`}
                         >
                           {actionInProgress?.id === user.id && actionInProgress.type === (user.suspended ? 'unsuspend' : 'suspend') ? (
                             <RefreshCw size={14} className="animate-spin mr-1" />
@@ -905,7 +895,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                 <thead>
                   <tr className={`bg-${darkMode ? 'gray-800/90' : 'gray-100'}`}>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('name', false)}>
+                      onClick={() => toggleSort('name', false)}>
                       <div className="flex items-center">
                         Name
                         {repoSortBy === 'name' && (
@@ -914,7 +904,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                       </div>
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('owner', false)}>
+                      onClick={() => toggleSort('owner', false)}>
                       <div className="flex items-center">
                         Owner
                         {repoSortBy === 'owner' && (
@@ -929,7 +919,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                       Status
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider cursor-pointer hover:text-violet-400`}
-                        onClick={() => toggleSort('created_at', false)}>
+                      onClick={() => toggleSort('created_at', false)}>
                       <div className="flex items-center">
                         Created
                         {repoSortBy === 'created_at' && (
@@ -970,11 +960,10 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            repo.archived
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${repo.archived
                               ? 'bg-amber-600/20 text-amber-400'
                               : 'bg-emerald-600/20 text-emerald-400'
-                          }`}>
+                            }`}>
                             {repo.archived ? 'Archived' : 'Active'}
                           </span>
                         </td>
@@ -985,11 +974,10 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                           <button
                             onClick={() => handleArchiveRepository(repo.id, !repo.archived)}
                             disabled={actionInProgress?.id === repo.id}
-                            className={`px-3 py-1 rounded-md flex items-center ${
-                              repo.archived
+                            className={`px-3 py-1 rounded-md flex items-center ${repo.archived
                                 ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
                                 : 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30'
-                            } transition-colors`}
+                              } transition-colors`}
                           >
                             {actionInProgress?.id === repo.id && actionInProgress.type === (repo.archived ? 'restore' : 'archive') ? (
                               <RefreshCw size={14} className="animate-spin mr-1" />
@@ -1024,7 +1012,8 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                           </button>
                         </td>
                       </tr>
-                    )}
+                    )
+                  }
                   )}
                 </tbody>
               </table>
@@ -1040,9 +1029,8 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
 
       case 'systemlogs':
         return (
-          <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg backdrop-blur-sm overflow-hidden transition-all duration-300 ${
-            fullscreen ? 'fixed inset-0 z-50' : 'relative'
-          }`}>
+          <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg backdrop-blur-sm overflow-hidden transition-all duration-300 ${fullscreen ? 'fixed inset-0 z-50' : 'relative'
+            }`}>
             <div className={`p-6 border-b border-${darkMode ? 'gray-700' : 'gray-200'} flex justify-between items-center`}>
               <div>
                 <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 flex items-center`}>
@@ -1073,7 +1061,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                 </button>
               </div>
             </div>
-            
+
             <div className={`relative ${fullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-280px)]'}`}>
               <div className="absolute inset-0">
                 <iframe
@@ -1082,7 +1070,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                   title="Jaeger UI"
                 />
               </div>
-              
+
               {/* Fancy loading overlay */}
               <div className={`absolute inset-0 bg-${darkMode ? 'gray-900/90' : 'white/90'} flex items-center justify-center transition-opacity duration-500 ${isFrameLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                 <div className="relative">
@@ -1097,9 +1085,8 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
 
       case 'resources':
         return (
-          <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg backdrop-blur-sm overflow-hidden transition-all duration-300 ${
-            resourceFullscreen ? 'fixed inset-0 z-50' : 'relative'
-          }`}>
+          <div className={`bg-${darkMode ? 'gray-800/70' : 'white'} border border-${darkMode ? 'gray-700' : 'gray-200'} rounded-xl shadow-lg backdrop-blur-sm overflow-hidden transition-all duration-300 ${resourceFullscreen ? 'fixed inset-0 z-50' : 'relative'
+            }`}>
             <div className={`p-6 border-b border-${darkMode ? 'gray-700' : 'gray-200'} flex justify-between items-center`}>
               <div>
                 <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 flex items-center`}>
@@ -1130,7 +1117,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                 </button>
               </div>
             </div>
-            
+
             <div className={`relative ${resourceFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-280px)]'}`}>
               <div className="absolute inset-0">
                 <iframe
@@ -1139,7 +1126,7 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
                   title="Resource Monitoring"
                 />
               </div>
-              
+
               {/* Loading overlay */}
               <div className={`absolute inset-0 bg-${darkMode ? 'gray-900/90' : 'white/90'} flex items-center justify-center transition-opacity duration-500 ${isResourceFrameLoading ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                 <div className="relative">
@@ -1230,11 +1217,10 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
             <button
               key={tab}
               onClick={() => setCurrentTab(tab)}
-              className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors ${
-                currentTab === tab
+              className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors ${currentTab === tab
                   ? 'bg-violet-600/20 text-violet-400'
                   : `hover:bg-${darkMode ? 'gray-800/50' : 'gray-200'} text-${darkMode ? 'gray-400' : 'gray-600'}`
-              }`}
+                }`}
             >
               {tab === 'dashboard' && <Activity size={16} />}
               {tab === 'users' && <Users size={16} />}
@@ -1242,8 +1228,8 @@ const AdminInterface = ({ darkMode, setDarkMode }: AdminInterfaceProps) => {
               {tab === 'systemlogs' && <Activity size={16} />}
               {tab === 'resources' && <Gauge size={16} />}
               <span className="capitalize">
-                {tab === 'systemlogs' ? 'System Logs' : 
-                 tab === 'resources' ? 'Resources' : tab}
+                {tab === 'systemlogs' ? 'System Logs' :
+                  tab === 'resources' ? 'Resources' : tab}
               </span>
             </button>
           ))}

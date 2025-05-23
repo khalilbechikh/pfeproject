@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Settings, Edit, Camera, Save, X, Key, Github, Mail, Calendar, MapPin, Clock, FileText, GitFork, Star, AlertCircle, RefreshCw, Shield, Code, MessageSquare, Trash2, Sun, Moon, CheckCircle } from 'lucide-react';
+import {Edit, Camera, Save, X, Key, Calendar, FileText, GitFork, AlertCircle, RefreshCw, Shield, Trash2, Sun, Moon, CheckCircle } from 'lucide-react';
 import { z } from 'zod';
 import { jwtDecode } from 'jwt-decode';
 import QRCode from 'react-qr-code';
