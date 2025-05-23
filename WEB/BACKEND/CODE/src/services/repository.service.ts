@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises'; // Use promises version of fs
+import { AuthUser } from '../types/auth.types';
 
 // TODO: Move this to configuration/environment variables, ensure consistency with GitService
 const GIT_REPO_BASE_PATH = '/srv/git';
@@ -45,12 +46,18 @@ export class RepositoryService {
     /**
      * Retrieves all repositories, optionally filtering by name.
      * @param searchText Optional text to filter repository names
+     * @param user Optional user object to filter repositories for a specific user
      * @returns ApiResponse with the list of repositories or error
      */
-    async getAllRepositories(searchText?: string): Promise<ApiResponse<repository[]>> {
-        console.log(`=== REPOSITORY SERVICE: getAllRepositories START (Search: ${searchText || 'None'}) ===`);
+    async getAllRepositories(searchText?: string, user?: AuthUser): Promise<ApiResponse<repository[]>> {
+        console.log(`=== REPOSITORY SERVICE: getAllRepositories START ===`);
+        console.log(`Search text: ${searchText || 'None'}`);
+        console.log(`User object:`, user);
+        console.log(`User ID: ${user?.userId || 'None'}`);
+        console.log(`Username: ${user?.username || 'None'}`);
+        console.log(`Is Admin: ${user?.is_admin !== undefined ? user.is_admin : 'None'}`);
         try {
-            const response = await this.repositoryRepository.findAll(searchText);
+            const response = await this.repositoryRepository.findAll(searchText, user);
 
             if (response.status === ResponseStatus.FAILED) {
                 console.error(`Failed to retrieve repositories:`, response.error);

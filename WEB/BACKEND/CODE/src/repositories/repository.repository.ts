@@ -6,6 +6,7 @@ import util from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
+import { AuthUser } from '../types/auth.types';
 
 const execPromise = util.promisify(exec);
 
@@ -29,16 +30,29 @@ export class RepositoryRepository {
     }
 
     /**
-     * Find all repositories, optionally filtering by name containing searchText
+     * Find all repositories, optionally filtering by name containing searchText and user object
      */
-    async findAll(searchText?: string): Promise<ApiResponse<repository[]>> {
+    async findAll(searchText?: string, user?: AuthUser): Promise<ApiResponse<repository[]>> {
         try {
+            console.log("=== REPOSITORY REPOSITORY: findAll START ===");
+            console.log("Search text:", searchText);
+            console.log("User object:", user);
+            console.log("User ID:", user?.userId);
+            console.log("Username:", user?.username);
+            console.log("Is Admin:", user?.is_admin);
+            
             const whereClause: Prisma.repositoryWhereInput = {};
             if (searchText) {
                 whereClause.name = {
                     contains: searchText,
                     mode: 'insensitive', // Case-insensitive search
                 };
+            }
+            
+            if (user && user.userId) {
+                const userId = parseInt(user.userId);
+                console.log("Filtering by owner_user_id:", userId);
+                whereClause.owner_user_id = userId;
             }
 
             const repositories = await this.prisma.repository.findMany({
@@ -49,6 +63,9 @@ export class RepositoryRepository {
                     }
                 }
             });
+
+            console.log(`Found ${repositories.length} repositories`);
+            console.log("=== REPOSITORY REPOSITORY: findAll END ===");
 
             return {
                 status: ResponseStatus.SUCCESS,

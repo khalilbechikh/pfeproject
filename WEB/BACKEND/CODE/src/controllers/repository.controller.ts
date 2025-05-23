@@ -18,10 +18,18 @@ export class RepositoryController {
     async getAllRepositories(req: Request, res: Response): Promise<void> {
         try {
             console.log("=== REPOSITORY CONTROLLER: getAllRepositories START ===");
+            console.log("Request user object:", req.user);
+            
             const searchText = req.query.search as string | undefined;
+            const user = req.user; // Pass the entire user object
+            
             console.log("Search query:", searchText);
+            console.log("User object being passed to service:", user);
+            console.log("User ID:", user?.userId);
+            console.log("Username:", user?.username);
+            console.log("Is Admin:", user?.is_admin);
 
-            const result = await this.repositoryService.getAllRepositories(searchText);
+            const result = await this.repositoryService.getAllRepositories(searchText, user);
 
             const statusCode = result.status === ResponseStatus.SUCCESS ? 200 : 500;
 

@@ -1,23 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { injectable } from 'inversify';
+import { AuthenticatedUser } from '../types/auth.types';
 
 // Get JWT secret from environment variables with fallback
 const JWT_SECRET = process.env.JWT_SECRET || 'your_secret_key_here';
-
-// Interface for decoded token data - updated to match controller's token format
-interface DecodedToken {
-    userId: string;
-    username: string;
-    iat: number;
-    exp: number;
-}
 
 // Extend Express Request interface to include user information
 declare global {
     namespace Express {
         interface Request {
-            user?: DecodedToken;
+            user?: AuthenticatedUser;
         }
     }
 }
@@ -61,7 +54,7 @@ export class AuthMiddleware {
 
         try {
             // Verify and decode the token
-            const decoded = jwt.verify(token, this.jwtSecret) as DecodedToken;
+            const decoded = jwt.verify(token, this.jwtSecret) as AuthenticatedUser;
 
             // Attach user info to request object for use in route handlers
             req.user = decoded;
