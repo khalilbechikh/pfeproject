@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Shield, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import { Shield, RefreshCw, AlertCircle } from "lucide-react";
 
 interface Particle {
     size: number;

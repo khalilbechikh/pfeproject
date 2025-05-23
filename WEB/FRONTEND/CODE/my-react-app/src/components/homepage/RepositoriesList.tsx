@@ -1,8 +1,8 @@
 import  { useState, useEffect } from 'react';
-import { Plus, X, Trash, Edit, Code, Share2, Users, Search, UserPlus, ChevronDown, Check } from 'lucide-react';
+import { Plus, X, Trash, Edit, Code, Share2, Users, Search, UserPlus, ChevronDown,} from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
-import UserOwnRepoPreview from './UserOwnRepoPreview';
+
 
 interface JwtPayload {
     userId: number;
@@ -190,7 +190,7 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
             }
 
             const newRepo = await response.json();
-            const decoded = jwtDecode<JwtPayload>(token);
+            
 
             const pullRequestsResponse = await fetch(`http://localhost:5000/v1/api/repositories/${newRepo.data.id}?relations=pull_requests`, {
                 headers: {

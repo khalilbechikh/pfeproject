@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, UserIcon, CheckCircleIcon, Share2, Moon, Sun } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { CreateUserSchema, LoginUserSchema } from '../auth/authzod'; // Import the Zod schemas
-import { jwtDecode, JwtPayload as DecodedJwtPayload } from "jwt-decode"; // Renamed to avoid conflict
+import { jwtDecode, JwtPayload as BaseJwtPayload } from "jwt-decode"; // Renamed to avoid conflict
+
+interface DecodedJwtPayload extends BaseJwtPayload {
+  userId?: string;
+}
 
 interface AuthPageProps {
   darkMode: boolean;
