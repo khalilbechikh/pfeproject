@@ -1254,12 +1254,12 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 // If not in sessionStorage, store the fetched content
                 if (!fileContent) {
                   fileContent = data.data.content;
-                  sessionStorage.setItem(sessionKey, fileContent);
+                  sessionStorage.setItem(sessionKey, fileContent ?? '');
                 }
 
                 setSelectedLanguage(language);
-                setSelectedFile({ path: filePath, content: fileContent });
-                setNewFileContent(fileContent);
+                setSelectedFile({ path: filePath, content: fileContent ?? '' });
+                setNewFileContent(fileContent ?? '');
             }
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to load file content');
