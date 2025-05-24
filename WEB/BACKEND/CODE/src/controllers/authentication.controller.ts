@@ -94,9 +94,13 @@ private formatWarningResponse(message: string): {
             
             // Check response status and return appropriate HTTP status
             if (response.status === ResponseStatus.SUCCESS && response.data) {
-                // Generate JWT token on success
+                // Generate JWT token on success - including userId, username, and is_admin
                 const token = jwt.sign(
-                    { userId: response.data.id, username: response.data.username },
+                    { 
+                        userId: response.data.id, 
+                        username: response.data.username,
+                        is_admin: response.data.is_admin 
+                    },
                     JWT_SECRET,
                     { expiresIn: '30d' }
                 );
@@ -139,9 +143,13 @@ private formatWarningResponse(message: string): {
             
             // Check response status and return appropriate HTTP status
             if (response.status === ResponseStatus.SUCCESS && response.data) {
-                // Generate JWT token on success - using userId and username
+                // Generate JWT token on success - including userId, username, and is_admin
                 const token = jwt.sign(
-                    { userId: response.data.id, username: response.data.username },
+                    { 
+                        userId: response.data.id, 
+                        username: response.data.username,
+                        is_admin: response.data.is_admin 
+                    },
                     JWT_SECRET,
                     { expiresIn: '30d' }
                 );

@@ -25,6 +25,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.0.1",
+    "http-proxy-middleware": "^3.0.5",
     "inversify": "^6.2.2",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",

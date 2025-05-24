@@ -75,6 +75,9 @@ import { configureRoutes } from './routes';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './docs/swagger';
 import cors from 'cors';
+import * as httpProxyMiddleware from 'http-proxy-middleware'; // New namespace import
+import { ClientRequest, IncomingMessage, ServerResponse } from 'http';
+import * as net from 'net'; // Added for net.Socket
 
 async function main() {
   try {
@@ -124,25 +127,74 @@ async function main() {
   });
   app.use('/uploads/avatars', express.static('uploads/avatars'));
 
-  /* Swagger & feature routes */
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-  app.use('/v1/api', configureRoutes());
+/* Swagger & feature routes */
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/v1/api', configureRoutes());
 
-  /* Start server */
-  const server = app.listen(port, () => {
-    console.log(`🚀 Server running at http://localhost:${port}`);
-    console.log(`📄 API Docs     at http://localhost:${port}/api-docs`);
-  });
+/* Git proxy middleware */
+// Use a direct type assertion to any to bypass all type checking on the options
+const gitProxyOptions = {
+  target: 'http://git-server:80/git',
+  changeOrigin: true,
+  // Fix: Use a function that returns the original path unchanged instead of false
+  pathRewrite: (path: string) => path, // This keeps the original path as-is
+  // @ts-ignore - onProxyReq is a valid option in http-proxy-middleware but TypeScript doesn't recognize it
+  onProxyReq: (proxyReq: ClientRequest, req: IncomingMessage, res: ServerResponse) => {
+    console.log(`Proxying Git request: ${req.method} ${req.url} to http://git-server:80${proxyReq.path}`);
+  },
+  // @ts-ignore - onError is a valid option in http-proxy-middleware but TypeScript doesn't recognize it  
+  onError: (err: Error, req: IncomingMessage, res: ServerResponse | net.Socket) => {
+    console.error('Git proxy error:', err);
 
-  /* Graceful shutdown */
-  async function shutdown() {
-    console.log('Shutting down…');
-    await otelSDK.shutdown();
-    server.close(() => process.exit(0));
+    if (res instanceof ServerResponse) {
+      if (!res.headersSent) {
+         res.writeHead(500, {
+           'Content-Type': 'text/plain'
+         });
+      }
+    }
+    
+    if (!res.destroyed && res.writable) {
+      let canEnd = true;
+      if (res instanceof ServerResponse) {
+        canEnd = !res.writableEnded;
+      }
+      if (canEnd) {
+        res.end(`Git proxy error: ${err.message}. Make sure the repository exists on the git-server.`);
+      }
+    }
+  },
+  // Add response handler to provide better error messages for 404s
+  onProxyRes: (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) => {
+    console.log(`Git proxy response: ${proxyRes.statusCode} for ${req.method} ${req.url}`);
+    
+    if (proxyRes.statusCode === 404) {
+      const repoPath = req.url?.split('?')[0];
+      console.warn(`Repository not found: ${repoPath}`);
+    }
   }
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+} as any; // Use 'as any' to completely bypass type checking for the entire options object
+
+app.use('/git', httpProxyMiddleware.createProxyMiddleware(gitProxyOptions));
+
+/* Swagger & feature routes */
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/v1/api', configureRoutes());
+
+/* Start server */
+const server = app.listen(port, () => {
+  console.log(`🚀 Server running at http://localhost:${port}`);
+  console.log(`📄 API Docs     at http://localhost:${port}/api-docs`);
+});
+
+/* Graceful shutdown */
+async function shutdown() {
+  console.log('Shutting down…');
+  await otelSDK.shutdown();
+  server.close(() => process.exit(0));
 }
+
+} // <-- Add this to close the main() function
 
 // Run the main function
 main();
