@@ -31,6 +31,8 @@ export class RepositoryRepository {
 
     /**
      * Find all repositories, optionally filtering by name containing searchText and user object
+     * Access control:
+     * - Authenticated users: see public repositories + repositories they have access to
      */
     async findAll(searchText?: string, user?: AuthUser): Promise<ApiResponse<repository[]>> {
         try {
@@ -39,9 +41,10 @@ export class RepositoryRepository {
             console.log("User object:", user);
             console.log("User ID:", user?.userId);
             console.log("Username:", user?.username);
-            console.log("Is Admin:", user?.is_admin);
             
             const whereClause: Prisma.repositoryWhereInput = {};
+            
+            // Apply search filter if provided
             if (searchText) {
                 whereClause.name = {
                     contains: searchText,
@@ -49,17 +52,39 @@ export class RepositoryRepository {
                 };
             }
             
-            if (user && user.userId) {
-                const userId = parseInt(user.userId);
-                console.log("Filtering by owner_user_id:", userId);
-                whereClause.owner_user_id = userId;
-            }
+            // Authenticated user - see public repos + repos they have access to
+            const userId = parseInt(user!.userId);
+            console.log("Authenticated user detected - filtering for public repos and user access");
+            
+            // Show repositories that are either:
+            // 1. Public repositories NOT owned by the user
+            // 2. Repositories the user has explicit access to AND does NOT own
+            whereClause.OR = [
+                { 
+                    AND: [
+                        { is_private: false },
+                        { owner_user_id: { not: userId } }
+                    ]
+                },
+                {
+                    AND: [
+                        { access: { some: { user_id: userId } } },
+                        { owner_user_id: { not: userId } }
+                    ]
+                }
+            ];
 
             const repositories = await this.prisma.repository.findMany({
                 where: whereClause,
-                include: { // Optionally include owner username for context
+                include: { 
                     owner: {
                         select: { username: true }
+                    },
+                    access: {
+                        select: {
+                            user_id: true,
+                            access_level: true
+                        }
                     }
                 }
             });
@@ -70,14 +95,14 @@ export class RepositoryRepository {
             return {
                 status: ResponseStatus.SUCCESS,
                 message: "Repositories retrieved successfully",
-                data: repositories
+                data: repositories,
             };
         } catch (error: unknown) {
             console.error('Error in RepositoryRepository.findAll:', error);
             return {
                 status: ResponseStatus.FAILED,
                 message: 'Failed to retrieve repositories',
-                error: error instanceof Error ? error.message : String(error)
+                error: error instanceof Error ? error.message : String(error),
             };
         }
     }
