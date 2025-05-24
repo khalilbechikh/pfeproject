@@ -1,14 +1,29 @@
-import { Prisma, PrismaClient, users } from '@prisma/client'; // Import the actual 'users' type
+import { Prisma, PrismaClient, users, repository, repository_access, RepositoryAccess } from '@prisma/client';
 import { injectable, inject } from 'inversify';
 import { TYPES } from '../di/types';
-import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO'; // Import ApiResponse DTO
+import { ApiResponse, ResponseStatus } from '../DTO/apiResponse.DTO';
+
+// Type for repository with access information
+type RepositoryWithAccess = repository & {
+    access_level: RepositoryAccess | 'owner';
+    is_owner: boolean;
+};
+
+// Type for user with included relations
+type UserWithRelations = users & {
+    repository?: repository[];
+    repository_access?: (repository_access & { repository: repository })[];
+    all_repositories?: RepositoryWithAccess[];
+    [key: string]: any;
+};
 
 @injectable()
 export class UserRepository {
-     prisma: PrismaClient;
+    prisma: PrismaClient;
 
     private userRelationMap: { [tableName: string]: keyof Prisma.usersInclude } = {
         'repositories': 'repository',
+        'all_repositories': 'repository', // Will be handled specially
         'repository_accesses': 'repository_access',
         'issues': 'issue',
         'pull_requests': 'pull_request',
@@ -24,18 +39,30 @@ export class UserRepository {
     async findById(
         id: number,
         tableNamesToInclude?: string[]
-    ): Promise<ApiResponse<users | null>> { // Use ApiResponse as return type
+    ): Promise<ApiResponse<users | null>> {
         try {
             let includeRelations: Prisma.usersInclude | undefined = undefined;
+            let hasAllRepositories = false;
 
             if (tableNamesToInclude && tableNamesToInclude.length > 0) {
                 includeRelations = {};
                 for (const tableName of tableNamesToInclude) {
-                    const relationName = this.userRelationMap[tableName];
-                    if (relationName) {
-                        includeRelations[relationName] = true;
+                    if (tableName === 'all_repositories') {
+                        hasAllRepositories = true;
+                        // Include both repository and repository_access relations
+                        includeRelations['repository'] = true;
+                        includeRelations['repository_access'] = {
+                            include: {
+                                repository: true
+                            }
+                        };
                     } else {
-                        console.warn(`Warning: Table name "${tableName}" is not a valid relation for users model and will be ignored.`);
+                        const relationName = this.userRelationMap[tableName];
+                        if (relationName) {
+                            includeRelations[relationName] = true;
+                        } else {
+                            console.warn(`Warning: Table name "${tableName}" is not a valid relation for users model and will be ignored.`);
+                        }
                     }
                 }
             }
@@ -43,8 +70,35 @@ export class UserRepository {
             const user = await this.prisma.users.findUnique({
                 where: { id: id },
                 include: includeRelations,
-            });
+            }) as UserWithRelations | null;
+
             if (user) {
+                // If all_repositories was requested, transform the data
+                if (hasAllRepositories) {
+                    const ownedRepos = user.repository || [];
+                    const accessRepos = (user.repository_access || []).map((access: repository_access & { repository: repository }): RepositoryWithAccess => ({
+                        ...access.repository,
+                        access_level: access.access_level,
+                        is_owner: false
+                    }));
+                    
+                    const ownedReposWithFlag: RepositoryWithAccess[] = ownedRepos.map((repo: repository): RepositoryWithAccess => ({
+                        ...repo,
+                        access_level: 'owner' as const,
+                        is_owner: true
+                    }));
+
+                    // Combine and remove duplicates (in case user owns and has access to same repo)
+                    const allRepositories: RepositoryWithAccess[] = [...ownedReposWithFlag];
+                    accessRepos.forEach((accessRepo: RepositoryWithAccess) => {
+                        if (!ownedRepos.some((ownedRepo: repository) => ownedRepo.id === accessRepo.id)) {
+                            allRepositories.push(accessRepo);
+                        }
+                    });
+
+                    user.all_repositories = allRepositories;
+                }
+
                 return {
                     status: ResponseStatus.SUCCESS,
                     message: 'User found',
