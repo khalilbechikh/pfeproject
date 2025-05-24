@@ -87,6 +87,9 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
   ]);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [currentFileContents, setCurrentFileContents] = useState<Record<string, string>>({});
+  const [originalFileContents, setOriginalFileContents] = useState<Record<string, string>>({});
+  // Add responsive state
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -112,6 +115,20 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
     fetchUserData();
   }, [authToken]);
 
+  useEffect(() => {
+    return () => {
+      // Cleanup sessionStorage when component unmounts
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('file_content_') || key.startsWith('original_file_content_'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    };
+  }, []);
+
   const isBinaryFile = (fileName: string): boolean => {
     const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'ico', 'pdf'];
     const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv'];
@@ -125,8 +142,31 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
     setAskConversationId(null);
     setPrompt('');
     setEditPrompt('');
+    // Don't clear file contents or sessionStorage here - only clear when component unmounts
+    // setDroppedFiles([]);
+    // setCurrentFileContents({});
+    // setOriginalFileContents({});
+  };
+
+  const handleLeaveRepo = () => {
+    // Clear all sessionStorage entries for this repo
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.includes(`_${repoOwner}_`)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+
+    // Clear component state
     setDroppedFiles([]);
     setCurrentFileContents({});
+    setOriginalFileContents({});
+    setAskConversation([]);
+    setEditConversation([]);
+    setPrompt('');
+    setEditPrompt('');
   };
 
   const handleSendPrompt = async () => {
@@ -163,7 +203,8 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
 
       } else {
         const files = droppedFiles.reduce((acc, file) => {
-          const currentContent = currentFileContents[file.name] || file.content;
+          // Use current file contents (modified version) not the original dropped content
+          const currentContent = currentFileContents[file.name] || originalFileContents[file.name] || file.content;
           acc[file.name] = convertToLineFormat(currentContent);
           return acc;
         }, {} as Record<string, Record<number, string>>);
@@ -238,7 +279,11 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
           console.info(`Processing change for file: ${change.file_name}`);
           const fileName = change.file_name;
           // Use current file contents if available, otherwise fall back to original
-          const currentContent = currentFileContents[fileName] || Object.values(files[fileName] || {}).join('\n');
+          const sessionKey = `file_content_${repoOwner}_${fileName}`;
+          const currentContent = sessionStorage.getItem(sessionKey) ||
+                                currentFileContents[fileName] ||
+                                originalFileContents[fileName] ||
+                                Object.values(files[fileName] || {}).join('\n');
           const fileContent = convertToLineFormat(currentContent);
 
           console.info(`File content retrieved: ${!!fileContent}`);
@@ -324,6 +369,8 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
               .sort(([a], [b]) => parseInt(a) - parseInt(b))
               .map(([_, value]) => value);
             const updatedContent = sortedLines.join('\n');
+            // Update sessionStorage with new content
+            sessionStorage.setItem(sessionKey, updatedContent);
             onApplyChanges(fileName, updatedContent);
             setCurrentFileContents(prev => ({
               ...prev,
@@ -337,62 +384,42 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
         toolCall.args.changes.forEach(change => {
           console.info(`Processing change for file: ${change.file_name}`);
           const fileName = change.file_name;
-          // Use current file contents if available, otherwise fall back to original
-          const currentContent = currentFileContents[fileName] || Object.values(files[fileName] || {}).join('\n');
-          const fileContent = convertToLineFormat(currentContent);
+          // Get current content from sessionStorage or fallback to state
+          const sessionKey = `file_content_${repoOwner}_${fileName}`;
+          const currentContent = sessionStorage.getItem(sessionKey) ||
+                                currentFileContents[fileName] ||
+                                originalFileContents[fileName] ||
+                                Object.values(files[fileName] || {}).join('\n');
 
-          console.info(`File content retrieved: ${!!fileContent}`);
-          if (fileContent && change.insertions) {
+          if (change.insertions) {
             console.info(`Processing ${change.insertions.length} insertions`);
 
             // Process insertions in reverse order to handle line shifts
             const sortedInsertions = [...change.insertions].sort((a, b) => b.insert_line - a.insert_line);
+
+            // Convert current content to array of lines for easier manipulation
+            let contentLines = currentContent.split('\n');
+
             sortedInsertions.forEach(insertion => {
               console.info(`Inserting code at line ${insertion.insert_line}`);
 
-              // Split code into lines
-              console.info(`Splitting code into lines: ${insertion.code}`);
-              const codeLines = insertion.code.split('\n');
-              const codeLinesCount = codeLines.length;
+              // Split the new code into lines
+              const newLines = insertion.code.split('\n');
 
-              // Collect lines after the insertion point to shift them
-              const linesToShift = [];
-              const allLines = Object.entries(fileContent)
-                .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+              // Insert the new lines at the specified position
+              // insert_line is 1-based, so we need to adjust for 0-based array indexing
+              const insertIndex = insertion.insert_line - 1;
 
-              for (const [key, value] of allLines) {
-                const lineNum = parseInt(key);
-                if (lineNum >= insertion.insert_line) {
-                  linesToShift.push({ lineNum, value });
-                }
-              }
-
-              // Remove the lines that will be shifted
-              linesToShift.forEach(({ lineNum }) => {
-                delete fileContent[lineNum];
-              });
-
-              // Insert new lines
-              codeLines.forEach((line, index) => {
-                const lineNum = insertion.insert_line + index;
-                console.info(`Inserting line ${lineNum}: ${line}`);
-                fileContent[lineNum] = line;
-              });
-
-              // Insert shifted lines at their new positions
-              linesToShift.forEach(({ lineNum, value }) => {
-                const newLineNum = lineNum + codeLinesCount;
-                console.info(`Moving line ${lineNum} to ${newLineNum}`);
-                fileContent[newLineNum] = value;
-              });
+              // Insert new lines without removing existing ones
+              contentLines.splice(insertIndex, 0, ...newLines);
             });
 
-            // Update editor
-            console.info('Updating editor with new content');
-            const sortedLines = Object.entries(fileContent)
-              .sort(([a], [b]) => parseInt(a) - parseInt(b))
-              .map(([_, value]) => value);
-            const updatedContent = sortedLines.join('\n');
+            // Update the file content
+            const updatedContent = contentLines.join('\n');
+
+            // Update sessionStorage with new content
+            sessionStorage.setItem(sessionKey, updatedContent);
+
             onApplyChanges(fileName, updatedContent);
             setCurrentFileContents(prev => ({
               ...prev,
@@ -436,15 +463,51 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
       const data = await response.json();
       if (data.data.type !== 'file') throw new Error('Dropped item is not a file');
 
-      setDroppedFiles(prev => [...prev, {
-        name: fileName,
-        content: data.data.content
-      }]);
+      const fetchedContent = data.data.content;
 
-      setCurrentFileContents(prev => ({
-        ...prev,
-        [fileName]: data.data.content
-      }));
+      // Check if this is the first time dropping this file in this session
+      const originalKey = `original_file_content_${repoOwner}_${fileName}`;
+      const currentKey = `file_content_${repoOwner}_${fileName}`;
+
+      // If no original content exists in sessionStorage, this is first time - store backend content
+      if (!sessionStorage.getItem(originalKey)) {
+        sessionStorage.setItem(originalKey, fetchedContent);
+        sessionStorage.setItem(currentKey, fetchedContent);
+
+        setDroppedFiles(prev => [...prev, {
+          name: fileName,
+          content: fetchedContent
+        }]);
+
+        setOriginalFileContents(prev => ({
+          ...prev,
+          [fileName]: fetchedContent
+        }));
+
+        setCurrentFileContents(prev => ({
+          ...prev,
+          [fileName]: fetchedContent
+        }));
+      } else {
+        // File was previously dropped, use current content from sessionStorage
+        const storedCurrentContent = sessionStorage.getItem(currentKey) || fetchedContent;
+        const storedOriginalContent = sessionStorage.getItem(originalKey) || fetchedContent;
+
+        setDroppedFiles(prev => [...prev, {
+          name: fileName,
+          content: storedCurrentContent
+        }]);
+
+        setOriginalFileContents(prev => ({
+          ...prev,
+          [fileName]: storedOriginalContent
+        }));
+
+        setCurrentFileContents(prev => ({
+          ...prev,
+          [fileName]: storedCurrentContent
+        }));
+      }
 
     } catch (err) {
       console.error('Error fetching file content:', err);
@@ -465,17 +528,23 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
             darkMode ? 'bg-gray-800' : 'bg-gray-100'
           } mb-1`}
         >
-          <div className="flex items-center">
-            <File size={16} className={`mr-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+          <div className="flex items-center min-w-0 flex-1">
+            <File size={isMobile ? 14 : 16} className={`mr-2 flex-shrink-0 ${
+              darkMode ? 'text-gray-400' : 'text-gray-600'
+            }`} />
+            <span className={`text-xs lg:text-sm ${
+              darkMode ? 'text-gray-300' : 'text-gray-700'
+            } truncate`}>
               {file.name}
             </span>
           </div>
           <button
             onClick={() => handleRemoveFile(index)}
-            className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+            className={`p-1 rounded-full flex-shrink-0 ${
+              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+            }`}
           >
-            <X size={16} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+            <X size={isMobile ? 14 : 16} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
           </button>
         </div>
       ))}
@@ -488,20 +557,22 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
       code({ node, inline, className, children, ...props }) {
         const match = /language-(\w+)/.exec(className || '');
         return !inline && match ? (
-          <SyntaxHighlighter
-            style={darkMode ? dracula : prism}
-            language={match[1]}
-            PreTag="div"
-            className="overflow-x-auto"
-            {...props}
-          >
-            {String(children).replace(/\n$/, '')}
-          </SyntaxHighlighter>
+          <div className="my-2 overflow-hidden">
+            <SyntaxHighlighter
+              style={darkMode ? dracula : prism}
+              language={match[1]}
+              PreTag="div"
+              className="!text-xs lg:!text-sm overflow-x-auto rounded-md"
+              {...props}
+            >
+              {String(children).replace(/\n$/, '')}
+            </SyntaxHighlighter>
+          </div>
         ) : (
           <code
             className={`${className} ${
               darkMode ? 'bg-gray-800 text-gray-100' : 'bg-gray-100 text-gray-800'
-            } px-1.5 py-0.5 rounded`}
+            } px-1 lg:px-1.5 py-0.5 rounded text-xs lg:text-sm`}
             {...props}
           >
             {children}
@@ -516,18 +587,22 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
     return currentConversation.map((message, index) => (
       <div
         key={index}
-        className={`mb-4 ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}
+        className={`mb-3 lg:mb-4 ${message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}
       >
-        <div className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''} max-w-[90%]`}>
-          {/* Avatar for both roles */}
+        <div className={`flex items-start gap-2 lg:gap-3 ${
+          message.role === 'user' ? 'flex-row-reverse' : ''
+        } max-w-[95%] lg:max-w-[90%]`}>
+          {/* Responsive Avatar */}
           {message.role === 'assistant' && (
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'} flex items-center justify-center`}>
-              <Bot size={16} className="text-white" />
+            <div className={`flex-shrink-0 w-6 h-6 lg:w-8 lg:h-8 rounded-full ${
+              darkMode ? 'bg-violet-600' : 'bg-cyan-600'
+            } flex items-center justify-center`}>
+              <Bot size={isMobile ? 12 : 16} className="text-white" />
             </div>
           )}
 
           {message.role === 'user' && (
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
+            <div className="flex-shrink-0 w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden">
               {user?.avatar_path ? (
                 <img
                   src={`http://localhost:5000${user.avatar_path}`}
@@ -542,9 +617,9 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
             </div>
           )}
 
-          {/* Message Bubble */}
+          {/* Responsive Message Bubble */}
           <div
-            className={`p-3 rounded-lg w-full ${
+            className={`p-2 lg:p-3 rounded-lg w-full ${
               message.role === 'user'
                 ? darkMode
                   ? 'bg-gray-800 text-white'
@@ -555,12 +630,14 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
             }`}
           >
             {message.tool_calls && (
-              <div className="mb-4">
-                <h4 className="text-sm font-medium mb-2">Suggested Changes:</h4>
+              <div className="mb-3 lg:mb-4">
+                <h4 className="text-xs lg:text-sm font-medium mb-2">Suggested Changes:</h4>
                 {message.tool_calls.map((toolCall, tcIndex) => (
                   <div key={tcIndex} className="mb-3">
-                    <div className={`p-3 rounded-md ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-                      <pre className="text-xs whitespace-pre-wrap">
+                    <div className={`p-2 lg:p-3 rounded-md ${
+                      darkMode ? 'bg-gray-900' : 'bg-gray-100'
+                    }`}>
+                      <pre className="text-xs whitespace-pre-wrap overflow-x-auto">
                         {JSON.stringify(toolCall, null, 2)}
                       </pre>
                     </div>
@@ -569,7 +646,7 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
               </div>
             )}
 
-            <div className="prose max-w-none overflow-x-auto">
+            <div className="prose prose-sm lg:prose max-w-none overflow-x-auto">
               <ReactMarkdown
                 components={markdownComponents}
                 remarkPlugins={[remarkGfm]}
@@ -592,53 +669,60 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
   `;
 
   const renderHeader = () => (
-    <div className={`p-4 flex items-center justify-between border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+    <div className={`p-3 lg:p-4 flex items-center justify-between border-b ${
+      darkMode ? 'border-gray-800' : 'border-gray-200'
+    }`}>
       <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'}`}>
-          <Bot size={16} className="text-white" />
+        <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center ${
+          darkMode ? 'bg-violet-600' : 'bg-cyan-600'
+        }`}>
+          <Bot size={isMobile ? 14 : 16} className="text-white" />
         </div>
-        <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>ShareCode Agent</h3>
+        <h3 className={`font-medium text-sm lg:text-base ${
+          darkMode ? 'text-white' : 'text-gray-800'
+        }`}>
+          {isMobile ? 'AI Assistant' : 'ShareCode Agent'}
+        </h3>
         {isGenerating && (
           <div className="flex items-center space-x-1 ml-2">
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full ${
-                darkMode ? 'bg-violet-400' : 'bg-cyan-500'
-              } animate-bounce`}
-              style={{ animationDelay: '0.1s' }}
-            />
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full ${
-                darkMode ? 'bg-violet-400' : 'bg-cyan-500'
-              } animate-bounce`}
-              style={{ animationDelay: '0.2s' }}
-            />
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full ${
-                darkMode ? 'bg-violet-400' : 'bg-cyan-500'
-              } animate-bounce`}
-              style={{ animationDelay: '0.3s' }}
-            />
+            {[0.1, 0.2, 0.3].map((delay, i) => (
+              <span
+                key={i}
+                className={`inline-block w-1 h-1 lg:w-1.5 lg:h-1.5 rounded-full ${
+                  darkMode ? 'bg-violet-400' : 'bg-cyan-500'
+                } animate-bounce`}
+                style={{ animationDelay: `${delay}s` }}
+              />
+            ))}
           </div>
         )}
       </div>
       <div className="flex items-center gap-1">
         <button
           onClick={handleNewChat}
-          className={`p-1.5 rounded-md ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+          className={`p-1 lg:p-1.5 rounded-md ${
+            darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+          }`}
           title="New chat"
         >
-          <Plus size={18} />
+          <Plus size={isMobile ? 16 : 18} />
         </button>
-        <button
-          className={`p-1.5 rounded-md ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
-        >
-          <ChevronDown size={18} />
-        </button>
+        {!isMobile && (
+          <button
+            className={`p-1 lg:p-1.5 rounded-md ${
+              darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+            }`}
+          >
+            <ChevronDown size={18} />
+          </button>
+        )}
         <button
           onClick={onClose}
-          className={`p-1.5 rounded-md ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+          className={`p-1 lg:p-1.5 rounded-md ${
+            darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+          }`}
         >
-          <X size={18} />
+          <X size={isMobile ? 16 : 18} />
         </button>
       </div>
     </div>
@@ -670,6 +754,17 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
     }
   }, [prompt, editPrompt]);
 
+  // Responsive breakpoint detection
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   return (
     <div
       className={`h-full flex flex-col ${darkMode ? 'bg-gray-900' : 'bg-white'} ${
@@ -687,11 +782,11 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
 
       {renderHeader()}
 
-      {/* Mode Selector */}
+      {/* Responsive Mode Selector */}
       <div className={`flex border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
         <button
           onClick={() => setMode('ask')}
-          className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 lg:py-2.5 text-xs lg:text-sm font-medium flex items-center justify-center gap-1 lg:gap-1.5 ${
             mode === 'ask'
               ? darkMode
                 ? 'bg-gray-800 text-violet-400 border-b-2 border-violet-500'
@@ -701,12 +796,12 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
                 : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          <MessageSquare size={16} />
+          <MessageSquare size={isMobile ? 14 : 16} />
           Ask
         </button>
         <button
           onClick={() => setMode('edit')}
-          className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 lg:py-2.5 text-xs lg:text-sm font-medium flex items-center justify-center gap-1 lg:gap-1.5 ${
             mode === 'edit'
               ? darkMode
                 ? 'bg-gray-800 text-violet-400 border-b-2 border-violet-500'
@@ -716,45 +811,51 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
                 : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          <Code size={16} />
-          Edit Code
+          <Code size={isMobile ? 14 : 16} />
+          Edit
         </button>
       </div>
 
-      {/* Content Area - Add flex-1 and remove padding */}
+      {/* Responsive Content Area */}
       <div className="flex-1 overflow-y-auto">
         {mode === 'ask' && askConversation.length === 0 && (
-          <div className="space-y-6 py-4">
+          <div className="space-y-4 lg:space-y-6 py-3 lg:py-4">
             <div className="text-center">
-              <div className={`mx-auto w-12 h-12 flex items-center justify-center rounded-full ${darkMode ? 'bg-violet-600/20' : 'bg-cyan-50'} mb-3`}>
-                <Zap size={20} className={darkMode ? 'text-violet-400' : 'text-cyan-600'} />
+              <div className={`mx-auto w-10 h-10 lg:w-12 lg:h-12 flex items-center justify-center rounded-full ${
+                darkMode ? 'bg-violet-600/20' : 'bg-cyan-50'
+              } mb-2 lg:mb-3`}>
+                <Zap size={isMobile ? 18 : 20} className={darkMode ? 'text-violet-400' : 'text-cyan-600'} />
               </div>
-              <h3 className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                ShareCode Assistant
+              <h3 className={`font-medium text-base lg:text-lg ${
+                darkMode ? 'text-white' : 'text-gray-800'
+              }`}>
+                {isMobile ? 'AI Assistant' : 'ShareCode Assistant'}
               </h3>
-              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              <p className={`mt-1 text-xs lg:text-sm ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
                 Ask questions or get help with your code
               </p>
             </div>
 
-            <div className="space-y-2 pl-4"> {/* Added pl-4 for left padding */}
-              <p className={`text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+            <div className="space-y-2 px-3 lg:px-4">
+              <p className={`text-xs font-medium ${
+                darkMode ? 'text-gray-500' : 'text-gray-500'
+              }`}>
                 SUGGESTED PROMPTS
               </p>
               {suggestions.map((suggestion, index) => (
                 <button
                   key={index}
-                  onClick={() => {
-                    setPrompt(suggestion);
-                  }}
-                  className={`w-full text-left p-2.5 rounded-lg text-sm flex items-center gap-2 ${
+                  onClick={() => setPrompt(suggestion)}
+                  className={`w-full text-left p-2 lg:p-2.5 rounded-lg text-xs lg:text-sm flex items-center gap-2 ${
                     darkMode
                       ? 'bg-gray-800/70 text-gray-300 hover:bg-gray-800'
                       : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                   } transition-colors`}
                 >
-                  <Play size={14} className={darkMode ? 'text-violet-400' : 'text-cyan-600'} />
-                  {suggestion}
+                  <Play size={isMobile ? 12 : 14} className={darkMode ? 'text-violet-400' : 'text-cyan-600'} />
+                  <span className="truncate">{suggestion}</span>
                 </button>
               ))}
             </div>
@@ -762,39 +863,47 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
         )}
 
         {mode === 'edit' && editConversation.length === 0 && (
-          <div className="space-y-6 py-4">
+          <div className="space-y-4 lg:space-y-6 py-3 lg:py-4">
             <div className="text-center">
-              <div className={`mx-auto w-12 h-12 flex items-center justify-center rounded-full ${darkMode ? 'bg-violet-600/20' : 'bg-cyan-50'} mb-3`}>
-                <FileCode2 size={20} className={darkMode ? 'text-violet-400' : 'text-cyan-600'} />
+              <div className={`mx-auto w-10 h-10 lg:w-12 lg:h-12 flex items-center justify-center rounded-full ${
+                darkMode ? 'bg-violet-600/20' : 'bg-cyan-50'
+              } mb-2 lg:mb-3`}>
+                <FileCode2 size={isMobile ? 18 : 20} className={darkMode ? 'text-violet-400' : 'text-cyan-600'} />
               </div>
-              <h3 className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              <h3 className={`font-medium text-base lg:text-lg ${
+                darkMode ? 'text-white' : 'text-gray-800'
+              }`}>
                 Code Edit Mode
               </h3>
-              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                Paste code below and describe how you want to modify it
+              <p className={`mt-1 text-xs lg:text-sm ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              } px-2`}>
+                {isMobile ? 'Drop files and describe changes' : 'Paste code below and describe how you want to modify it'}
               </p>
             </div>
           </div>
         )}
 
-        {/* Conversation Messages */}
-        {mode === 'ask' && askConversation.length > 0 && (
-          <div>
-            {renderConversation(askConversation)}
-            <div ref={chatEndRef} />
-          </div>
-        )}
+        {/* Responsive Conversation Messages */}
+        <div className="px-2 lg:px-4">
+          {mode === 'ask' && askConversation.length > 0 && (
+            <div>
+              {renderConversation(askConversation)}
+              <div ref={chatEndRef} />
+            </div>
+          )}
 
-        {mode === 'edit' && editConversation.length > 0 && (
-          <div>
-            {renderConversation(editConversation)}
-            <div ref={chatEndRef} />
-          </div>
-        )}
+          {mode === 'edit' && editConversation.length > 0 && (
+            <div>
+              {renderConversation(editConversation)}
+              <div ref={chatEndRef} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Input Area - Keep existing styles */}
-      <div className={`p-4 border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+      {/* Responsive Input Area */}
+      <div className={`p-3 lg:p-4 border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
         {mode === 'ask' ? (
           <div className="relative">
             <FilePreview />
@@ -804,19 +913,22 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask ShareCode Agent..."
-              className={`w-full px-4 py-3 pr-12 rounded-lg resize-none overflow-y-auto ${
+              className={`w-full px-3 lg:px-4 py-2 lg:py-3 pr-10 lg:pr-12 rounded-lg resize-none overflow-y-auto text-xs lg:text-sm ${
                 darkMode
                   ? 'bg-gray-800 text-gray-100 placeholder-gray-500 border-gray-700'
                   : 'bg-gray-50 text-gray-800 placeholder-gray-400 border-gray-200'
               } border focus:outline-none focus:ring-1 ${
                 darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'
               } transition-all duration-200`}
-              style={{ minHeight: '3rem', maxHeight: '15rem' }}
+              style={{ 
+                minHeight: isMobile ? '2.5rem' : '3rem', 
+                maxHeight: isMobile ? '10rem' : '15rem' 
+              }}
             />
             <button
               onClick={handleSendPrompt}
               disabled={!prompt.trim() || isGenerating}
-              className={`absolute right-2 bottom-2 p-2 rounded-md ${
+              className={`absolute right-2 ${isMobile ? 'bottom-1.5' : 'bottom-2'} p-1.5 lg:p-2 rounded-md ${
                 prompt.trim() && !isGenerating
                   ? darkMode
                     ? 'text-violet-400 hover:bg-gray-700'
@@ -826,7 +938,7 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
                     : 'text-gray-400'
               } transition-colors`}
             >
-              <Send size={16} />
+              <Send size={isMobile ? 14 : 16} />
             </button>
           </div>
         ) : (
@@ -836,21 +948,27 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
               ref={textareaRef}
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
-              placeholder="Paste your code here and describe what changes you want..."
-              className={`w-full p-3 rounded-lg resize-none ${
+              placeholder={isMobile ? 
+                "Drop files and describe changes..." : 
+                "Paste your code here and describe what changes you want..."
+              }
+              className={`w-full p-2 lg:p-3 rounded-lg resize-none text-xs lg:text-sm ${
                 darkMode
                   ? 'bg-gray-800 text-gray-100 placeholder-gray-500 border-gray-700'
                   : 'bg-gray-50 text-gray-800 placeholder-gray-400 border-gray-200'
               } border focus:outline-none focus:ring-1 ${
                 darkMode ? 'focus:ring-violet-500' : 'focus:ring-cyan-500'
               } transition-all duration-200`}
-              style={{ minHeight: '8rem', maxHeight: '20rem' }}
+              style={{ 
+                minHeight: isMobile ? '6rem' : '8rem', 
+                maxHeight: isMobile ? '12rem' : '20rem' 
+              }}
             />
             <div className="flex justify-end">
               <button
                 onClick={handleSendPrompt}
                 disabled={!editPrompt.trim() || isGenerating}
-                className={`px-4 py-2 rounded-md flex items-center gap-1.5 ${
+                className={`px-3 lg:px-4 py-2 rounded-md flex items-center gap-1 lg:gap-1.5 text-xs lg:text-sm ${
                   editPrompt.trim() && !isGenerating
                     ? darkMode
                       ? 'bg-violet-600 hover:bg-violet-700 text-white'
@@ -858,9 +976,29 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
                     : darkMode
                       ? 'bg-gray-800 text-gray-500'
                       : 'bg-gray-100 text-gray-400'
-                } transition-colors font-medium text-sm`}
+                } transition-colors font-medium`}
               >
-                {generateButtonContent}
+                {isGenerating ? (
+                  <div className="flex items-center gap-1 lg:gap-2">
+                    <div className="flex space-x-1">
+                      {[0, 0.15, 0.3].map((delay, i) => (
+                        <span 
+                          key={i}
+                          className={`w-1 h-1 lg:w-1.5 lg:h-1.5 rounded-full ${
+                            darkMode ? 'bg-violet-400' : 'bg-cyan-500'
+                          } animate-bounce`}
+                          style={{ animationDelay: `${delay}s` }}
+                        />
+                      ))}
+                    </div>
+                    {!isMobile && 'Generating...'}
+                  </div>
+                ) : (
+                  <>
+                    <CheckCircle2 size={isMobile ? 12 : 14} />
+                    <span>{isMobile ? 'Generate' : 'Generate Changes'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

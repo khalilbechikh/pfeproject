@@ -145,6 +145,12 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
           })
         });
 
+        // Update sessionStorage
+        const sessionKey = `file_content_${repo?.owner.username}_${fileName}`;
+        const originalKey = `original_file_content_${repo?.owner.username}_${fileName}`;
+        sessionStorage.setItem(sessionKey, newContent);
+        sessionStorage.setItem(originalKey, newContent);
+
         // Update selected file state
         if (selectedFile?.path.endsWith(fileName)) {
           setSelectedFile({...selectedFile, content: newContent});
@@ -893,10 +899,10 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'javascriptreact';
             case 'tsx':
                 return 'typescriptreact';
-            case 'vue':
-                return 'vue';
-            case 'svelte':
-                return 'svelte';
+            // case 'vue': // Already defined
+            //     return 'vue';
+            // case 'svelte': // Already defined
+            //     return 'svelte';
 
             // Additional languages and file types
             case 'f':
@@ -909,8 +915,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'ada';
             case 'ads':
                 return 'ada';
-            case 'pl':
-                return 'prolog';
+            // case 'pl': // Already defined as perl, could be prolog
+            //     return 'prolog';
             case 'p':
                 return 'pascal';
             case 'pp':
@@ -919,8 +925,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'lisp';
             case 'cl':
                 return 'commonlisp';
-            case 'sc':
-                return 'supercollider';
+            // case 'sc': // Already defined as scala, could be supercollider
+            //     return 'supercollider';
             case 'scd':
                 return 'supercollider';
             case 'nut':
@@ -932,11 +938,11 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             case 'tu':
                 return 'turing';
             case 'vhd':
-                return 'vhdl';
-            case 'vhdl':
-                return 'vhdl';
-            case 'vb':
-                return 'vbscript';
+                // return 'vhdl'; // Already defined
+            // case 'vhdl': // Already defined
+            //     return 'vhdl';
+            // case 'vb': // Already defined
+                return 'vbscript'; // More specific or another option for .vb
             case 'vbs':
                 return 'vbscript';
             case 'xq':
@@ -965,8 +971,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'ec';
             case 'ecl':
                 return 'ecl';
-            case 'ex':
-                return 'eiffel';
+            // case 'ex': // Already defined as elixir
+                // return 'eiffel';
             case 'frt':
                 return 'frege';
             case 'g':
@@ -989,8 +995,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'idris';
             case 'janet':
                 return 'janet';
-            case 'jl':
-                return 'julia';
+            // case 'jl': // Already defined
+            //     return 'julia';
             case 'kts':
                 return 'kotlin';
             case 'ktm':
@@ -1007,8 +1013,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'livescript';
             case 'mumps':
                 return 'mumps';
-            case 'm':
-                return 'mercury';
+            // case 'm': // Already defined as objective-c
+                // return 'mercury';
             case 'moo':
                 return 'moocode';
             case 'n':
@@ -1063,28 +1069,28 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'ragel';
             case 'rst':
                 return 'restructuredtext';
-            case 'rs':
-                return 'rust';
+            // case 'rs': // Already defined
+            //     return 'rust';
             case 'sas':
                 return 'sas';
-            case 'sc':
-                return 'scala';
-            case 'scm':
-                return 'scheme';
-            case 'scala':
-                return 'scala';
-            case 'sc':
-                return 'supercollider';
-            case 'scd':
-                return 'supercollider';
+            // case 'sc': // Already defined
+            //     return 'scala';
+            // case 'scm': // Already defined
+            //     return 'scheme';
+            // case 'scala': // Already defined
+            //     return 'scala';
+            // case 'sc': // Already defined
+            //     return 'supercollider';
+            // case 'scd': // Already defined
+            //     return 'supercollider';
             case 'sls':
                 return 'scheme';
             case 'sml':
                 return 'sml';
             case 'sol':
                 return 'solidity';
-            case 'st':
-                return 'smalltalk';
+            // case 'st': // Already defined
+            //     return 'smalltalk';
             case 'stan':
                 return 'stan';
             case 'tac':
@@ -1095,44 +1101,44 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'texinfo';
             case 'tf':
                 return 'terraform';
-            case 'thrift':
-                return 'thrift';
+            // case 'thrift': // Already defined
+            //     return 'thrift';
             case 'tl':
                 return 'tl';
             case 'tla':
                 return 'tla';
             case 'tm':
                 return 'tcl';
-            case 'tcl':
-                return 'tcl';
-            case 'toml':
-                return 'toml';
+            // case 'tcl': // Already defined
+            //     return 'tcl';
+            // case 'toml': // Already defined
+            //     return 'toml';
             case 'tp':
                 return 'turing';
-            case 'tu':
-                return 'turing';
+            // case 'tu': // Already defined
+            //     return 'turing';
             case 'uc':
                 return 'unrealscript';
             case 'upc':
                 return 'upc';
             case 'urs':
                 return 'urscript';
-            case 'v':
-                return 'verilog';
-            case 'vb':
-                return 'vbnet';
-            case 'vbs':
-                return 'vbscript';
+            // case 'v': // Already defined
+            //     return 'verilog';
+            // case 'vb': // Already defined
+                // return 'vbnet';
+            // case 'vbs': // Already defined
+                // return 'vbscript';
             case 'vcl':
                 return 'vcl';
-            case 'vhd':
-                return 'vhdl';
-            case 'vhdl':
-                return 'vhdl';
-            case 'vb':
-                return 'visualbasic';
-            case 'vbs':
-                return 'vbscript';
+            // case 'vhd': // Already defined
+            //     return 'vhdl';
+            // case 'vhdl': // Already defined
+            //     return 'vhdl';
+            // case 'vb': // Already defined
+                // return 'visualbasic';
+            // case 'vbs': // Already defined
+            //     return 'vbscript';
             case 'wast':
                 return 'webassembly';
             case 'wat':
@@ -1143,52 +1149,52 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 return 'wollok';
             case 'wls':
                 return 'wollok';
-            case 'wren':
-                return 'wren';
+            // case 'wren': // Already defined
+            //     return 'wren';
             case 'x10':
                 return 'xten';
             case 'xpl':
                 return 'xproc';
-            case 'xq':
-                return 'xquery';
-            case 'xql':
-                return 'xquery';
-            case 'xqm':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
-            case 'xqy':
-                return 'xquery';
+            // case 'xq': // Already defined
+            //     return 'xquery';
+            // case 'xql': // Already defined
+            //     return 'xquery';
+            // case 'xqm': // Already defined
+            //     return 'xquery';
+            // case 'xqy': // Already defined
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
+            // case 'xqy':
+            //     return 'xquery';
             case 'xsl':
                 return 'xsl';
             case 'xslt':
                 return 'xslt';
             case 'y':
                 return 'yacc';
-            case 'yaml':
-                return 'yaml';
-            case 'yml':
-                return 'yaml';
+            // case 'yaml': // Already defined
+            //     return 'yaml';
+            // case 'yml': // Already defined
+            //     return 'yaml';
             case 'zep':
                 return 'zephir';
             case 'zimpl':
                 return 'zimpl';
-            case 'zsh':
-                return 'zsh';
+            // case 'zsh': // Already defined
+            //     return 'zsh';
             default:
                 return 'plaintext';
         }
@@ -1240,42 +1246,23 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             if (data.data.type === 'file') {
                 const fileName = cleanPath.split('/').pop() || '';
                 const language = getLanguageFromExtension(fileName);
+
+                // Check sessionStorage first
+                const sessionKey = `file_content_${repo?.owner.username}_${fileName}`;
+                let fileContent = sessionStorage.getItem(sessionKey);
+
+                // If not in sessionStorage, store the fetched content
+                if (!fileContent) {
+                  fileContent = data.data.content;
+                  sessionStorage.setItem(sessionKey, fileContent);
+                }
+
                 setSelectedLanguage(language);
-                setSelectedFile({ path: filePath, content: data.data.content });
-                setNewFileContent(data.data.content);
+                setSelectedFile({ path: filePath, content: fileContent });
+                setNewFileContent(fileContent);
             }
         } catch (err) {
             setDirectoryError(err instanceof Error ? err.message : 'Failed to load file content');
-        }
-    };
-
-    const handleModifyFileContent = async () => {
-        if (!selectedFile) return;
-
-        try {
-            const token = localStorage.getItem('authToken');
-            if (!token) throw new Error('No authentication token found');
-
-            const cleanPath = selectedFile.path.replace('temp-working-directory/', '');
-            const response = await fetch(`http://localhost:5000/v1/api/preview/content`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    relativePath: cleanPath,
-                    newContent: newFileContent
-                })
-            });
-
-            if (!response.ok) throw new Error('Failed to modify file content');
-
-            setSelectedFile({ ...selectedFile, content: newFileContent });
-            setNewFileContent('');
-            setHasChanges(true);
-        } catch (err) {
-            setDirectoryError(err instanceof Error ? err.message : 'Failed to modify file content');
         }
     };
 
@@ -1887,8 +1874,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                     <option value="vb">VB</option>
                                                     <option value="powershell">PowerShell</option>
                                                     <option value="coffeescript">CoffeeScript</option>
-                                                    <option value="fsharp">F#</option>
-                                                    <option value="scala">Scala</option>
+                                                    {/* <option value="fsharp">F#</option> */} {/* Duplicate */}
+                                                    {/* <option value="scala">Scala</option> */} {/* Duplicate */}
                                                     <option value="lisp">Lisp</option>
                                                     <option value="assembly">Assembly</option>
                                                     <option value="pascal">Pascal</option>
@@ -1908,7 +1895,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                     <option value="dockerfile">Dockerfile</option>
                                                     <option value="graphql">GraphQL</option>
                                                     <option value="protobuf">Protocol Buffers</option>
-                                                    <option value="thrift">Thrift</option>
+                                                    {/* <option value="thrift">Thrift</option> */} {/* Duplicate */}
                                                     <option value="vue">Vue</option>
                                                     <option value="svelte">Svelte</option>
                                                     <option value="javascriptreact">JavaScript React</option>
@@ -1930,34 +1917,20 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                                     <option value="wren">Wren</option>
                                                     <option value="x10">X10</option>
                                                     <option value="xproc">XProc</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="xquery">XQuery</option>
+                                                    {/* <option value="xquery">XQuery</option> */} {/* Multiple duplicates */}
                                                     <option value="xsl">XSL</option>
                                                     <option value="xslt">XSLT</option>
                                                     <option value="yacc">Yacc</option>
-                                                    <option value="yaml">YAML</option>
-                                                    <option value="yaml">YAML</option>
+                                                    {/* <option value="yaml">YAML</option> */} {/* Duplicate */}
+                                                    {/* <option value="yaml">YAML</option> */} {/* Duplicate */}
                                                     <option value="zephir">Zephir</option>
                                                     <option value="zimpl">Zimpl</option>
                                                     <option value="zil">Zil</option>
                                                     <option value="zpl">ZPL</option>
-                                                    <option value="zsh">Zsh</option>
+                                                    {/* <option value="zsh">Zsh</option> */} {/* Duplicate */}
                                                 </select>
                                             </div>
                                             <div className="flex space-x-2">
-                                                <button
-                                                    onClick={handleModifyFileContent}
-                                                    className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-cyan-600 hover:bg-cyan-700'} text-white`}
-                                                >
-                                                    Save Changes
-                                                </button>
                                                 <button
                                                     onClick={() => setSelectedFile(null)}
                                                     className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
@@ -1968,30 +1941,45 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                                         </div>
                                         <div className="flex-1">
                                             <Editor
-                                                height="100%"
-                                                language={selectedLanguage as string}
-                                                theme={darkMode ? 'vs-dark' : 'vs-light'}
-                                                value={newFileContent}
-                                                onChange={(value) => setNewFileContent(value || '')}
-                                                onMount={(editor, monaco) => {
-                                                    setEditorRef(editor);
-                                                    // Define custom theme for decorations
-                                                    monaco.editor.defineTheme('custom-theme', {
-                                                      base: darkMode ? 'vs-dark' : 'vs',
-                                                      inherit: true,
-                                                      rules: [],
-                                                      colors: {
-                                                        'editor.lineHighlightBackground': '#00000000',
-                                                        'editor.lineHighlightBorder': '#00000000',
-                                                      },
-                                                    });
-                                                    editor.updateOptions({ theme: 'custom-theme' });
-                                                  }}
-                                                options={{
-                                                    minimap: { enabled: false },
-                                                    automaticLayout: true,
-                                                    scrollBeyondLastLine: false,
-                                                }}
+                                              height="100%"
+                                              language={selectedLanguage as string}
+                                              theme={darkMode ? 'vs-dark' : 'vs-light'}
+                                              value={newFileContent}
+                                              onChange={(value) => {
+                                                const content = value || '';
+                                                setNewFileContent(content);
+
+                                                if (selectedFile) {
+                                                  const fileName = selectedFile.path.split('/').pop() || '';
+                                                  const sessionKey = `file_content_${repo?.owner.username}_${fileName}`;
+                                                  const originalKey = `original_file_content_${repo?.owner.username}_${fileName}`;
+
+                                                  // Update sessionStorage immediately
+                                                  sessionStorage.setItem(sessionKey, content);
+                                                  sessionStorage.setItem(originalKey, content);
+
+                                                  // Indicate there are changes (if needed for UI)
+                                                  setHasChanges(true);
+                                                }
+                                              }}
+                                              onMount={(editor, monaco) => {
+                                                setEditorRef(editor);
+                                                monaco.editor.defineTheme('custom-theme', {
+                                                  base: darkMode ? 'vs-dark' : 'vs',
+                                                  inherit: true,
+                                                  rules: [],
+                                                  colors: {
+                                                    'editor.lineHighlightBackground': '#00000000',
+                                                    'editor.lineHighlightBorder': '#00000000',
+                                                  },
+                                                });
+                                                editor.updateOptions({ theme: 'custom-theme' });
+                                              }}
+                                              options={{
+                                                minimap: { enabled: false },
+                                                automaticLayout: true,
+                                                scrollBeyondLastLine: false,
+                                              }}
                                             />
                                         </div>
                                     </div>
