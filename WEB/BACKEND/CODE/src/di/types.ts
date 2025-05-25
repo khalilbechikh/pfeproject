@@ -34,6 +34,7 @@ export const TYPES = {
 
     /* ───── Middleware ───── */
     AuthMiddleware:              Symbol.for('AuthMiddleware'),
+    AdminMiddleware:             Symbol.for('AdminMiddleware'),
 
     /* ───── Utilities (optional) ───── */
     // GitCrud:                 Symbol.for('GitCrud'),

@@ -37,6 +37,7 @@ import { TwoFactorAuthController } from '../controllers/2fa';
 
 /* ───── middleware classes ───── */
 import { AuthMiddleware } from '../middlewares/auth.middleware';
+import { AdminMiddleware } from '../middlewares/admin.middleware';
 
 /* ───── container ───── */
 const container = new Container();
@@ -80,6 +81,7 @@ container.bind<TwoFactorAuthController>(TYPES.TwoFactorAuthController).to(TwoFac
 
 /* Middleware classes */
 container.bind<AuthMiddleware>(TYPES.AuthMiddleware).to(AuthMiddleware).inSingletonScope();
+container.bind<AdminMiddleware>(TYPES.AdminMiddleware).to(AdminMiddleware).inSingletonScope();
 
 /* ───────── Attach tracing middleware (NEW) ───────── */
 container.applyMiddleware(tracingMiddleware);              // NEW
