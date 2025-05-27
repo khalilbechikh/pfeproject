@@ -215,7 +215,7 @@ export class IssueController {
             
             // Send back the deleted issue data or just a success message
             // res.status(200).json(response); 
-            res.status(204).send(); // 204 No Content is often preferred for DELETE success
+            res.status(200).json(response); // Return the deleted issue DTO or success message
         } catch (error) {
             console.error('Error in IssueController.deleteIssue:', error);
             res.status(500).json({ 
@@ -381,25 +381,14 @@ export class IssueController {
         try {
             const { searchQuery } = req.query;
 
-            if (!searchQuery || typeof searchQuery !== 'string' || searchQuery.trim() === '') {
-                 res.status(400).json({ 
-                    status: ResponseStatus.FAILED,
-                    message: 'Missing or invalid search query',
-                    error: 'A non-empty searchQuery query parameter is required'
-                });
-                return;
-            }
-
-            // Construct the DTO for the service layer
-            const searchData: SearchAllIssuesDto = {
-                searchQuery
+            // Allow empty or missing searchQuery to return all issues
+            const searchData = {
+                searchQuery: typeof searchQuery === 'string' ? searchQuery : ''
             };
 
-            // Service layer handles detailed validation with SearchAllIssuesDto
             const response = await this.issueService.findAllIssues(searchData);
-            
+
             if (response.status === ResponseStatus.FAILED) {
-                // Service layer provides validation errors
                 res.status(400).json(response); 
                 return;
             }
@@ -407,9 +396,8 @@ export class IssueController {
             res.status(200).json(response);
         } catch (error) {
             console.error('Error in IssueController.findAllIssues:', error);
-             // Check if it's a Zod validation error passed up (though service handles it)
             if (error instanceof z.ZodError) {
-                 res.status(400).json({
+                res.status(400).json({
                     status: ResponseStatus.FAILED,
                     message: 'Validation failed',
                     error: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')

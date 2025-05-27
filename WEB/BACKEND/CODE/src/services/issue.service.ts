@@ -655,26 +655,24 @@ export class IssueService {
      * @param searchData Object containing searchQuery
      * @returns ApiResponse with array of matching issues or error
      */
-    async findAllIssues(searchData: SearchAllIssuesDto): Promise<ApiResponse<issue[]>> {
+    async findAllIssues(searchData: { searchQuery?: string }): Promise<ApiResponse<issue[]>> {
         try {
             console.log("=== ISSUE SERVICE: findAllIssues START ===");
             console.log("Search data:", JSON.stringify(searchData));
 
-            // Validate data using Zod schema
-            const validatedData = SearchAllIssuesDto.parse(searchData);
-            console.log("Data validation successful");
+            // Accept empty or missing searchQuery to return all issues
+            const searchQuery = typeof searchData.searchQuery === 'string' ? searchData.searchQuery : '';
 
-            // Pass the validated search query
-            const response = await this.issueRepository.findAllIssues(validatedData.searchQuery);
-            
+            const response = await this.issueRepository.findAllIssues(searchQuery);
+
             console.log("Global issues search completed with", response.data?.length || 0, "results");
             console.log("=== ISSUE SERVICE: findAllIssues END - Success ===");
-            
+
             return response;
         } catch (error) {
             console.error("=== ISSUE SERVICE: findAllIssues ERROR ===");
             console.error("Error searching all issues:", error);
-            
+
             // Handle Zod validation errors separately for clearer error messages
             if (error instanceof z.ZodError) {
                 const formattedErrors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');

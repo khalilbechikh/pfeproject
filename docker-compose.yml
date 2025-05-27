@@ -52,10 +52,10 @@ services:
     build:
       context: ./WEB/FRONTEND
       dockerfile: Dockerfile
-    working_dir: /app
+    working_dir: /app/my-react-app
     volumes:
-      - ./WEB/FRONTEND/CODE:/app
-      - /app/node_modules
+      - ./WEB/FRONTEND/CODE/my-react-app:/app/my-react-app
+      
     ports:
       - "5173:5173"
     environment:
@@ -109,10 +109,27 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
     networks:
       - app-network
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - app-network
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
 
 volumes:
   database:

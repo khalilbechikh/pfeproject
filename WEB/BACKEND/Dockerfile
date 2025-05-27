@@ -13,4 +13,4 @@ RUN npm install
 COPY CODE/ .
 
 EXPOSE 5000
-CMD ["sh", "-c", "npm install && npm run dev"]
+CMD ["/bin/bash", "-c", "ls && npm install && npm run dev"]

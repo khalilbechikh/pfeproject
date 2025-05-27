@@ -68,44 +68,68 @@ export const otelSDK = new NodeSDK({
   ],
 });
 
-otelSDK.start();
-console.log('✅ OpenTelemetry tracing & metrics initialized');
-
-/* ──────────── Express application (AFTER SDK.start()) ──────────── */
+/* ──────────── Express-related imports (AFTER OTEL init code) ──────────── */
 import express, { Request, Response, NextFunction } from 'express';
 import { trace } from '@opentelemetry/api';
 import { configureRoutes } from './routes';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './docs/swagger';
+import cors from 'cors';
 import * as httpProxyMiddleware from 'http-proxy-middleware'; // New namespace import
 import { ClientRequest, IncomingMessage, ServerResponse } from 'http';
 import * as net from 'net'; // Added for net.Socket
 
-const tracer = trace.getTracer('backend');
-const app = express();
-const port = Number(process.env.PORT) || 5000;
+async function main() {
+  try {
+    otelSDK.start();
+    console.log('✅ OpenTelemetry tracing & metrics initialized');
+  } catch (err) {
+    console.error('❌ OpenTelemetry failed to initialize:', err);
+  }
 
-/* Body parsers */
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
+  /* ──────────── Express application (AFTER SDK.start()) ──────────── */
+  const tracer = trace.getTracer('backend');
+  const app = express();
 
-/* Pipeline‑wide span for each request */
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const span = tracer.startSpan('request.pipeline', {
-    attributes: {
-      'http.method': req.method,
-      'http.target': req.originalUrl,
-    },
+  // CORS configuration
+  const corsOptions = {
+    origin: 'http://localhost:5173', // Explicit origin
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], 
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization']
+  };
+
+  app.use(cors(corsOptions));
+
+  const port = process.env.PORT || 5000;
+
+  /* Body parsers */
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true }));
+
+  /* Pipeline‑wide span for each request */
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const span = tracer.startSpan('request.pipeline', {
+      attributes: {
+        'http.method': req.method,
+        'http.target': req.originalUrl,
+      },
+    });
+
+    res.on('finish', () => {
+      span.setAttribute('http.status_code', res.statusCode);
+      span.setAttribute('http.response.headers', JSON.stringify(res.getHeaders()));
+      span.end();
+    });
+
+    next();
   });
+  app.use('/uploads/avatars', express.static('uploads/avatars'));
 
-  res.on('finish', () => {
-    span.setAttribute('http.status_code', res.statusCode);
-    span.setAttribute('http.response.headers', JSON.stringify(res.getHeaders()));
-    span.end();
-  });
-
-  next();
-});
+/* Swagger & feature routes */
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/v1/api', configureRoutes());
 
 /* Git proxy middleware */
 // Use a direct type assertion to any to bypass all type checking on the options
@@ -169,7 +193,8 @@ async function shutdown() {
   await otelSDK.shutdown();
   server.close(() => process.exit(0));
 }
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
 
-export default app;
+} // <-- Add this to close the main() function
+
+// Run the main function
+main();

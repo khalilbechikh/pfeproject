@@ -1,6 +1,6 @@
 @baseUrl = http://localhost:5000/v1/api/repositories
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjExLCJ1c2VybmFtZSI6ImRmYXNqZGZrIiwiaWF0IjoxNzQ2MDIwNjE4LCJleHAiOjE3NDg2MTI2MTh9.UZXsIKplB_QC11D4ymd40W1ov6MOI7ltvGjjISyEu1Y
-@existingRepoId = 8
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoia2hhbGlsIiwiaWF0IjoxNzQ2ODk3MTkxLCJleHAiOjE3NDk0ODkxOTF9.K9Shc2aaIzd09CTvUWKwTxa8rFX-7BSU4XcuMCID7i4
+@existingRepoId = 3
 @nonExistentRepoId = 999
 @repoIdToGet = 4 # Use an ID that exists for successful GET tests
 @repoIdWithRelations = 8
@@ -55,7 +55,6 @@ Content-Type: application/json
 Authorization: Bearer {{authToken}}
 
 {
-
     "name": "myte1",
     "description": "This is a test repository",
     "is_private": false
@@ -143,3 +142,39 @@ Authorization: Bearer {{authToken}}
 
 ### Fork Repository - Unauthorized
 POST {{baseUrl}}/{{existingRepoId}}/fork
+
+### Change Repository Ownership - Success
+PATCH {{baseUrl}}/23/change-ownership
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "email": "job@gmail.com"
+}
+
+### Change Repository Ownership - Invalid Email
+PATCH {{baseUrl}}/{{existingRepoId}}/change-ownership
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "email": ""
+}
+
+### Change Repository Ownership - User Not Found
+PATCH {{baseUrl}}/{{existingRepoId}}/change-ownership
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "email": "nonexistentuser@example.com"
+}
+
+### Change Repository Ownership - Repo Not Found
+PATCH {{baseUrl}}/{{nonExistentRepoId}}/change-ownership
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "email": "newowner@example.com"
+}

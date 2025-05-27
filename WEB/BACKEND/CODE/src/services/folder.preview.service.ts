@@ -72,6 +72,7 @@ export class FolderPreviewService {
      */
     private async resolveAndValidatePath(username: string, relativePath: string | undefined | null): Promise<ApiResponse<PathValidationSuccess | null>> {
         const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
+        console.log(`User temp wo------------------------------------------------------rkdir path: ${userTempWorkdirPath}`);
 
         // Ensure the user's temp directory exists before proceeding
         try {
@@ -90,6 +91,8 @@ export class FolderPreviewService {
         const normalizedPath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
         // Construct full path within the user's temp directory
         const fullPath = path.resolve(userTempWorkdirPath, normalizedPath);
+        console.log("===========================================================================================================");
+        console.log(`Resolved full path: ${fullPath}`);
 
         // Verification Step: Check if the resolved path is still within the user's allowed directory
         const resolvedUserTempWorkdirPath = path.resolve(userTempWorkdirPath);
@@ -108,13 +111,14 @@ export class FolderPreviewService {
         const userSourceGitPath = this.getUserSourceGitPath(username);
         const userTempWorkdirPath = this.getUserTempWorkdirPath(username);
         const sourcePath = path.join(userSourceGitPath, repoName);
-        const targetPath = path.join(userTempWorkdirPath, repoName); // Target is repo inside temp dir
+        const targetPath = path.join(userTempWorkdirPath, repoName);
 
         try {
             // Check if source exists
             try {
                 await fsp.access(sourcePath);
             } catch (error) {
+                console.error('Error in source existence check:', error);
                 return { status: ResponseStatus.FAILED, message: `Repository ${repoName} not found for user ${username}`, error: 'Source repository not found' };
             }
 
@@ -125,23 +129,48 @@ export class FolderPreviewService {
             try {
                 await fsp.rm(targetPath, { recursive: true, force: true });
             } catch (error: any) {
-                // Ignore ENOENT (file not found), rethrow others
+                console.error('Error while removing existing target directory:', error);
                 if (error.code !== 'ENOENT') throw error;
             }
 
-
             // Clone the repository using Git
-            // Ensure sourcePath is treated as a local path by git clone
-            await execPromise(`git clone "file://${sourcePath}" "${targetPath}"`);
+            try {
+                const exists = await fsp.access(targetPath).then(() => true).catch(() => false);
+                console.log(`Source path: ${sourcePath}`);
+                console.log(`User source git path: ${userSourceGitPath}`);
+                console.log(`Target path: ${targetPath}`);
+                console.log(`11111111111122222222222222Target path exists: ${exists}`);
+
+                if (exists) {
+                    return {
+                        status: ResponseStatus.SUCCESS,
+                        message: `Repository ${repoName} already exists at ${targetPath}`,
+                        data: path.join('temp-working-directory', repoName)
+                    };
+                }
+                // First, remove the target directory if it exists
+                const rmResult = await execPromise(`rm -rf "${targetPath}"`).catch(err => {
+                    console.log('Remove directory output:', err.stdout);
+                    return { stdout: '', stderr: '' }; // Continue even if directory doesn't exist
+                });
+                console.log('Remove directory output:', rmResult.stdout);
+
+                // Then perform the clone operation
+                const cloneResult = await execPromise(`git clone "${sourcePath}" "${targetPath}"`);
+                console.log('Clone operation output:', cloneResult.stdout);
+            } catch (error) {
+                console.error('Error during git clone operation:', error);
+                throw error;
+            }
 
             return {
                 status: ResponseStatus.SUCCESS,
                 message: `Repository ${repoName} successfully cloned to ${targetPath}`,
-                data: path.join('temp-working-directory', repoName) // Return relative path from user source root
+                data: path.join('temp-working-directory', repoName)
             };
         } catch (error: any) {
-            console.error('Error cloning repository in service:', error);
-            return { status: ResponseStatus.FAILED, message: 'Failed to clone repository', error: error.stderr || error.message || 'Unknown error during clone' };
+            console.error('Error in main cloneRepo try block:', error);
+            return { status: ResponseStatus.FAILED, message: 'Failed to clone repository error from service ', error: error.stderr || error.message || 'Unknown error during clone' };
         }
     }
 
@@ -156,7 +185,7 @@ export class FolderPreviewService {
 
         try {
             // Get user's email from repository
-            const userResult = await this.userRepository.findByUsername(username);
+            const userResult = await this.userRepository.findByUsername2(username);
             if (userResult.status === ResponseStatus.FAILED || !userResult.data) {
                 return { 
                     status: ResponseStatus.FAILED, 
@@ -189,8 +218,6 @@ export class FolderPreviewService {
             }
 
             // Configure Git user for this commit (Optional but good practice, keep it)
-            // This sets the config for subsequent commands in this session if needed,
-            // but the --author flag directly overrides for the commit itself.
             await execPromise(`cd "${tempRepoPath}" && git config user.name "${username}" && git config user.email "${userEmail}"`);
 
             // Stage all changes
@@ -198,20 +225,46 @@ export class FolderPreviewService {
 
             // Commit changes with specific author and provided message
             const authorInfo = `${username} <${userEmail}>`;
-            await execPromise(`cd "${tempRepoPath}" && git commit --author="${authorInfo.replace(/"/g, '\\"')}" -m "${commitMessage.replace(/"/g, '\\"')}"`).catch(err => {
+            try {
+                await execPromise(`cd "${tempRepoPath}" && git commit --author="${authorInfo.replace(/"/g, '\\"')}" -m "${commitMessage.replace(/"/g, '\\"')}"`);
+            } catch (err: any) {
+                // Log full error output for debugging
+                console.error('Git commit failed:', {
+                    message: err.message,
+                    stdout: err.stdout,
+                    stderr: err.stderr,
+                    code: err.code
+                });
                 // If no changes to commit, we can still try to push (in case of unpushed commits)
-                if (err.stderr && !err.stderr.includes('nothing to commit')) { // Check stderr exists
-                    throw err;
-                } else if (!err.stderr) {
-                    // If stderr is null/undefined but there was an error, rethrow
-                    console.warn("Git commit command failed without stderr output. Rethrowing error.");
-                    throw err;
+                if (err.stderr && err.stderr.includes('nothing to commit')) {
+                    // Proceed to push
+                } else {
+                    // Return full error output
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: 'Failed to commit changes',
+                        error: `message: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}\ncode: ${err.code}`
+                    };
                 }
-                // If 'nothing to commit' or no error, proceed
-            });
+            }
 
             // Push changes back to the source repository
-            await execPromise(`cd "${tempRepoPath}" && git push origin HEAD:master --force`);
+            try {
+                await execPromise(`cd "${tempRepoPath}" && git push origin HEAD:master --force`);
+            } catch (err: any) {
+                // Log full error output for debugging
+                console.error('Git push failed:', {
+                    message: err.message,
+                    stdout: err.stdout,
+                    stderr: err.stderr,
+                    code: err.code
+                });
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Failed to push repository',
+                    error: `message: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}\ncode: ${err.code}`
+                };
+            }
 
             return {
                 status: ResponseStatus.SUCCESS,
@@ -233,6 +286,8 @@ export class FolderPreviewService {
      */
     public async getPathContent(username: string, relativePath: string): Promise<ApiResponse<FolderContent | FileContent | null>> {
         const pathValidationResult = await this.resolveAndValidatePath(username, relativePath);
+        console.log(`Checking existence ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++of path: ${relativePath}`);
+
         if (pathValidationResult.status === ResponseStatus.FAILED || !pathValidationResult.data) {
             return { status: ResponseStatus.FAILED, message: pathValidationResult.message, error: pathValidationResult.error };
         }
@@ -250,7 +305,7 @@ export class FolderPreviewService {
             const fileExtension = path.extname(fullPath).toLowerCase();
             const binaryExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', // images
                                       '.mp4', '.mov', '.avi', '.wmv', '.mkv', '.flv', // videos
-                                      '.mp3', '.wav', '.ogg', '.aac', '.flac']; // audio
+                                      '.mp3', '.wav', '.ogg', '.aac', '.flac','.ico','.pdf']; // audio
 
             if (stats.isDirectory()) {
                 const items = await fsp.readdir(fullPath);

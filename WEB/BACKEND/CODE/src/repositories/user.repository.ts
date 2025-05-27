@@ -121,7 +121,7 @@ export class UserRepository {
         }
     }
 
-    async findByUsername(
+    async findByUsername2(
         username: string,
         tableNamesToInclude?: string[]
     ): Promise<ApiResponse<users | null>> {
@@ -329,6 +329,48 @@ export class UserRepository {
                 status: ResponseStatus.FAILED,
                 message: 'Error deleting user',
                 error: (error as Error).message,
+            };
+        }
+    }
+    // user.repository.ts
+
+    async findByUsername(username: string): Promise<users | null> {
+        return this.prisma.users.findUnique({
+            where: { username }
+        });
+    }
+    
+    async findByEmail(email: string): Promise<users | null> {
+        return this.prisma.users.findUnique({
+            where: { email }
+        });
+    }
+
+    async getUserByEmail(email: string): Promise<users | null> {
+        return this.prisma.users.findUnique({
+            where: { email }
+        });
+    }
+
+    async suspendUnsuspendUser(id: number, suspend: boolean): Promise<ApiResponse<users | null>> {
+        try {
+            const updatedUser = await this.prisma.users.update({
+                where: { id },
+                data: { suspended: suspend }
+            });
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: suspend
+                    ? 'User suspended successfully'
+                    : 'User unsuspended successfully',
+                data: updatedUser
+            };
+        } catch (error) {
+            console.error('Error in UserRepository.suspendUnsuspendUser:', error);
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Error updating user suspension status',
+                error: (error as Error).message
             };
         }
     }

@@ -10,6 +10,9 @@ import { AuthUser } from '../types/auth.types';
 
 const execPromise = util.promisify(exec);
 
+// Add this type alias at the top (after imports)
+export type RepositoryWithOwner = repository & { owner?: { username: string; email?: string } };
+
 @injectable()
 export class RepositoryRepository {
     // Updated keys to match expected query parameter values
@@ -107,12 +110,37 @@ export class RepositoryRepository {
         }
     }
 
+    // New: Get all repositories including archived
+    async findAllIncludingArchived(): Promise<ApiResponse<repository[]>> {
+        try {
+            const repositories = await this.prisma.repository.findMany({
+                include: {
+                    owner: {
+                        select: { username: true }
+                    }
+                }
+            });
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "All repositories (including archived) retrieved successfully",
+                data: repositories
+            };
+        } catch (error: unknown) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: 'Failed to retrieve repositories',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
     /**
      * Find a repository by ID with optional relations
      */
     async findById(
         id: number,
-        tableNamesToInclude?: string[]): Promise<ApiResponse<repository | null>> {
+        tableNamesToInclude?: string[]
+    ): Promise<ApiResponse<repository | RepositoryWithOwner | null>> {
         try {
             let includeRelations: Prisma.repositoryInclude | undefined = undefined;
             if (tableNamesToInclude && tableNamesToInclude.length > 0) {
@@ -131,10 +159,12 @@ export class RepositoryRepository {
                 // Log the final include object being sent to Prisma
                 console.log(`RepositoryRepository: Final Prisma include object:`, JSON.stringify(includeRelations));
             }
+            console.info(`Finding repository with ID ${id} and including relations: ${JSON.stringify(includeRelations)}`);
             const repository = await this.prisma.repository.findUnique({
                 where: { id: id },
                 include: includeRelations,
             });
+            console.warn(`Repository found: ${JSON.stringify(repository)}`);
             return {
                 status: ResponseStatus.SUCCESS,
                 message: repository ? "Repository found" : "Repository not found",
@@ -347,5 +377,104 @@ export class RepositoryRepository {
                 error: error instanceof Error ? error.message : String(error)
             };
         }
+    }
+
+    /**
+     * Change the owner of a repository.
+     * @param repoId Repository ID
+     * @param newOwnerId New owner's user ID
+     */
+    async changeOwnership(repoId: number, newOwnerId: number): Promise<ApiResponse<repository | null>> {
+        try {
+            // Check if repo exists
+            const repo = await this.prisma.repository.findUnique({ where: { id: repoId } });
+            if (!repo) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Repository not found",
+                    error: "Repository does not exist",
+                    data: null
+                };
+            }
+            // Check if user exists
+            const user = await this.prisma.users.findUnique({ where: { id: newOwnerId } });
+            if (!user) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "User not found",
+                    error: "Target owner does not exist",
+                    data: null
+                };
+            }
+            // Update owner_user_id
+            const updatedRepo = await this.prisma.repository.update({
+                where: { id: repoId },
+                data: { owner_user_id: newOwnerId }
+            });
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository ownership changed successfully",
+                data: updatedRepo
+            };
+        } catch (error: unknown) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to change repository ownership",
+                error: error instanceof Error ? error.message : String(error),
+                data: null
+            };
+        }
+    }
+
+    // New: Archive a repository
+    async archiveRepository(id: number): Promise<ApiResponse<repository | null>> {
+        try {
+            const updated = await this.prisma.repository.update({
+                where: { id },
+                data: { archived: true }
+            });
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository archived successfully",
+                data: updated
+            };
+        } catch (error) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to archive repository",
+                error: error instanceof Error ? error.message : String(error),
+                data: null
+            };
+        }
+    }
+
+    // New: Restore a repository
+    async restoreRepository(id: number): Promise<ApiResponse<repository | null>> {
+        try {
+            const updated = await this.prisma.repository.update({
+                where: { id },
+                data: { archived: false }
+            });
+            return {
+                status: ResponseStatus.SUCCESS,
+                message: "Repository restored successfully",
+                data: updated
+            };
+        } catch (error) {
+            return {
+                status: ResponseStatus.FAILED,
+                message: "Failed to restore repository",
+                error: error instanceof Error ? error.message : String(error),
+                data: null
+            };
+        }
+    }
+
+    // Add this method to increment forks_count
+    async incrementForksCount(parentRepoId: number): Promise<void> {
+        await this.prisma.repository.update({
+            where: { id: parentRepoId },
+            data: { forks_count: { increment: 1 } }
+        });
     }
 }

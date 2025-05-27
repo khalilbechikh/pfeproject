@@ -61,8 +61,8 @@ POST http://localhost:5000/v1/api/signin
 Content-Type: application/json
 
 {
-  "email": "john@example.com",
-  "password": "WrongPassword123!"
+  "email": "jbrnhmd@exam12ple.com",
+  "password": "SecurePass123!"
 }
 
 ### Sign-In: Non-existent User

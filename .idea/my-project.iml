@@ -5,6 +5,9 @@
       <excludeFolder url="file://$MODULE_DIR$/.tmp" />
       <excludeFolder url="file://$MODULE_DIR$/temp" />
       <excludeFolder url="file://$MODULE_DIR$/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/VOLUMES/repositorys/job/temp-working-directory/FlutterApplication.git/.dart_tool" />
+      <excludeFolder url="file://$MODULE_DIR$/VOLUMES/repositorys/job/temp-working-directory/FlutterApplication.git/.pub" />
+      <excludeFolder url="file://$MODULE_DIR$/VOLUMES/repositorys/job/temp-working-directory/FlutterApplication.git/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

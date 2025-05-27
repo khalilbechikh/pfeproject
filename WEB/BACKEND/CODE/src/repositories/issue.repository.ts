@@ -18,10 +18,24 @@ export class IssueRepository {
      */
     async getRepositoryIssues(repositoryId: number): Promise<ApiResponse<issue[]>> {
         try {
+            // Check if the repository exists
+            const repository = await this.prisma.repository.findUnique({
+                where: { id: repositoryId }
+            });
+
+            if (!repository) {
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: "Repository not found",
+                    data: []
+                };
+            }
+
             const issues = await this.prisma.issue.findMany({
                 where: {
                     repository_id: repositoryId
                 },
+
                 include: {
                     author: true,
                     issue_comment: true
@@ -315,6 +329,7 @@ export class IssueRepository {
         }
     ): Promise<ApiResponse<issue[]>> {
         try {
+            console.log('+++++++++++++++++++++++++++++Searching for issues with query:', searchData.searchQuery, "in the repository id ",searchData.repositoryId);;
             const issues = await this.prisma.issue.findMany({
                 where: {
                     repository_id: searchData.repositoryId,
@@ -358,35 +373,63 @@ export class IssueRepository {
      * @param searchQuery Search query string
      * @returns Promise with ApiResponse containing array of matching issues
      */
-    async findAllIssues(searchQuery: string): Promise<ApiResponse<issue[]>> {
+    async findAllIssues(searchQuery: string): Promise<ApiResponse<any[]>> {
         try {
-            const issues = await this.prisma.issue.findMany({
-                where: {
-                    OR: [
-                        {
-                            title: {
-                                contains: searchQuery,
-                                mode: 'insensitive'
-                            }
-                        },
-                        {
-                            description: {
-                                contains: searchQuery,
-                                mode: 'insensitive'
+            let issues;
+            if (!searchQuery || searchQuery.trim() === '') {
+                // Return all issues if searchQuery is empty or whitespace
+                issues = await this.prisma.issue.findMany({
+                    include: {
+                        author: true,
+                        repository: {
+                            select: {
+                                name: true
                             }
                         }
-                    ]
-                },
-                include: {
-                    author: true,
-                    repository: true // Include repository info as well
-                }
+                    }
+                });
+            } else {
+                issues = await this.prisma.issue.findMany({
+                    where: {
+                        OR: [
+                            {
+                                title: {
+                                    contains: searchQuery,
+                                    mode: 'insensitive'
+                                }
+                            },
+                            {
+                                description: {
+                                    contains: searchQuery,
+                                    mode: 'insensitive'
+                                }
+                            }
+                        ]
+                    },
+                    include: {
+                        author: true,
+                        repository: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Map issues to include repositoryName at the top level and remove repository object
+            const issuesWithRepoName = issues.map((issue: any) => {
+                const { repository, ...rest } = issue;
+                return {
+                    ...rest,
+                    repositoryName: repository?.name
+                };
             });
 
             return {
                 status: ResponseStatus.SUCCESS,
                 message: "Global issues search completed successfully",
-                data: issues
+                data: issuesWithRepoName
             };
         } catch (error) {
             console.error('Error in IssueRepository.findAllIssues:', error);
