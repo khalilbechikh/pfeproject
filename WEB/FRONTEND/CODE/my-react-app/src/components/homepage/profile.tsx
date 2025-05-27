@@ -749,15 +749,7 @@ export default function ProfileInterface({ darkMode, setDarkMode }: ProfileProps
                                         <div className={`absolute w-5 h-5 rounded-full top-0.5 transition-all ${darkMode ? 'right-0.5 bg-white' : 'left-0.5 bg-white'}`}></div>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Notifications</h4>
-                                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Enable or disable app notifications</p>
-                                    </div>
-                                    <div className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors bg-violet-600`}>
-                                        <div className={`absolute w-5 h-5 rounded-full top-0.5 right-0.5 bg-white`}></div>
-                                    </div>
-                                </div>
+                                {/* Notification section removed */}
                             </div>
                         </div>
 

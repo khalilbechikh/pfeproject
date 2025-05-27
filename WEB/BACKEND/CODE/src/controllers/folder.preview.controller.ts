@@ -134,9 +134,10 @@ export class FolderPreviewController {
         }
         const username = req.user.username;
         const { relativePath, newContent } = req.body;
+        const { ownername } = req.query; // <-- add this
 
-
-         if (!relativePath) {
+        // Basic input validation
+        if (!relativePath) {
              const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path is required in the request body', error: 'Missing body parameter: relativePath' };
              res.status(400).json(apiResponse);
              return;
@@ -149,7 +150,10 @@ export class FolderPreviewController {
         }
 
 
-        const serviceResponse = await this.folderPreviewService.modifyFile(username, relativePath, newContent);
+        // Use ownername if provided, otherwise use username
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
+        const serviceResponse = await this.folderPreviewService.modifyFile(effectiveOwner, relativePath, newContent);
         const statusCode = getStatusCode(serviceResponse); // 200 OK for success
         res.status(statusCode).json(serviceResponse);
     }
@@ -167,6 +171,7 @@ export class FolderPreviewController {
         }
         const username = req.user.username;
         const { relativePath, type, content } = req.body; // content is optional
+        const { ownername } = req.query; // <-- add this
 
         if (!relativePath) {
             const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path is required in the request body', error: 'Missing body parameter: relativePath' };
@@ -179,7 +184,10 @@ export class FolderPreviewController {
             return;
         }
 
-        const serviceResponse = await this.folderPreviewService.createItem(username, relativePath, type, content);
+        // Use ownername if provided, otherwise use username
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
+        const serviceResponse = await this.folderPreviewService.createItem(effectiveOwner, relativePath, type, content);
         const statusCode = getStatusCode(serviceResponse, 200, 201); // Use 201 Created for success
         res.status(statusCode).json(serviceResponse);
     }
@@ -195,7 +203,7 @@ export class FolderPreviewController {
             return;
         }
         const username = req.user.username;
-        const { relativePath } = req.query;
+        const { relativePath, ownername } = req.query;
 
         if (!relativePath || typeof relativePath !== 'string') {
             const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Relative path query parameter is required', error: 'Missing query parameter' };
@@ -203,7 +211,10 @@ export class FolderPreviewController {
             return;
         }
 
-        const serviceResponse = await this.folderPreviewService.removeItem(username, relativePath);
+        // Use ownername if provided, otherwise use username
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
+        const serviceResponse = await this.folderPreviewService.removeItem(effectiveOwner, relativePath as string);
         const statusCode = getStatusCode(serviceResponse); // 200 OK for success
         res.status(statusCode).json(serviceResponse);
     }
@@ -221,6 +232,7 @@ export class FolderPreviewController {
         }
         const username = req.user.username;
         const { oldRelativePath, newRelativePath } = req.body;
+        const { ownername } = req.query; // <-- add this
 
         if (!oldRelativePath) {
             const apiResponse: ApiResponse<null> = { status: ResponseStatus.FAILED, message: 'Old relative path is required in the request body', error: 'Missing body parameter: oldRelativePath' };
@@ -233,7 +245,10 @@ export class FolderPreviewController {
             return;
         }
 
-        const serviceResponse = await this.folderPreviewService.renameItem(username, oldRelativePath, newRelativePath);
+        // Use ownername if provided, otherwise use username
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
+        const serviceResponse = await this.folderPreviewService.renameItem(effectiveOwner, oldRelativePath, newRelativePath);
         const statusCode = getStatusCode(serviceResponse); // 200 OK for success
         res.status(statusCode).json(serviceResponse);
     }
@@ -256,6 +271,7 @@ export class FolderPreviewController {
         const username = req.user.username;
         const { repoName } = req.params;
         const { commitMessage } = req.body; // Optional commit message
+        const { ownername } = req.query; // <-- get ownername from query
 
         // Basic input validation
         if (!repoName) {
@@ -268,9 +284,23 @@ export class FolderPreviewController {
             return;
         }
 
+        // Validate ownername if provided (must be a string)
+        if (ownername !== undefined && typeof ownername !== 'string') {
+            const apiResponse: ApiResponse<null> = { 
+                status: ResponseStatus.FAILED, 
+                message: 'Optional ownername query parameter must be a string if provided', 
+                error: 'Invalid query parameter type' 
+            };
+            res.status(400).json(apiResponse);
+            return;
+        }
+
+        // Use ownername if provided, otherwise use username
+        const effectiveOwner = (ownername && typeof ownername === 'string') ? ownername : username;
+
         // Call service
         const serviceResponse = await this.folderPreviewService.pushRepo(
-            username, 
+            effectiveOwner, 
             repoName, 
             commitMessage || 'Update from web editor'
         );

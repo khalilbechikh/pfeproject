@@ -165,21 +165,8 @@ export default function EnhancedSharecodeDashboard({ darkMode, setDarkMode }: En
                         </div>
                         <h1 className={`ml-3 text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>ShareCode</h1>
                     </div>
-                    <div className="flex-1 max-w-xl mx-4">
-                        <div className={`flex items-center rounded-lg ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'} px-4 py-2`}>
-                            <Search size={18} className="text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search repositories, issues, and more..."
-                                className={`ml-2 w-full ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'} focus:outline-none`}
-                            />
-                        </div>
-                    </div>
+                    {/* Removed search bar and notification icon */}
                     <div className="flex items-center space-x-4">
-                        <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <Bell size={20} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                        </button>
                         <button
                             onClick={() => setDarkMode(!darkMode)}
                             className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}

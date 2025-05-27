@@ -218,8 +218,6 @@ export class FolderPreviewService {
             }
 
             // Configure Git user for this commit (Optional but good practice, keep it)
-            // This sets the config for subsequent commands in this session if needed,
-            // but the --author flag directly overrides for the commit itself.
             await execPromise(`cd "${tempRepoPath}" && git config user.name "${username}" && git config user.email "${userEmail}"`);
 
             // Stage all changes
@@ -227,20 +225,46 @@ export class FolderPreviewService {
 
             // Commit changes with specific author and provided message
             const authorInfo = `${username} <${userEmail}>`;
-            await execPromise(`cd "${tempRepoPath}" && git commit --author="${authorInfo.replace(/"/g, '\\"')}" -m "${commitMessage.replace(/"/g, '\\"')}"`).catch(err => {
+            try {
+                await execPromise(`cd "${tempRepoPath}" && git commit --author="${authorInfo.replace(/"/g, '\\"')}" -m "${commitMessage.replace(/"/g, '\\"')}"`);
+            } catch (err: any) {
+                // Log full error output for debugging
+                console.error('Git commit failed:', {
+                    message: err.message,
+                    stdout: err.stdout,
+                    stderr: err.stderr,
+                    code: err.code
+                });
                 // If no changes to commit, we can still try to push (in case of unpushed commits)
-                if (err.stderr && !err.stderr.includes('nothing to commit')) { // Check stderr exists
-                    throw err;
-                } else if (!err.stderr) {
-                    // If stderr is null/undefined but there was an error, rethrow
-                    console.warn("Git commit command failed without stderr output. Rethrowing error.");
-                    throw err;
+                if (err.stderr && err.stderr.includes('nothing to commit')) {
+                    // Proceed to push
+                } else {
+                    // Return full error output
+                    return {
+                        status: ResponseStatus.FAILED,
+                        message: 'Failed to commit changes',
+                        error: `message: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}\ncode: ${err.code}`
+                    };
                 }
-                // If 'nothing to commit' or no error, proceed
-            });
+            }
 
             // Push changes back to the source repository
-            await execPromise(`cd "${tempRepoPath}" && git push origin HEAD:master --force`);
+            try {
+                await execPromise(`cd "${tempRepoPath}" && git push origin HEAD:master --force`);
+            } catch (err: any) {
+                // Log full error output for debugging
+                console.error('Git push failed:', {
+                    message: err.message,
+                    stdout: err.stdout,
+                    stderr: err.stderr,
+                    code: err.code
+                });
+                return {
+                    status: ResponseStatus.FAILED,
+                    message: 'Failed to push repository',
+                    error: `message: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}\ncode: ${err.code}`
+                };
+            }
 
             return {
                 status: ResponseStatus.SUCCESS,

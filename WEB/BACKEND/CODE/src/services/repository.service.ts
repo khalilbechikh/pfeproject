@@ -637,6 +637,14 @@ export class RepositoryService {
                 return createDbResponse;
             }
 
+            // --- INCREMENT forks_count ON PARENT REPO ---
+            try {
+                await this.repositoryRepository.incrementForksCount(repoId);
+            } catch (err) {
+                console.error('Failed to increment forks_count on parent repo:', err);
+                // Do not fail the fork if this update fails, just log
+            }
+
             console.log(`Database record created successfully. Fork ID: ${createDbResponse.data?.id}`);
             console.log(`=== REPOSITORY SERVICE: forkRepository END - Success ===`);
             return createDbResponse;

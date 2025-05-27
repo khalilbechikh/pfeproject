@@ -1,8 +1,7 @@
-import  { useState, useEffect } from 'react';
-import { Plus, X, Trash, Edit, Code, Share2, Users, Search, UserPlus, ChevronDown,} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, X, Trash, Edit, Code, Share2, Users, Search, UserPlus, ChevronDown } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
-
 
 interface JwtPayload {
     userId: number;
@@ -18,6 +17,9 @@ interface Repository {
     updated_at: string;
     contributors: number;
     language: string;
+    access_level: 'view' | 'edit' | 'owner';
+    is_owner: boolean;
+    repoPath: string;
 }
 
 interface AccessEntry {
@@ -88,73 +90,84 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
     const [isLoadingAccess, setIsLoadingAccess] = useState(false);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        const fetchRepositories = async () => {
-            try {
-                const token = localStorage.getItem('authToken');
-                if (!token) {
-                    throw new Error('No authentication token found in localStorage');
-                }
+    const getDisplayName = (repoPath: string) => {
+        const parts = repoPath.split('/').filter(part => part !== '');
+        const gitIndex = parts.indexOf('git');
+        if (gitIndex === -1 || gitIndex >= parts.length - 2) return 'unknown/unknown';
+        const owner = parts[gitIndex + 1];
+        const repoParts = parts.slice(gitIndex + 2);
+        const repo = repoParts.join('/').replace(/\.git$/, '');
+        return `${owner}/${repo}`;
+    };
 
-                const decoded = jwtDecode<JwtPayload>(token);
-                const response = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}?relations=repositories`, {
+    // Move fetchRepositories outside useEffect so it can be called after create
+    const fetchRepositories = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token found in localStorage');
+            }
+
+            const decoded = jwtDecode<JwtPayload>(token);
+            const response = await fetch(`http://localhost:5000/v1/api/users/${decoded.userId}?relations=all_repositories`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server responded with ${response.status}: ${response.statusText}`);
+            }
+
+            const userData = await response.json();
+            const repos = userData.data.all_repositories || [];
+
+            const fetchContributors = async (repoId: number) => {
+                const pullRequestsResponse = await fetch(`http://localhost:5000/v1/api/repositories/${repoId}?relations=pull_requests`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || `Server responded with ${response.status}: ${response.statusText}`);
+                if (!pullRequestsResponse.ok) {
+                    throw new Error(`Failed to fetch pull requests for repository ${repoId}`);
                 }
 
-                const userData = await response.json();
-                const repos = userData.data.repository || [];
+                const data = await pullRequestsResponse.json();
+                if (!data.data || !data.data.pull_request) {
+                    console.error(`Invalid data structure for repository ${repoId}:`, data);
+                    return { contributors: 0 };
+                }
 
-                const fetchContributors = async (repoId: number) => {
-                    const pullRequestsResponse = await fetch(`http://localhost:5000/v1/api/repositories/${repoId}?relations=pull_requests`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                const contributorIds = new Set(data.data.pull_request.map((pr: any) => pr.author.id));
 
-                    if (!pullRequestsResponse.ok) {
-                        throw new Error(`Failed to fetch pull requests for repository ${repoId}`);
-                    }
-
-                    const data = await pullRequestsResponse.json();
-                    if (!data.data || !data.data.pull_request) {
-                        console.error(`Invalid data structure for repository ${repoId}:`, data);
-                        return { contributors: 0 };
-                    }
-
-                    const contributorIds = new Set(data.data.pull_request.map((pr: any) => pr.author.id));
-
-                    return {
-                        contributors: contributorIds.size
-                    };
+                return {
+                    contributors: contributorIds.size
                 };
+            };
 
-                const mergedRepos = await Promise.all(repos.map(async (repo: any) => {
-                    const { contributors } = await fetchContributors(repo.id);
-                    return {
-                        ...repo,
-                        contributors,
-                        language: repo.language || "Unknown"
-                    };
-                }));
+            const mergedRepos = await Promise.all(repos.map(async (repo: any) => {
+                const { contributors } = await fetchContributors(repo.id);
+                return {
+                    ...repo,
+                    contributors,
+                    language: repo.language || "Unknown"
+                };
+            }));
 
-                setRepositories(mergedRepos);
-            } catch (err) {
-                console.error("Error fetching repositories:", err);
-                setError(err instanceof Error ? err.message : 'Failed to load repositories');
-            } finally {
-                setLoading(false);
-            }
-        };
+            setRepositories(mergedRepos);
+        } catch (err) {
+            console.error("Error fetching repositories:", err);
+            setError(err instanceof Error ? err.message : 'Failed to load repositories');
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    useEffect(() => {
         fetchRepositories();
     }, []);
 
@@ -189,33 +202,8 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                 throw new Error(errorData.message || 'Failed to create repository');
             }
 
-            const newRepo = await response.json();
-            
-
-            const pullRequestsResponse = await fetch(`http://localhost:5000/v1/api/repositories/${newRepo.data.id}?relations=pull_requests`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!pullRequestsResponse.ok) {
-                throw new Error(`Failed to fetch pull requests for new repository ${newRepo.data.id}`);
-            }
-
-            const data = await pullRequestsResponse.json();
-            if (!data.data || !data.data.pull_request) {
-                console.error(`Invalid data structure for new repository ${newRepo.data.id}:`, data);
-                return;
-            }
-
-            const contributorIds = new Set(data.data.pull_request.map((pr: any) => pr.author.id));
-
-            setRepositories(prev => [{
-                ...newRepo.data,
-                contributors: contributorIds.size,
-                language: newRepo.data.language || "Unknown"
-            }, ...prev]);
+            // After successful creation, refresh the repo list
+            await fetchRepositories();
 
             setShowCreateModal(false);
             setFormData({ name: '', description: '', is_private: false });
@@ -811,40 +799,52 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                     <div>
                                         <div className="flex items-center space-x-3">
                                             <h3
-                                                className={`text-lg font-semibold ${darkMode ? 'text-violet-400' : 'text-cyan-600'} group-hover:underline cursor-pointer`}
-                                                // Pass darkMode in the navigate state
-                                                onClick={() => navigate(`/userownrepopreview/${repository.id}`, { state: { darkMode } })}
+                                                className={`text-lg font-semibold ${
+                                                    darkMode ? 'text-violet-400' : 'text-cyan-600'
+                                                } group-hover:underline cursor-pointer`}
+                                                onClick={() => {
+                                                    if (repository.is_owner || repository.access_level === 'edit') {
+                                                        navigate(`/userownrepopreview/${repository.id}`, { state: { darkMode } });
+                                                    } else {
+                                                        navigate(`/repositories/${repository.id}`, { state: { darkMode } });
+                                                    }
+                                                }}
                                             >
-                                                {repository.name}
+                                                {repository.is_owner ? repository.name : getDisplayName(repository.repoPath)}
                                             </h3>
                                             <span className={`text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded-full`}>
                                                 {repository.is_private ? 'Private' : 'Public'}
+                                            </span>
+                                            <span className={`text-xs ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'} px-2 py-1 rounded-full`}>
+                                                {repository.access_level}
                                             </span>
                                         </div>
                                         <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
                                             {repository.description || 'No description provided'}
                                         </p>
                                     </div>
-                                    <div className="flex space-x-2">
-                                        <button
-                                            onClick={() => {
-                                                setEditFormData({
-                                                    description: repository.description,
-                                                    is_private: repository.is_private
-                                                });
-                                                setEditingRepoId(repository.id);
-                                            }}
-                                            className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
-                                        >
-                                            <Edit size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                        </button>
-                                        <button
-                                            onClick={() => setRepoToDelete(repository.id)}
-                                            className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
-                                        >
-                                            <Trash size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                                        </button>
-                                    </div>
+                                    {repository.is_owner && (
+                                        <div className="flex space-x-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEditFormData({
+                                                        description: repository.description,
+                                                        is_private: repository.is_private
+                                                    });
+                                                    setEditingRepoId(repository.id);
+                                                }}
+                                                className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                                            >
+                                                <Edit size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+                                            </button>
+                                            <button
+                                                onClick={() => setRepoToDelete(repository.id)}
+                                                className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                                            >
+                                                <Trash size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex flex-wrap items-center text-sm gap-y-2">
                                     <div className="flex items-center mr-5">
@@ -875,31 +875,40 @@ const RepositoriesList = ({ darkMode }: { darkMode: boolean }) => {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <button
-                                        // Pass darkMode in the navigate state
-                                        onClick={() => navigate(`/userownrepopreview/${repository.id}`, { state: { darkMode } })}
-                                        className={`px-3 py-1.5 text-sm rounded-md ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
+                                        onClick={() => {
+                                            if (repository.is_owner || repository.access_level === 'edit') {
+                                                navigate(`/userownrepopreview/${repository.id}`, { state: { darkMode } });
+                                            } else {
+                                                navigate(`/repositories/${repository.id}`, { state: { darkMode } });
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 text-sm rounded-md ${
+                                            darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                        } transition-colors`}
                                     >
                                         <Code size={14} className="inline-block mr-1.5" />
                                         Code
                                     </button>
-                                    <button
-                                        onClick={() => {
-                                            if (repository.is_private) {
-                                                setManagingAccessRepoId(repository.id);
-                                                fetchRepositoryAccess(repository.id);
-                                            }
-                                        }}
-                                        className={`px-3 py-1.5 text-sm rounded-md ${
-                                            darkMode
-                                                ? 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-400'
-                                                : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700'
-                                        } transition-colors ${!repository.is_private ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        disabled={!repository.is_private}
-                                        title={!repository.is_private ? 'Sharing is only available for private repositories' : ''}
-                                    >
-                                        <Share2 size={14} className="inline-block mr-1.5" />
-                                        Share
-                                    </button>
+                                    {repository.is_owner && (
+                                        <button
+                                            onClick={() => {
+                                                if (repository.is_private) {
+                                                    setManagingAccessRepoId(repository.id);
+                                                    fetchRepositoryAccess(repository.id);
+                                                }
+                                            }}
+                                            className={`px-3 py-1.5 text-sm rounded-md ${
+                                                darkMode
+                                                    ? 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-400'
+                                                    : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700'
+                                            } transition-colors ${!repository.is_private ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={!repository.is_private}
+                                            title={!repository.is_private ? 'Sharing is only available for private repositories' : ''}
+                                        >
+                                            <Share2 size={14} className="inline-block mr-1.5" />
+                                            Share
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

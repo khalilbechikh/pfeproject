@@ -7,6 +7,7 @@ import Confetti from 'react-dom-confetti';
 import Editor from '@monaco-editor/react';
 import ShareCodeAgent from './sharecodeagent';
 import { diffLines } from 'diff';
+import { set as idbSet, get as idbGet } from 'idb-keyval';
 import * as monaco from 'monaco-editor';
 
 interface Repository {
@@ -19,7 +20,7 @@ interface Repository {
     language: string;
     owner: {
         username: string;
-    };
+    }
     actualName?: string;
     parent_id?: number;
 }
@@ -88,6 +89,29 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
     const [selectedBinaryFile, setSelectedBinaryFile] = useState<{ url: string; type: string } | null>(null);
     const [showShareCodeAgent, setShowShareCodeAgent] = useState(false);
     const [editorRef, setEditorRef] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
+    const [repoOwnerUsername, setRepoOwnerUsername] = useState<string>(''); // <-- add this
+
+    // Helper to store and retrieve previous file versions in IndexedDB
+const storePreviousVersion = async (fileKey: string, content: string) => {
+  try {
+    await idbSet(fileKey, content);
+  } catch (e) {
+    console.warn('Failed to store previous version in IndexedDB', e);
+  }
+};
+
+const getPreviousVersion = async (fileKey: string): Promise<string | null> => {
+  try {
+    const result = await idbGet(fileKey);
+    return result === undefined ? null : result;
+  } catch (e) {
+    console.warn('Failed to get previous version from IndexedDB', e);
+    return null;
+  }
+};
+
+    // Add a ref to track the last agent edit
+    const lastAgentEditRef = React.useRef<{ filePath: string; newContent: string } | null>(null);
 
     // Inside the UserOwnRepoPreview component
     const [agentWidth, setAgentWidth] = useState(384); // Default width 384px (w-96)
@@ -124,16 +148,20 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
       };
     }, [isResizing, handleResize, handleResizeEnd]);
 
-    const handleApplyChanges = async (fileName: string, newContent: string) => {
+    const handleApplyChanges = async (fileName: string, newContent: string, agentEdit?: boolean) => {
       try {
         const token = localStorage.getItem('authToken');
         const fullPath = `${currentPath}/${fileName}`.replace('temp-working-directory/', '');
 
-        // Get current content before changes
-        const oldContent = selectedFile?.content || '';
+        // If this is an agent edit, store previous version in IndexedDB BEFORE updating
+        if (agentEdit && selectedFile?.content !== undefined) {
+          const fileKey = `agent_prev_${repo?.owner.username}_${fileName}`;
+          await storePreviousVersion(fileKey, selectedFile.content);
+          lastAgentEditRef.current = { filePath: fileName, newContent };
+        }
 
         // Save changes to server
-        await fetch(`http://localhost:5000/v1/api/preview/content`, {
+        await fetch(`http://localhost:5000/v1/api/preview/content?ownername=${encodeURIComponent(repoOwnerUsername)}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -157,46 +185,70 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
           setNewFileContent(newContent);
         }
 
-        // Calculate line differences
-        const diffs = diffLines(oldContent, newContent);
-        const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-        let lineNumber = 1;
+        // If this was an agent edit, highlight changes
+        if (agentEdit && editorRef) {
+          const fileKey = `agent_prev_${repo?.owner.username}_${fileName}`;
+          const prevContent = await getPreviousVersion(fileKey) || '';
+          const diffs = diffLines(prevContent, newContent);
 
-        // Process diffs for decorations
-        diffs.forEach(part => {
-          const lines = part.value.split('\n');
-          if (lines[lines.length - 1] === '') lines.pop();
+          let decorations: monaco.editor.IModelDeltaDecoration[] = [];
+          let oldLine = 1;
+          let newLine = 1;
 
-          lines.forEach(() => {
-            if (part.added) {
-              decorations.push({
-                range: new monaco.Range(lineNumber, 1, lineNumber, 1),
-                options: {
-                  isWholeLine: true,
-                  className: darkMode ? 'added-line-dark' : 'added-line-light',
-                  marginClassName: darkMode ? 'added-margin-dark' : 'added-margin-light',
-                },
+          for (let i = 0; i < diffs.length; i++) {
+            const part = diffs[i];
+            const lines = part.value.split('\n');
+            if (lines[lines.length - 1] === '') lines.pop();
+
+            if (part.added && i > 0 && diffs[i - 1].removed) {
+              // Updated lines (removed + added in sequence)
+              const removedLines = diffs[i - 1].value.split('\n');
+              if (removedLines[removedLines.length - 1] === '') removedLines.pop();
+              const count = Math.max(removedLines.length, lines.length);
+              for (let j = 0; j < count; j++) {
+                decorations.push({
+                  range: new monaco.Range(newLine, 1, newLine, 1),
+                  options: {
+                    isWholeLine: true,
+                    className: 'agent-updated-line',
+                  },
+                });
+                newLine++;
+              }
+              // Already handled removed, so skip incrementing oldLine here
+            } else if (part.added) {
+              // New lines (green)
+              lines.forEach(() => {
+                decorations.push({
+                  range: new monaco.Range(newLine, 1, newLine, 1),
+                  options: {
+                    isWholeLine: true,
+                    className: 'agent-added-line',
+                  },
+                });
+                newLine++;
               });
-              lineNumber++;
             } else if (part.removed) {
-              // Handle deletions in a separate gutter
-              decorations.push({
-                range: new monaco.Range(lineNumber, 1, lineNumber, 1),
-                options: {
-                  isWholeLine: true,
-                  className: darkMode ? 'removed-line-dark' : 'removed-line-light',
-                  marginClassName: darkMode ? 'removed-margin-dark' : 'removed-margin-light',
-                  linesDecorationsClassName: 'line-decoration',
-                },
+              // Deleted lines (red) - show as decoration on next line if possible
+              lines.forEach(() => {
+                decorations.push({
+                  range: new monaco.Range(newLine, 1, newLine, 1),
+                  options: {
+                    isWholeLine: true,
+                    className: 'agent-removed-line',
+                  },
+                });
+                oldLine++;
               });
             } else {
-              lineNumber += lines.length;
+              // Unchanged lines
+              lines.forEach(() => {
+                oldLine++;
+                newLine++;
+              });
             }
-          });
-        });
+          }
 
-        // Apply decorations
-        if (editorRef) {
           editorRef.deltaDecorations([], decorations);
         }
 
@@ -213,7 +265,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             if (!token) throw new Error('Authentication required');
 
             const response = await fetch(
-                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(parentPath)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(parentPath)}&ownername=${encodeURIComponent(repoOwnerUsername)}`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
 
@@ -267,6 +319,8 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 if (!userResponse.ok) throw new Error('Failed to fetch user details');
                 const userData = await userResponse.json();
 
+                setRepoOwnerUsername(userData.data.username); // <-- set the owner username
+
                 let originalOwner = "";
                 let originalRepoName = "";
                 if (repoData.data.parent_id) {
@@ -296,6 +350,10 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                     originalOwner: originalOwner,
                     originalRepoName: originalRepoName
                 });
+
+                // Use repoOwnerUsername for clone
+                // Log the clone API call
+                console.log('Cloning repo:', repoData.data.name, 'for owner:', userData.data.username);
 
                 const cloneResponse = await fetch(
                     `http://localhost:5000/v1/api/preview/clone/${encodeURIComponent(repoData.data.name)}.git?ownername=${encodeURIComponent(userData.data.username)}`,
@@ -355,7 +413,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             try {
                 const token = localStorage.getItem('authToken');
                 const response = await fetch(
-                    `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                    `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repoOwnerUsername)}`,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
 
@@ -500,7 +558,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
 
                 if (isNewItem) {
                     // API call to create new item
-                    await fetch(`http://localhost:5000/v1/api/preview/item`, {
+                    await fetch(`http://localhost:5000/v1/api/preview/item?ownername=${encodeURIComponent(repoOwnerUsername)}`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -514,7 +572,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                     });
                 } else {
                     // API call to rename item
-                    await fetch(`http://localhost:5000/v1/api/preview/item`, {
+                    await fetch(`http://localhost:5000/v1/api/preview/item?ownername=${encodeURIComponent(repoOwnerUsername)}`, {
                         method: 'PATCH',
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -579,7 +637,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
 
             const rawPath = `${cleanParentPath}/${newItemName}`;
 
-            const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
+            const response = await fetch(`http://localhost:5000/v1/api/preview/item?ownername=${encodeURIComponent(repoOwnerUsername)}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -714,7 +772,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
 
             const cleanPath = currentPath.replace('temp-working-directory/', '');
             const response = await fetch(
-                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo.owner.username)}`,
+                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repoOwnerUsername)}`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
 
@@ -748,7 +806,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
     };
 
     const getLanguageFromExtension = (fileName: string): string => {
-        const extension = fileName.split('.').pop()?.toLowerCase();
+        const extension = fileName.split('.').pop();
         switch (extension) {
             // Popular languages
             case 'js':
@@ -916,7 +974,6 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             case 'ads':
                 return 'ada';
             // case 'pl': // Already defined as perl, could be prolog
-            //     return 'prolog';
             case 'p':
                 return 'pascal';
             case 'pp':
@@ -1236,7 +1293,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
 
             const cleanPath = filePath.replace('temp-working-directory/', '');
             const response = await fetch(
-                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repoOwnerUsername)}`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
             );
 
@@ -1276,7 +1333,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             const oldCleanPath = renameItem.oldPath.replace('temp-working-directory/', '');
             const newCleanPath = renameItem.newPath.replace('temp-working-directory/', '');
 
-            const response = await fetch(`http://localhost:5000/v1/api/preview/item`, {
+            const response = await fetch(`http://localhost:5000/v1/api/preview/item?ownername=${encodeURIComponent(repoOwnerUsername)}`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1334,7 +1391,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
                 containsFiles = await checkIfContainsFiles(cleanPath);
             }
 
-            const response = await fetch(`http://localhost:5000/v1/api/preview/item?relativePath=${encodeURIComponent(cleanPath)}`, {
+            const response = await fetch(`http://localhost:5000/v1/api/preview/item?relativePath=${encodeURIComponent(cleanPath)}&ownername=${encodeURIComponent(repoOwnerUsername)}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -1361,7 +1418,7 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
-            const response = await fetch(`http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repo?.owner.username || '')}`, {
+            const response = await fetch(`http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(path)}&ownername=${encodeURIComponent(repoOwnerUsername)}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -1393,8 +1450,11 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
             const token = localStorage.getItem('authToken');
             if (!token) throw new Error('No authentication token found');
 
+            // Log the username used for push
+            console.log('Pushing with ownername:', repoOwnerUsername);
+
             const response = await fetch(
-                `http://localhost:5000/v1/api/preview/push/${encodeURIComponent(repo?.name || '')}.git?ownername=${encodeURIComponent(repo?.owner.username || '')}`,
+                `http://localhost:5000/v1/api/preview/push/${encodeURIComponent(repo?.name || '')}.git?ownername=${encodeURIComponent(repoOwnerUsername)}`,
                 {
                     method: 'POST',
                     headers: {
@@ -1516,721 +1576,620 @@ const UserOwnRepoPreview = ({ darkMode, setDarkMode }: UserOwnRepoPreviewProps) 
     }
 
     return (
-        <div className={`min-h-screen flex flex-col ${darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
+        <>
+            {/* Highlight styles for agent edits */}
+            <style>
+            {`
+            .agent-added-line { background-color: #16a34a33 !important; }   /* green */
+            .agent-removed-line { background-color: #dc262633 !important; } /* red */
+            .agent-updated-line { background-color: #2563eb33 !important; } /* blue */
+            `}
+            </style>
+            <div className={`min-h-screen flex flex-col ${darkMode ? 'bg-gradient-to-br from-gray-900 to-gray-800 text-white'
                 : 'bg-gradient-to-br from-gray-50 to-white text-gray-800'
             } transition-all duration-300`}>
-            <header className={`fixed top-0 left-0 right-0 z-50 ${darkMode ? 'bg-gray-900/90 border-gray-800' : 'bg-white/95 border-gray-200'
-                } backdrop-blur-xl border-b transition-all duration-300 ${headerScrolled ? 'py-3' : 'py-4'
-                }`}>
-                <div className="container mx-auto px-6 flex justify-between items-center">
-                    <div className="flex items-center space-x-4">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className={`p-2 rounded-xl ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-                                } transition-colors`}
-                        >
-                            <ChevronLeft size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
-                        </button>
-                        <div className="flex items-center space-x-3">
-                            <motion.div
-                                whileHover={{ rotate: 12, scale: 1.1 }}
-                                className={`p-2 rounded-lg ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'
-                                    }`}
-                            >
-                                <GitBranch size={24} className="text-white" />
-                            </motion.div>
-                            <div className="flex flex-col">
-                                <h1 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'
-                                    }`}>
-                                    {repo?.owner.username}/<span className="text-violet-400">{repo?.actualName || repo?.name}</span>
-                                </h1>
-                                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
-                                    }`}>
-                                    {repo?.description || 'No description provided'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center space-x-4">
-                        <div className={`relative transition-all duration-300 ${headerScrolled ? 'w-64' : 'w-96'
-                            }`}>
-                            <input
-                                type="text"
-                                placeholder="Search files..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className={`w-full px-4 py-2 rounded-xl ${darkMode
-                                        ? 'bg-gray-800 text-white placeholder-gray-500'
-                                        : 'bg-gray-100 text-gray-800 placeholder-gray-400'
-                                    } pr-10 transition-all`}
-                            />
-                            <Search size={18} className={`absolute right-3 top-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'
-                                }`} />
-                        </div>
-
-                        <div className="flex space-x-2">
+                <header className={`fixed top-0 left-0 right-0 z-50 ${darkMode ? 'bg-gray-900/90 border-gray-800' : 'bg-white/95 border-gray-200'
+                    } backdrop-blur-xl border-b transition-all duration-300 ${headerScrolled ? 'py-3' : 'py-4'
+                    }`}>
+                    <div className="container mx-auto px-6 flex justify-between items-center">
+                        <div className="flex items-center space-x-4">
                             <button
-                                onClick={() => setTerminalOpen(!terminalOpen)}
-                                className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
-                                    }`}
-                            >
-                                <Terminal size={20} className={darkMode ? 'text-green-400' : 'text-green-600'} />
-                            </button>
-                            <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                animate={{ rotate: showShareCodeAgent ? 360 : 0 }}
-                                onClick={() => setShowShareCodeAgent(!showShareCodeAgent)}
-                                className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
-                            >
-                                <Bot size={20} className={darkMode ? 'text-purple-400' : 'text-purple-600'} />
-                            </motion.button>
-                            <button
-                                onClick={() => setDarkMode(!darkMode)}
-                                className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
-                                    }`}
-                            >
-                                {darkMode ? (
-                                    <Sun size={20} className="text-amber-400" />
-                                ) : (
-                                    <Moon size={20} className="text-indigo-600" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <div className="flex flex-1 pt-20">
-                <motion.aside
-                    initial={{ x: 0 }}
-                    className={`w-80 fixed left-0 h-full p-6 border-r z-60 ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white/50'
-                        } backdrop-blur-lg`}
-                    style={{ width: `${SIDEBAR_WIDTH}px` }}
-                >
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-800'
-                            }`}>
-                            Repository Structure
-                        </h2>
-                    </div>
-                    <div className="overflow-y-auto h-[calc(100vh-150px)]"> {/* Adjust the height as needed */}
-                        <TreeView
-                            nodes={sidebarTree}
-                            onToggle={toggleFolder}
-                            onFileClick={handleFileClick}
-                        />
-                    </div>
-                </motion.aside>
-
-                <main className={`flex-1 transition-all duration-300 ml-80`}>
-                    <div className="container mx-auto px-8 py-6">
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center space-x-4">
-                                <div className={`flex items-center space-x-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
-                                    }`}>
-                                    {displayPath.split('/').map((segment, index) => (
-                                        <React.Fragment key={index}>
-                                            <span
-                                                className="hover:text-violet-400 cursor-pointer"
-                                                onClick={() => {
-                                                    const newPath = displayPath.split('/').slice(0, index + 1).join('/');
-                                                    setCurrentPath(`temp-working-directory/${newPath}`);
-                                                    setDisplayPath(newPath);
-                                                }}
-                                            >
-                                                {segment}
-                                            </span>
-                                            {index < displayPath.split('/').length - 1 && (
-                                                <span className="mx-1">/</span>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => {
-                                    setNewItemParentPath(currentPath);
-                                    setIsTypeFixed(false);
-                                    setIsCreating(true);
-                                }}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-xl ${darkMode
-                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
-                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                onClick={() => navigate(-1)}
+                                className={`p-2 rounded-xl ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
                                     } transition-colors`}
                             >
-                                <Plus size={18} />
-                                <span>New</span>
+                                <ChevronLeft size={24} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
                             </button>
+                            <div className="flex items-center space-x-3">
+                                <motion.div
+                                    whileHover={{ rotate: 12, scale: 1.1 }}
+                                    className={`p-2 rounded-lg ${darkMode ? 'bg-violet-600' : 'bg-cyan-600'
+                                        }`}
+                                >
+                                    <GitBranch size={24} className="text-white" />
+                                </motion.div>
+                                <div className="flex flex-col">
+                                    <h1 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'
+                                        }`}>
+                                        {repo?.owner.username}/<span className="text-violet-400">{repo?.actualName || repo?.name}</span>
+                                    </h1>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
+                                        {repo?.description || 'No description provided'}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
-                        <AnimatePresence>
-                            {isCreating && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    className={`mb-6 p-6 rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'
-                                        } backdrop-blur-lg shadow-xl`}
-                                >
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-semibold">Create New Item</h3>
-                                        <button
-                                            onClick={() => setIsCreating(false)}
-                                            className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Item name"
-                                            value={newItemName}
-                                            onChange={(e) => setNewItemName(e.target.value)}
-                                            className={`w-full px-4 py-2 rounded-lg ${darkMode
-                                                    ? 'bg-gray-700 text-white placeholder-gray-500'
-                                                    : 'bg-gray-100 text-gray-800 placeholder-gray-400'
-                                                }`}
-                                        />
-                                        <select
-                                            value={newItemType}
-                                            onChange={(e) => setNewItemType(e.target.value as 'file' | 'folder')}
-                                            className={`w-full px-4 py-2 rounded-lg ${darkMode
-                                                    ? 'bg-gray-700 text-white'
-                                                    : 'bg-gray-100 text-gray-800'
-                                                }`}
-                                            disabled={isTypeFixed}
-                                        >
-                                            <option value="folder">Folder</option>
-                                            <option value="file">File</option>
-                                        </select>
-                                        <button
-                                            onClick={handleCreateItem}
-                                            className={`w-full py-2.5 rounded-lg ${darkMode
-                                                    ? 'bg-violet-600 hover:bg-violet-700'
-                                                    : 'bg-cyan-600 hover:bg-cyan-700'
-                                                } text-white transition-colors`}
-                                        >
-                                            Create Item
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {directoryLoading && (
-                            <div className="flex justify-center p-8">
-                                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500"></div>
-                            </div>
-                        )}
-
-                        {directoryError && (
-                            <div className={`p-4 mb-6 rounded-xl ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                        <div className="flex items-center space-x-4">
+                            <div className={`relative transition-all duration-300 ${headerScrolled ? 'w-64' : 'w-96'
                                 }`}>
-                                {directoryError}
+                                <input
+                                    type="text"
+                                    placeholder="Search files..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className={`w-full px-4 py-2 rounded-xl ${darkMode
+                                            ? 'bg-gray-800 text-white placeholder-gray-500'
+                                            : 'bg-gray-100 text-gray-800 placeholder-gray-400'
+                                        } pr-10 transition-all`}
+                                />
+                                <Search size={18} className={`absolute right-3 top-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'
+                                    }`} />
                             </div>
-                        )}
 
-                        {!directoryLoading && !directoryError && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <AnimatePresence>
-                                    {filteredContents.length > 0 ? (
-                                        filteredContents.map((item) => (
-                                            <DirectoryItemCard key={item.name} item={item} />
-                                        ))
-                                    ) : (
-                                        <motion.div
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className={`col-span-full p-8 text-center rounded-xl ${darkMode ? 'bg-gray-800/30' : 'bg-white'
-                                                }`}
-                                        >
-                                            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                                                {searchQuery
-                                                    ? 'No files match your search'
-                                                    : 'This directory is empty'}
-                                            </p>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-                        )}
-
-                        <AnimatePresence>
-                            {renameItem && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center`}
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setTerminalOpen(!terminalOpen)}
+                                    className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                        }`}
                                 >
+                                    <Terminal size={20} className={darkMode ? 'text-green-400' : 'text-green-600'} />
+                                </button>
+                                <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    animate={{ rotate: showShareCodeAgent ? 360 : 0 }}
+                                    onClick={() => setShowShareCodeAgent(!showShareCodeAgent)}
+                                    className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+                                >
+                                    <Bot size={20} className={darkMode ? 'text-purple-400' : 'text-purple-600'} />
+                                </motion.button>
+                                <button
+                                    onClick={() => setDarkMode(!darkMode)}
+                                    className={`p-2 rounded-xl ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    {darkMode ? (
+                                        <Sun size={20} className="text-amber-400" />
+                                    ) : (
+                                        <Moon size={20} className="text-indigo-600" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="flex flex-1 pt-20">
+                    <motion.aside
+                        initial={{ x: 0 }}
+                        className={`w-80 fixed left-0 h-full p-6 border-r z-60 ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white/50'
+                            } backdrop-blur-lg`}
+                        style={{ width: `${SIDEBAR_WIDTH}px` }}
+                    >
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-800'
+                                }`}>
+                            Repository Structure
+                            </h2>
+                        </div>
+                        <div className="overflow-y-auto h-[calc(100vh-150px)]"> {/* Adjust the height as needed */}
+                            <TreeView
+                                nodes={sidebarTree}
+                                onToggle={toggleFolder}
+                                onFileClick={handleFileClick}
+                            />
+                        </div>
+                    </motion.aside>
+
+                    <main className={`flex-1 transition-all duration-300 ml-80`}>
+                        <div className="container mx-auto px-8 py-6">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center space-x-4">
+                                    <div className={`flex items-center space-x-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        {displayPath.split('/').map((segment, index) => (
+                                            <React.Fragment key={index}>
+                                                <span
+                                                    className="hover:text-violet-400 cursor-pointer"
+                                                    onClick={() => {
+                                                        const newPath = displayPath.split('/').slice(0, index + 1).join('/');
+                                                        setCurrentPath(`temp-working-directory/${newPath}`);
+                                                        setDisplayPath(newPath);
+                                                    }}
+                                                >
+                                                    {segment}
+                                                </span>
+                                                {index < displayPath.split('/').length - 1 && (
+                                                    <span className="mx-1">/</span>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => {
+                                        setNewItemParentPath(currentPath);
+                                        setIsTypeFixed(false);
+                                        setIsCreating(true);
+                                    }}
+                                    className={`flex items-center space-x-2 px-4 py-2 rounded-xl ${darkMode
+                                            ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                            : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                        } transition-colors`}
+                                >
+                                    <Plus size={18} />
+                                    <span>New</span>
+                                </button>
+                            </div>
+
+                            <AnimatePresence>
+                                {isCreating && (
                                     <motion.div
-                                        initial={{ y: 50, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        exit={{ y: -50, opacity: 0 }}
-                                        className={`w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'
-                                            }`}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className={`mb-6 p-6 rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'
+                                            } backdrop-blur-lg shadow-xl`}
                                     >
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h3 className="text-lg font-semibold">Rename Item</h3>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg font-semibold">Create New Item</h3>
                                             <button
-                                                onClick={() => setRenameItem(null)}
+                                                onClick={() => setIsCreating(false)}
                                                 className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                                                     }`}
                                             >
                                                 <X size={20} />
                                             </button>
                                         </div>
-                                        <input
-                                            type="text"
-                                            value={renameItem.newPath.split('/').pop() || ''}
-                                            onChange={(e) => setRenameItem({
-                                                ...renameItem,
-                                                newPath: `${renameItem.newPath.split('/').slice(0, -1).join('/')}/${e.target.value}`
-                                            })}
-                                            className={`w-full px-4 py-2 rounded-lg ${darkMode
-                                                    ? 'bg-gray-700 text-white'
-                                                    : 'bg-gray-100 text-gray-800'
-                                                } mb-4`}
-                                        />
-                                        <div className="flex justify-end space-x-2">
-                                            <button
-                                                onClick={() => setRenameItem(null)}
-                                                className={`px-4 py-2 rounded-lg ${darkMode
-                                                        ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                        <div className="space-y-4">
+                                            <input
+                                                type="text"
+                                                placeholder="Item name"
+                                                value={newItemName}
+                                                onChange={(e) => setNewItemName(e.target.value)}
+                                                className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-gray-700 text-white placeholder-gray-500'
+                                                        : 'bg-gray-100 text-gray-800 placeholder-gray-400'
                                                     }`}
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                onClick={handleRenameItem}
-                                                className={`px-4 py-2 rounded-lg ${darkMode
-                                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
-                                                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                            />
+                                            <select
+                                                value={newItemType}
+                                                onChange={(e) => setNewItemType(e.target.value as 'file' | 'folder')}
+                                                className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-gray-700 text-white'
+                                                        : 'bg-gray-100 text-gray-800'
                                                     }`}
+                                                disabled={isTypeFixed}
                                             >
-                                                Rename
+                                                <option value="folder">Folder</option>
+                                                <option value="file">File</option>
+                                            </select>
+                                            <button
+                                                onClick={handleCreateItem}
+                                                className={`w-full py-2.5 rounded-lg ${darkMode
+                                                        ? 'bg-violet-600 hover:bg-violet-700'
+                                                        : 'bg-cyan-600 hover:bg-cyan-700'
+                                                    } text-white transition-colors`}
+                                            >
+                                                Create Item
                                             </button>
                                         </div>
                                     </motion.div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                )}
+                            </AnimatePresence>
 
-                        <AnimatePresence>
-                            {selectedFile && (
-                                <motion.div
-                                    className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
-                                    style={{ left: `${SIDEBAR_WIDTH}px`, width: `calc(100% - ${SIDEBAR_WIDTH}px)` }}
-                                >
-                                    <div className="h-screen w-full flex flex-col">
-                                        <div className={`flex justify-between items-center p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                                            <div className="flex items-center space-x-4">
-                                                <select
-                                                    value={selectedLanguage}
-                                                    onChange={(e) => setSelectedLanguage(e.target.value)}
-                                                    className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
-                                                >
-                                                    <option value="plaintext">Plain Text</option>
-                                                    <option value="python">Python</option>
-                                                    <option value="javascript">JavaScript</option>
-                                                    <option value="typescript">TypeScript</option>
-                                                    <option value="java">Java</option>
-                                                    <option value="csharp">C#</option>
-                                                    <option value="cpp">C++</option>
-                                                    <option value="html">HTML</option>
-                                                    <option value="css">CSS</option>
-                                                    <option value="php">PHP</option>
-                                                    <option value="go">Go</option>
-                                                    <option value="ruby">Ruby</option>
-                                                    <option value="rust">Rust</option>
-                                                    <option value="swift">Swift</option>
-                                                    <option value="kotlin">Kotlin</option>
-                                                    <option value="scala">Scala</option>
-                                                    <option value="shell">Shell</option>
-                                                    <option value="perl">Perl</option>
-                                                    <option value="lua">Lua</option>
-                                                    <option value="r">R</option>
-                                                    <option value="dart">Dart</option>
-                                                    <option value="julia">Julia</option>
-                                                    <option value="haskell">Haskell</option>
-                                                    <option value="elm">Elm</option>
-                                                    <option value="clojure">Clojure</option>
-                                                    <option value="scheme">Scheme</option>
-                                                    <option value="erlang">Erlang</option>
-                                                    <option value="fsharp">F#</option>
-                                                    <option value="elixir">Elixir</option>
-                                                    <option value="groovy">Groovy</option>
-                                                    <option value="sql">SQL</option>
-                                                    <option value="yaml">YAML</option>
-                                                    <option value="xml">XML</option>
-                                                    <option value="toml">TOML</option>
-                                                    <option value="ini">INI</option>
-                                                    <option value="objective-c">Objective-C</option>
-                                                    <option value="vb">VB</option>
-                                                    <option value="powershell">PowerShell</option>
-                                                    <option value="coffeescript">CoffeeScript</option>
-                                                    {/* <option value="fsharp">F#</option> */} {/* Duplicate */}
-                                                    {/* <option value="scala">Scala</option> */} {/* Duplicate */}
-                                                    <option value="lisp">Lisp</option>
-                                                    <option value="assembly">Assembly</option>
-                                                    <option value="pascal">Pascal</option>
-                                                    <option value="d">D</option>
-                                                    <option value="verilog">Verilog</option>
-                                                    <option value="systemverilog">SystemVerilog</option>
-                                                    <option value="vhdl">VHDL</option>
-                                                    <option value="tcl">Tcl</option>
-                                                    <option value="awk">AWK</option>
-                                                    <option value="sed">SED</option>
-                                                    <option value="batch">Batch</option>
-                                                    <option value="postscript">PostScript</option>
-                                                    <option value="latex">LaTeX</option>
-                                                    <option value="bibtex">BibTeX</option>
-                                                    <option value="makefile">Makefile</option>
-                                                    <option value="cmake">CMake</option>
-                                                    <option value="dockerfile">Dockerfile</option>
-                                                    <option value="graphql">GraphQL</option>
-                                                    <option value="protobuf">Protocol Buffers</option>
-                                                    {/* <option value="thrift">Thrift</option> */} {/* Duplicate */}
-                                                    <option value="vue">Vue</option>
-                                                    <option value="svelte">Svelte</option>
-                                                    <option value="javascriptreact">JavaScript React</option>
-                                                    <option value="typescriptreact">TypeScript React</option>
-                                                    <option value="fortran">Fortran</option>
-                                                    <option value="ada">Ada</option>
-                                                    <option value="prolog">Prolog</option>
-                                                    <option value="commonlisp">Common Lisp</option>
-                                                    <option value="supercollider">SuperCollider</option>
-                                                    <option value="squirrel">Squirrel</option>
-                                                    <option value="smalltalk">Smalltalk</option>
-                                                    <option value="turing">Turing</option>
-                                                    <option value="vbscript">VBScript</option>
-                                                    <option value="xquery">XQuery</option>
-                                                    <option value="zsh">Zsh</option>
-                                                    <option value="fish">Fish</option>
-                                                    <option value="nushell">NuShell</option>
-                                                    <option value="zig">Zig</option>
-                                                    <option value="wren">Wren</option>
-                                                    <option value="x10">X10</option>
-                                                    <option value="xproc">XProc</option>
-                                                    {/* <option value="xquery">XQuery</option> */} {/* Multiple duplicates */}
-                                                    <option value="xsl">XSL</option>
-                                                    <option value="xslt">XSLT</option>
-                                                    <option value="yacc">Yacc</option>
-                                                    {/* <option value="yaml">YAML</option> */} {/* Duplicate */}
-                                                    {/* <option value="yaml">YAML</option> */} {/* Duplicate */}
-                                                    <option value="zephir">Zephir</option>
-                                                    <option value="zimpl">Zimpl</option>
-                                                    <option value="zil">Zil</option>
-                                                    <option value="zpl">ZPL</option>
-                                                    {/* <option value="zsh">Zsh</option> */} {/* Duplicate */}
-                                                </select>
-                                            </div>
-                                            <div className="flex space-x-2">
+                            {directoryLoading && (
+                                <div className="flex justify-center p-8">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500"></div>
+                                </div>
+                            )}
+
+                            {directoryError && (
+                                <div className={`p-4 mb-6 rounded-xl ${darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                                }`}>
+                                {directoryError}
+                                </div>
+                            )}
+
+                            {!directoryLoading && !directoryError && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <AnimatePresence>
+                                        {filteredContents.length > 0 ? (
+                                            filteredContents.map((item) => (
+                                                <DirectoryItemCard key={item.name} item={item} />
+                                            ))
+                                        ) : (
+                                            <motion.div
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className={`col-span-full p-8 text-center rounded-xl ${darkMode ? 'bg-gray-800/30' : 'bg-white'
+                                                    }`}
+                                            >
+                                                <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                                    {searchQuery
+                                                        ? 'No files match your search'
+                                                        : 'This directory is empty'}
+                                                </p>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+
+                            <AnimatePresence>
+                                {renameItem && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center`}
+                                    >
+                                        <motion.div
+                                            initial={{ y: 50, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            exit={{ y: -50, opacity: 0 }}
+                                            className={`w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'
+                                                }`}
+                                        >
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-semibold">Rename Item</h3>
                                                 <button
-                                                    onClick={() => setSelectedFile(null)}
-                                                    className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                                    onClick={() => setRenameItem(null)}
+                                                    className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                                                        }`}
+                                                >
+                                                    <X size={20} />
+                                                </button>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={renameItem.newPath.split('/').pop() || ''}
+                                                onChange={(e) => setRenameItem({
+                                                    ...renameItem,
+                                                    newPath: `${renameItem.newPath.split('/').slice(0, -1).join('/')}/${e.target.value}`
+                                                })}
+                                                className={`w-full px-4 py-2 rounded-lg ${darkMode
+                                                        ? 'bg-gray-700 text-white'
+                                                        : 'bg-gray-100 text-gray-800'
+                                                    } mb-4`}
+                                            />
+                                            <div className="flex justify-end space-x-2">
+                                                <button
+                                                    onClick={() => setRenameItem(null)}
+                                                    className={`px-4 py-2 rounded-lg ${darkMode
+                                                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                                        }`}
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={handleRenameItem}
+                                                    className={`px-4 py-2 rounded-lg ${darkMode
+                                                            ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                                            : 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                                        }`}
+                                                >
+                                                    Rename
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <AnimatePresence>
+                                {selectedFile && (
+                                    <motion.div
+                                        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+                                        style={{ left: `${SIDEBAR_WIDTH}px`, width: `calc(100% - ${SIDEBAR_WIDTH}px)` }}
+                                    >
+                                        <div className="h-screen w-full flex flex-col">
+                                            <div className={`flex justify-between items-center p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                                                <div className="flex items-center space-x-4">
+                                                    <select
+                                                        value={selectedLanguage}
+                                                        onChange={(e) => setSelectedLanguage(e.target.value)}
+                                                        className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'}`}
+                                                    >
+                                                        <option value="plaintext">Plain Text</option>
+                                                        <option value="javascript">JavaScript</option>
+                                                        <option value="typescript">TypeScript</option>
+                                                        <option value="python">Python</option>
+                                                        {/* Add more options as needed */}
+                                                    </select>
+                                                </div>
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={() => setSelectedFile(null)}
+                                                        className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                                                    >
+                                                        <X size={24} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="flex-1">
+                                                <Editor
+                                                  height="100%"
+                                                  language={selectedLanguage as string}
+                                                  theme={darkMode ? 'vs-dark' : 'vs-light'}
+                                                  value={newFileContent}
+                                                  onChange={(value) => {
+                                                    const content = value || '';
+                                                    setNewFileContent(content);
+                                                    setHasChanges(true);
+                                                  }}
+                                                  onMount={(editor, monaco) => {
+                                                    setEditorRef(editor);
+                                                  }}
+                                                  options={{
+                                                    minimap: { enabled: false },
+                                                    automaticLayout: true,
+                                                    scrollBeyondLastLine: false,
+                                                  }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <AnimatePresence>
+                                {terminalOpen && (
+                                    <motion.div
+                                        initial={{ y: 100, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        exit={{ y: 100, opacity: 0 }}
+                                        className={`fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-800' : 'bg-white'
+                                            } border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'
+                                            } shadow-2xl rounded-t-2xl`}
+                                    >
+                                        <div className="flex items-center justify-between p-4">
+                                            <div className="flex items-center space-x-2">
+                                                <Terminal size={18} className="text-green-400" />
+                                                <span className="font-mono text-sm">Terminal</span>
+                                            </div>
+                                            <button
+                                                onClick={() => setTerminalOpen(false)}
+                                                className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                                                    }`}
+                                            >
+                                                <X size={18} />
+                                            </button>
+                                        </div>
+                                        <div className={`h-48 p-4 font-mono text-sm overflow-auto ${darkMode ? 'bg-gray-900 text-green-400' : 'bg-gray-100 text-green-800'
+                                            }`}>
+                                            <div className="mb-2">$ git status</div>
+                                            <div className="text-gray-400">On branch main</div>
+                                            <div className="text-gray-400">Your branch is up to date.</div>
+                                            <div className="mt-4 mb-2">$ git add .</div>
+                                            <div className="mt-4 mb-2">$ git commit -m "{commitMessage || 'Update files'}"</div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <div className={`fixed bottom-6 right-6 p-4 rounded-2xl shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'
+                                }`}>
+                                <div className="flex items-center space-x-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Commit message"
+                                        value={commitMessage}
+                                        onChange={(e) => setCommitMessage(e.target.value)}
+                                        className={`px-4 py-2 rounded-xl ${darkMode
+                                                ? 'bg-gray-700 text-white placeholder-gray-500'
+                                                : 'bg-gray-100 text-gray-800 placeholder-gray-400'
+                                            } w-64`}
+                                    />
+                                    <div className="relative group">
+                                        <button
+                                            onClick={handlePushChanges}
+                                            disabled={!hasChanges}
+                                            className={`px-4 py-2 rounded-xl flex items-center space-x-2 ${
+                                                darkMode
+                                                    ? hasChanges
+                                                        ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                                        : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                                                    : hasChanges
+                                                        ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            <GitCommit size={18} />
+                                            <span>Push Changes</span>
+                                        </button>
+                                        {!hasChanges && (
+                                            <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg ${
+                                                darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-900 text-white'
+                                            } opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none`}>
+                                                Git tracks only file modifications. Make changes to files to enable push.
+                                                <div className={`absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 ${
+                                                    darkMode ? 'bg-gray-800' : 'bg-gray-900'
+                                                } rotate-45`} />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <AnimatePresence>
+                                {showCommitSuccess && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className={`fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 p-6 rounded-2xl backdrop-blur-lg ${
+                                            darkMode
+                                                ? 'bg-violet-700/30 border border-violet-600/50'
+                                                : 'bg-cyan-500/20 border border-cyan-400/30'
+                                            } shadow-xl overflow-hidden`}
+                                    >
+                                        <div className="flex items-center space-x-4">
+                                            <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                className={`p-3 rounded-full ${
+                                                    darkMode ? 'bg-violet-600/80' : 'bg-cyan-500/80'
+                                                }`}
+                                            >
+                                                <CheckCircle
+                                                    size={32}
+                                                    className="text-white animate-pop-in"
+                                                />
+                                            </motion.div>
+
+                                            <div className="flex-1">
+                                                <h3 className={`text-lg font-semibold ${
+                                                    darkMode ? 'text-violet-100' : 'text-cyan-900'
+                                                }`}>
+                                                    Push Successful!
+                                                </h3>
+                                                <p className={`text-sm ${
+                                                    darkMode ? 'text-violet-300/90' : 'text-cyan-800/90'
+                                                }`}>
+                                                    Changes to <span className="font-mono">{repo?.name}</span> have been securely stored
+                                                </p>
+                                                <div className={`mt-2 text-xs ${
+                                                    darkMode ? 'text-violet-400' : 'text-cyan-700'
+                                                }`}>
+                                                    <span className="font-mono">"{commitMessage || 'Update files'}"</span>
+                                                </div>
+                                            </div>
+
+                                            <Confetti
+                                                active={showCommitSuccess}
+                                                config={{
+                                                    elementCount: 200,
+                                                    spread: 90,
+                                                    startVelocity: 30,
+                                                    dragFriction: 0.12,
+                                                    duration: 3000,
+                                                    stagger: 3,
+                                                    colors: darkMode
+                                                        ? ['#7c3aed', '#a78bfa', '#c4b5fd']
+                                                        : ['#0891b2', '#06b6d4', '#67e8f9']
+                                                }}
+                                            />
+                                        </div>
+
+                                        <motion.div
+                                            initial={{ width: '100%' }}
+                                            animate={{ width: '0%' }}
+                                            transition={{ duration: 3, ease: 'linear' }}
+                                            className={`absolute bottom-0 left-0 h-1 ${
+                                                darkMode ? 'bg-violet-500/80' : 'bg-cyan-400/80'
+                                            }`}
+                                        />
+
+                                        <Rocket
+                                            size={20}
+                                            className={`absolute -top-4 -right-4 opacity-20 ${
+                                                darkMode ? 'text-violet-300' : 'text-cyan-400'
+                                            } transform rotate-45`}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Add the binary file preview modal */}
+                            <AnimatePresence>
+                                {selectedBinaryFile && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+                                    >
+                                        <div className={`p-6 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} max-w-4xl max-h-[90vh] overflow-auto`}>
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-semibold">File Preview</h3>
+                                                <button
+                                                    onClick={() => {
+                                                        URL.revokeObjectURL(selectedBinaryFile.url);
+                                                        setSelectedBinaryFile(null);
+                                                    }}
+                                                    className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
                                                 >
                                                     <X size={24} />
                                                 </button>
                                             </div>
-                                        </div>
-                                        <div className="flex-1">
-                                            <Editor
-                                              height="100%"
-                                              language={selectedLanguage as string}
-                                              theme={darkMode ? 'vs-dark' : 'vs-light'}
-                                              value={newFileContent}
-                                              onChange={(value) => {
-                                                const content = value || '';
-                                                setNewFileContent(content);
-
-                                                if (selectedFile) {
-                                                  const fileName = selectedFile.path.split('/').pop() || '';
-                                                  const sessionKey = `file_content_${repo?.owner.username}_${fileName}`;
-                                                  const originalKey = `original_file_content_${repo?.owner.username}_${fileName}`;
-
-                                                  // Update sessionStorage immediately
-                                                  sessionStorage.setItem(sessionKey, content);
-                                                  sessionStorage.setItem(originalKey, content);
-
-                                                  // Indicate there are changes (if needed for UI)
-                                                  setHasChanges(true);
-                                                }
-                                              }}
-                                              onMount={(editor, monaco) => {
-                                                setEditorRef(editor);
-                                                monaco.editor.defineTheme('custom-theme', {
-                                                  base: darkMode ? 'vs-dark' : 'vs',
-                                                  inherit: true,
-                                                  rules: [],
-                                                  colors: {
-                                                    'editor.lineHighlightBackground': '#00000000',
-                                                    'editor.lineHighlightBorder': '#00000000',
-                                                  },
-                                                });
-                                                editor.updateOptions({ theme: 'custom-theme' });
-                                              }}
-                                              options={{
-                                                minimap: { enabled: false },
-                                                automaticLayout: true,
-                                                scrollBeyondLastLine: false,
-                                              }}
-                                            />
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <AnimatePresence>
-                            {terminalOpen && (
-                                <motion.div
-                                    initial={{ y: 100, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    exit={{ y: 100, opacity: 0 }}
-                                    className={`fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-800' : 'bg-white'
-                                        } border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'
-                                        } shadow-2xl rounded-t-2xl`}
-                                >
-                                    <div className="flex items-center justify-between p-4">
-                                        <div className="flex items-center space-x-2">
-                                            <Terminal size={18} className="text-green-400" />
-                                            <span className="font-mono text-sm">Terminal</span>
-                                        </div>
-                                        <button
-                                            onClick={() => setTerminalOpen(false)}
-                                            className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            <X size={18} />
-                                        </button>
-                                    </div>
-                                    <div className={`h-48 p-4 font-mono text-sm overflow-auto ${darkMode ? 'bg-gray-900 text-green-400' : 'bg-gray-100 text-green-800'
-                                        }`}>
-                                        <div className="mb-2">$ git status</div>
-                                        <div className="text-gray-400">On branch main</div>
-                                        <div className="text-gray-400">Your branch is up to date.</div>
-                                        <div className="mt-4 mb-2">$ git add .</div>
-                                        <div className="mt-4 mb-2">$ git commit -m "{commitMessage || 'Update files'}"</div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <div className={`fixed bottom-6 right-6 p-4 rounded-2xl shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'
-                            }`}>
-                            <div className="flex items-center space-x-4">
-                                <input
-                                    type="text"
-                                    placeholder="Commit message"
-                                    value={commitMessage}
-                                    onChange={(e) => setCommitMessage(e.target.value)}
-                                    className={`px-4 py-2 rounded-xl ${darkMode
-                                            ? 'bg-gray-700 text-white placeholder-gray-500'
-                                            : 'bg-gray-100 text-gray-800 placeholder-gray-400'
-                                        } w-64`}
-                                />
-                                <div className="relative group">
-                                    <button
-                                        onClick={handlePushChanges}
-                                        disabled={!hasChanges}
-                                        className={`px-4 py-2 rounded-xl flex items-center space-x-2 ${
-                                            darkMode
-                                                ? hasChanges
-                                                    ? 'bg-violet-600 hover:bg-violet-700 text-white'
-                                                    : 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                                                : hasChanges
-                                                    ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        }`}
-                                    >
-                                        <GitCommit size={18} />
-                                        <span>Push Changes</span>
-                                    </button>
-                                    {!hasChanges && (
-                                        <div className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm rounded-lg ${
-                                            darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-900 text-white'
-                                        } opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none`}>
-                                            Git tracks only file modifications. Make changes to files to enable push.
-                                            <div className={`absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 ${
-                                                darkMode ? 'bg-gray-800' : 'bg-gray-900'
-                                            } rotate-45`} />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <AnimatePresence>
-                            {showCommitSuccess && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    className={`fixed bottom-6 left-6 right-6 sm:left-auto sm:right-6 p-6 rounded-2xl backdrop-blur-lg ${
-                                        darkMode
-                                            ? 'bg-violet-700/30 border border-violet-600/50'
-                                            : 'bg-cyan-500/20 border border-cyan-400/30'
-                                        } shadow-xl overflow-hidden`}
-                                >
-                                    <div className="flex items-center space-x-4">
-                                        <motion.div
-                                            initial={{ scale: 0 }}
-                                            animate={{ scale: 1 }}
-                                            className={`p-3 rounded-full ${
-                                                darkMode ? 'bg-violet-600/80' : 'bg-cyan-500/80'
-                                            }`}
-                                        >
-                                            <CheckCircle
-                                                size={32}
-                                                className={`${darkMode ? 'text-white' : 'text-white'} animate-pop-in`}
-                                            />
-                                        </motion.div>
-
-                                        <div className="flex-1">
-                                            <h3 className={`text-lg font-semibold ${
-                                                darkMode ? 'text-violet-100' : 'text-cyan-900'
-                                            }`}>
-                                                Push Successful!
-                                            </h3>
-                                            <p className={`text-sm ${
-                                                darkMode ? 'text-violet-300/90' : 'text-cyan-800/90'
-                                            }`}>
-                                                Changes to <span className="font-mono">{repo?.name}</span> have been securely stored
-                                            </p>
-                                            <div className={`mt-2 text-xs ${
-                                                darkMode ? 'text-violet-400' : 'text-cyan-700'
-                                            }`}>
-                                                <span className="font-mono">"{commitMessage || 'Update files'}"</span>
-                                            </div>
-                                        </div>
-
-                                        <Confetti
-                                            active={showCommitSuccess}
-                                            config={{
-                                                elementCount: 200,
-                                                spread: 90,
-                                                startVelocity: 30,
-                                                dragFriction: 0.12,
-                                                duration: 3000,
-                                                stagger: 3,
-                                                colors: darkMode
-                                                    ? ['#7c3aed', '#a78bfa', '#c4b5fd']
-                                                    : ['#0891b2', '#06b6d4', '#67e8f9']
-                                            }}
-                                        />
-                                    </div>
-
-                                    <motion.div
-                                        initial={{ width: '100%' }}
-                                        animate={{ width: '0%' }}
-                                        transition={{ duration: 3, ease: 'linear' }}
-                                        className={`absolute bottom-0 left-0 h-1 ${
-                                            darkMode ? 'bg-violet-500/80' : 'bg-cyan-400/80'
-                                        }`}
-                                    />
-
-                                    <Rocket
-                                        size={20}
-                                        className={`absolute -top-4 -right-4 opacity-20 ${
-                                            darkMode ? 'text-violet-300' : 'text-cyan-400'
-                                        } transform rotate-45`}
-                                    />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* Add the binary file preview modal */}
-                        <AnimatePresence>
-                            {selectedBinaryFile && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
-                                >
-                                    <div className={`p-6 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'} max-w-4xl max-h-[90vh] overflow-auto`}>
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h3 className="text-lg font-semibold">File Preview</h3>
-                                            <button
-                                                onClick={() => {
-                                                    URL.revokeObjectURL(selectedBinaryFile.url);
-                                                    setSelectedBinaryFile(null);
-                                                }}
-                                                className={`p-1 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                                            >
-                                                <X size={24} />
-                                            </button>
-                                        </div>
-                                        {selectedBinaryFile.type.startsWith('image/') && (
-                                            <img
-                                                src={selectedBinaryFile.url}
-                                                alt="Preview"
-                                                className="max-w-full max-h-[70vh] object-contain"
-                                            />
-                                        )}
-                                        {selectedBinaryFile.type.startsWith('video/') && (
-                                            <video
-                                                controls
-                                                className="max-w-full max-h-[70vh]"
-                                            >
-                                                <source src={selectedBinaryFile.url} type={selectedBinaryFile.type} />
-                                                Your browser does not support the video tag.
-                                            </video>
-                                        )}
-                                        {!selectedBinaryFile.type.startsWith('image/') && !selectedBinaryFile.type.startsWith('video/') && (
-                                            <div className="text-center p-4">
-                                                <p className="mb-4">This file type cannot be previewed directly.</p>
-                                                <a
-                                                    href={selectedBinaryFile.url}
-                                                    download
-                                                    className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-cyan-600 hover:bg-cyan-700'} text-white transition-colors`}
+                                            {selectedBinaryFile.type.startsWith('image/') && (
+                                                <img
+                                                    src={selectedBinaryFile.url}
+                                                    alt="Preview"
+                                                    className="max-w-full max-h-[70vh] object-contain"
+                                                />
+                                            )}
+                                            {selectedBinaryFile.type.startsWith('video/') && (
+                                                <video
+                                                    controls
+                                                    className="max-w-full max-h-[70vh]"
                                                 >
-                                                    Download File
-                                                </a>
-                                            </div>
-                                        )}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </main>
+                                                    <source src={selectedBinaryFile.url} type={selectedBinaryFile.type} />
+                                                    Your browser does not support the video tag.
+                                                </video>
+                                            )}
+                                            {!selectedBinaryFile.type.startsWith('image/') && !selectedBinaryFile.type.startsWith('video/') && (
+                                                <div className="text-center p-4">
+                                                    <p className="mb-4">This file type cannot be previewed directly.</p>
+                                                    <a
+                                                        href={selectedBinaryFile.url}
+                                                        download
+                                                        className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-violet-600 hover:bg-violet-700' : 'bg-cyan-600 hover:bg-cyan-700'} text-white transition-colors`}
+                                                    >
+                                                        Download File
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </main>
+                </div>
+                <AnimatePresence>
+                    {showShareCodeAgent && (
+                        <motion.div
+                            initial={{ x: 300, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: 300, opacity: 0 }}
+                            className={`fixed right-0 top-0 h-[calc(100vh-4rem)] ${darkMode ? 'bg-gray-900' : 'bg-white'} border-l ${darkMode ? 'border-gray-800' : 'border-gray-200'} shadow-xl z-50`}
+                            style={{
+                                top: '4rem',
+                                width: agentWidth,
+                                cursor: isResizing ? 'col-resize' : 'auto'
+                            }}
+                        >
+                            {/* Resize handle */}
+                            <div
+                                className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize ${darkMode ? 'hover:bg-violet-500' : 'hover:bg-cyan-500'} transition-colors z-50`}
+                                onMouseDown={handleResizeStart}
+                            />
+                            <ShareCodeAgent
+                                darkMode={darkMode}
+                                onClose={() => setShowShareCodeAgent(false)}
+                                repoOwner={repoOwnerUsername}
+                                authToken={localStorage.getItem('authToken') || ''}
+                                onApplyChanges={handleApplyChanges}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-            <AnimatePresence>
-                {showShareCodeAgent && (
-                    <motion.div
-                        initial={{ x: 300, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: 300, opacity: 0 }}
-                        className={`fixed right-0 top-0 h-[calc(100vh-4rem)] ${darkMode ? 'bg-gray-900' : 'bg-white'} border-l ${darkMode ? 'border-gray-800' : 'border-gray-200'} shadow-xl z-50`}
-                        style={{
-                            top: '4rem',
-                            width: agentWidth,
-                            cursor: isResizing ? 'col-resize' : 'auto'
-                        }}
-                    >
-                        {/* Resize handle */}
-                        <div
-                            className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize ${darkMode ? 'hover:bg-violet-500' : 'hover:bg-cyan-500'} transition-colors z-50`}
-                            onMouseDown={handleResizeStart}
-                        />
-                        <ShareCodeAgent
-                            darkMode={darkMode}
-                            onClose={() => setShowShareCodeAgent(false)}
-                            repoOwner={repo?.owner.username || ''}
-                            authToken={localStorage.getItem('authToken') || ''}
-                            onApplyChanges={handleApplyChanges}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+        </>
     );
 };
 

@@ -88,6 +88,8 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
   const [user, setUser] = useState<UserProfile | null>(null);
   const [currentFileContents, setCurrentFileContents] = useState<Record<string, string>>({});
   const [originalFileContents, setOriginalFileContents] = useState<Record<string, string>>({});
+  const [editAppliedMessage, setEditAppliedMessage] = useState<string | null>(null);
+
   // Add responsive state
   const [isMobile, setIsMobile] = useState(false);
 
@@ -222,26 +224,37 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
           })
         });
 
-        const apiResponse = await response.json();
+        apiResponse = await response.json();
 
         // Extract and display only the message
         const assistantMessage = apiResponse.message;
         setAskConversationId(apiResponse.conversation_id || null);
+
+        // --- Fix: Always show a message after changes are applied ---
+        let changesApplied = false;
+        if (apiResponse.tool_calls && apiResponse.tool_calls.length > 0) {
+          processToolCalls(apiResponse.tool_calls, files);
+          changesApplied = true;
+        }
 
         setEditConversation(prev => [
           ...prev,
           { role: 'user', content: editPrompt },
           {
             role: 'assistant',
-            content: assistantMessage,
+            content:
+              (assistantMessage && assistantMessage.trim()) ?
+                assistantMessage :
+                (changesApplied
+                  ? "✅ Changes applied. If you need further assistance feel free to ask. Happy coding 🚀"
+                  : "No changes were applied. If you need further assistance feel free to ask. Happy coding 🚀"),
             //tool_calls: apiResponse.tool_calls
           }
         ]);
 
-        // Process tool calls if present
-        if (apiResponse.tool_calls) {
-          console.info(apiResponse.tool_calls)
-          processToolCalls(apiResponse.tool_calls, files);
+        if (changesApplied) {
+          setEditAppliedMessage("Changes applied. If you need further assistance feel free to ask. Happy coding 🚀");
+          setTimeout(() => setEditAppliedMessage(null), 3500);
         }
       }
 
@@ -897,6 +910,17 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
             <div>
               {renderConversation(editConversation)}
               <div ref={chatEndRef} />
+              {/* Show changes applied message after edit tool call */}
+              {editAppliedMessage && (
+                <div className={`mt-4 flex items-center gap-2 p-3 rounded-lg font-medium text-sm ${
+                  darkMode
+                    ? 'bg-violet-700/20 text-violet-200'
+                    : 'bg-cyan-100 text-cyan-700'
+                }`}>
+                  <span>✅</span>
+                  <span>{editAppliedMessage}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

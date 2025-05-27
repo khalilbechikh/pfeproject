@@ -469,4 +469,12 @@ export class RepositoryRepository {
             };
         }
     }
+
+    // Add this method to increment forks_count
+    async incrementForksCount(parentRepoId: number): Promise<void> {
+        await this.prisma.repository.update({
+            where: { id: parentRepoId },
+            data: { forks_count: { increment: 1 } }
+        });
+    }
 }
