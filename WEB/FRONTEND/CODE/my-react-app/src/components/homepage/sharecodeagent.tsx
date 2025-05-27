@@ -70,6 +70,61 @@ const convertToLineFormat = (content: string) => {
   }, {} as Record<number, string>);
 };
 
+// Add FilePreview component before the ShareCodeAgent component
+const FilePreview = ({ files, onRemove, darkMode, currentFileContents }: { 
+  files: Array<{ name: string; content: string }>;
+  onRemove: (index: number) => void;
+  darkMode: boolean;
+  currentFileContents: Record<string, string>;
+}) => {
+  if (files.length === 0) return null;
+
+  return (
+    <div className="mb-3 space-y-2">
+      <p className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+        DROPPED FILES ({files.length})
+      </p>
+      {files.map((file, index) => {
+        // Use current file contents if available, otherwise use original content
+        const currentContent = currentFileContents[file.name] || file.content;
+        const lineCount = currentContent.split('\n').length;
+        
+        return (
+          <div
+            key={index}
+            className={`flex items-center justify-between p-2 lg:p-2.5 rounded-lg ${
+              darkMode ? 'bg-gray-800/70' : 'bg-gray-100'
+            }`}
+          >
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <FileCode2 size={16} className={darkMode ? 'text-blue-400' : 'text-blue-600'} />
+              <span className={`text-xs lg:text-sm truncate ${
+                darkMode ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                {file.name}
+              </span>
+              <span className={`text-xs ${
+                darkMode ? 'text-gray-500' : 'text-gray-500'
+              }`}>
+                ({lineCount} lines)
+              </span>
+            </div>
+            <button
+              onClick={() => onRemove(index)}
+              className={`p-1 rounded-md ${
+                darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-200 text-gray-600'
+              }`}
+              title="Remove file"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChanges, width }: ShareCodeAgentProps) => {
   const [mode, setMode] = useState('ask');
   const [prompt, setPrompt] = useState('');
@@ -144,10 +199,12 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
     setAskConversationId(null);
     setPrompt('');
     setEditPrompt('');
-    // Don't clear file contents or sessionStorage here - only clear when component unmounts
-    // setDroppedFiles([]);
-    // setCurrentFileContents({});
-    // setOriginalFileContents({});
+    // Only clear dropped files in ask mode, keep them in edit mode for better UX
+    if (mode === 'ask') {
+      setDroppedFiles([]);
+      setCurrentFileContents({});
+      setOriginalFileContents({});
+    }
   };
 
   const handleLeaveRepo = () => {
@@ -260,7 +317,10 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
 
       setPrompt('');
       setEditPrompt('');
-      setDroppedFiles([]);
+      // Don't clear dropped files in edit mode - keep them for better UX
+      if (mode === 'ask') {
+        setDroppedFiles([]);
+      }
 
     } catch (error) {
       console.error('API Error:', error);
@@ -466,6 +526,11 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
       return;
     }
 
+    // Check if file is already dropped to avoid duplicates
+    if (droppedFiles.some(file => file.name === fileName)) {
+      return; // File already exists, don't add duplicate
+    }
+
     try {
       const response = await fetch(
         `http://localhost:5000/v1/api/preview/content?relativePath=${encodeURIComponent(filePath)}&ownername=${encodeURIComponent(repoOwner)}`,
@@ -529,42 +594,134 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
   };
 
   const handleRemoveFile = (index: number) => {
-    setDroppedFiles(prev => prev.filter((_, i) => i !== index));
+    const fileToRemove = droppedFiles[index];
+    if (fileToRemove) {
+      // Remove from sessionStorage when explicitly removed
+      const originalKey = `original_file_content_${repoOwner}_${fileToRemove.name}`;
+      const currentKey = `file_content_${repoOwner}_${fileToRemove.name}`;
+      sessionStorage.removeItem(originalKey);
+      sessionStorage.removeItem(currentKey);
+      
+      // Remove from state
+      setDroppedFiles(prev => prev.filter((_, i) => i !== index));
+      setCurrentFileContents(prev => {
+        const newContents = { ...prev };
+        delete newContents[fileToRemove.name];
+        return newContents;
+      });
+      setOriginalFileContents(prev => {
+        const newContents = { ...prev };
+        delete newContents[fileToRemove.name];
+        return newContents;
+      });
+    }
   };
 
-  const FilePreview = () => (
-    <div className="mb-2">
-      {droppedFiles.map((file, index) => (
-        <div
-          key={index}
-          className={`flex items-center justify-between p-2 rounded-lg ${
-            darkMode ? 'bg-gray-800' : 'bg-gray-100'
-          } mb-1`}
-        >
-          <div className="flex items-center min-w-0 flex-1">
-            <File size={isMobile ? 14 : 16} className={`mr-2 flex-shrink-0 ${
-              darkMode ? 'text-gray-400' : 'text-gray-600'
-            }`} />
-            <span className={`text-xs lg:text-sm ${
-              darkMode ? 'text-gray-300' : 'text-gray-700'
-            } truncate`}>
-              {file.name}
-            </span>
+  // Add style for bouncing dots animation
+  const bounceAnimation = `
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); opacity: 0.75; }
+      50% { transform: translateY(-3px); opacity: 1; }
+    }
+  `;
+
+  const renderHeader = () => (
+    <div className={`p-3 lg:p-4 flex items-center justify-between border-b ${
+      darkMode ? 'border-gray-800' : 'border-gray-200'
+    }`}>
+      <div className="flex items-center gap-2">
+        <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center ${
+          darkMode ? 'bg-violet-600' : 'bg-cyan-600'
+        }`}>
+          <Bot size={isMobile ? 14 : 16} className="text-white" />
+        </div>
+        <h3 className={`font-medium text-sm lg:text-base ${
+          darkMode ? 'text-white' : 'text-gray-800'
+        }`}>
+          {isMobile ? 'AI Assistant' : 'ShareCode Agent'}
+        </h3>
+        {isGenerating && (
+          <div className="flex items-center space-x-1 ml-2">
+            {[0.1, 0.2, 0.3].map((delay, i) => (
+              <span
+                key={i}
+                className={`inline-block w-1 h-1 lg:w-1.5 lg:h-1.5 rounded-full ${
+                  darkMode ? 'bg-violet-400' : 'bg-cyan-500'
+                } animate-bounce`}
+                style={{ animationDelay: `${delay}s` }}
+              />
+            ))}
           </div>
+        )}
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={handleNewChat}
+          className={`p-1 lg:p-1.5 rounded-md ${
+            darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+          }`}
+          title="New chat"
+        >
+          <Plus size={isMobile ? 16 : 18} />
+        </button>
+        {!isMobile && (
           <button
-            onClick={() => handleRemoveFile(index)}
-            className={`p-1 rounded-full flex-shrink-0 ${
-              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'
+            className={`p-1 lg:p-1.5 rounded-md ${
+              darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
             }`}
           >
-            <X size={isMobile ? 14 : 16} className={darkMode ? 'text-gray-400' : 'text-gray-600'} />
+            <ChevronDown size={18} />
           </button>
-        </div>
-      ))}
+        )}
+        <button
+          onClick={onClose}
+          className={`p-1 lg:p-1.5 rounded-md ${
+            darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+          }`}
+        >
+          <X size={isMobile ? 16 : 18} />
+        </button>
+      </div>
     </div>
   );
 
-  // Inside the ShareCodeAgent component, modify the renderConversation function:
+  // Modified generate button content
+  const generateButtonContent = isGenerating ? (
+    <div className="flex items-center gap-2">
+      <div className="flex space-x-1">
+        <span className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-violet-400' : 'bg-cyan-500'} animate-bounce`} />
+        <span className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-violet-400' : 'bg-cyan-500'} animate-bounce`}
+          style={{ animationDelay: '0.15s' }} />
+        <span className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-violet-400' : 'bg-cyan-500'} animate-bounce`}
+          style={{ animationDelay: '0.3s' }} />
+      </div>
+      Generating...
+    </div>
+  ) : (
+    <>
+      <CheckCircle2 size={14} />
+      Generate Changes
+    </>
+  );
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [prompt, editPrompt]);
+
+  // Responsive breakpoint detection
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   const renderConversation = (currentConversation: Message[]) => {
     const markdownComponents: MarkdownComponents = {
       code({ node, inline, className, children, ...props }) {
@@ -672,111 +829,6 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
       </div>
     ));
   };
-
-  // Add style for bouncing dots animation
-  const bounceAnimation = `
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); opacity: 0.75; }
-      50% { transform: translateY(-3px); opacity: 1; }
-    }
-  `;
-
-  const renderHeader = () => (
-    <div className={`p-3 lg:p-4 flex items-center justify-between border-b ${
-      darkMode ? 'border-gray-800' : 'border-gray-200'
-    }`}>
-      <div className="flex items-center gap-2">
-        <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center ${
-          darkMode ? 'bg-violet-600' : 'bg-cyan-600'
-        }`}>
-          <Bot size={isMobile ? 14 : 16} className="text-white" />
-        </div>
-        <h3 className={`font-medium text-sm lg:text-base ${
-          darkMode ? 'text-white' : 'text-gray-800'
-        }`}>
-          {isMobile ? 'AI Assistant' : 'ShareCode Agent'}
-        </h3>
-        {isGenerating && (
-          <div className="flex items-center space-x-1 ml-2">
-            {[0.1, 0.2, 0.3].map((delay, i) => (
-              <span
-                key={i}
-                className={`inline-block w-1 h-1 lg:w-1.5 lg:h-1.5 rounded-full ${
-                  darkMode ? 'bg-violet-400' : 'bg-cyan-500'
-                } animate-bounce`}
-                style={{ animationDelay: `${delay}s` }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={handleNewChat}
-          className={`p-1 lg:p-1.5 rounded-md ${
-            darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-          }`}
-          title="New chat"
-        >
-          <Plus size={isMobile ? 16 : 18} />
-        </button>
-        {!isMobile && (
-          <button
-            className={`p-1 lg:p-1.5 rounded-md ${
-              darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-            }`}
-          >
-            <ChevronDown size={18} />
-          </button>
-        )}
-        <button
-          onClick={onClose}
-          className={`p-1 lg:p-1.5 rounded-md ${
-            darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-          }`}
-        >
-          <X size={isMobile ? 16 : 18} />
-        </button>
-      </div>
-    </div>
-  );
-
-  // Modified generate button content
-  const generateButtonContent = isGenerating ? (
-    <div className="flex items-center gap-2">
-      <div className="flex space-x-1">
-        <span className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-violet-400' : 'bg-cyan-500'} animate-bounce`} />
-        <span className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-violet-400' : 'bg-cyan-500'} animate-bounce`}
-          style={{ animationDelay: '0.15s' }} />
-        <span className={`w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-violet-400' : 'bg-cyan-500'} animate-bounce`}
-          style={{ animationDelay: '0.3s' }} />
-      </div>
-      Generating...
-    </div>
-  ) : (
-    <>
-      <CheckCircle2 size={14} />
-      Generate Changes
-    </>
-  );
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [prompt, editPrompt]);
-
-  // Responsive breakpoint detection
-  useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
-  }, []);
 
   return (
     <div
@@ -930,7 +982,12 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
       <div className={`p-3 lg:p-4 border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
         {mode === 'ask' ? (
           <div className="relative">
-            <FilePreview />
+            <FilePreview
+              files={droppedFiles}
+              onRemove={handleRemoveFile}
+              darkMode={darkMode}
+              currentFileContents={currentFileContents}
+            />
             <textarea
               ref={textareaRef}
               value={prompt}
@@ -967,14 +1024,33 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
           </div>
         ) : (
           <div className="space-y-3">
-            <FilePreview />
+            <FilePreview
+              files={droppedFiles}
+              onRemove={handleRemoveFile}
+              darkMode={darkMode}
+              currentFileContents={currentFileContents}
+            />
+            {droppedFiles.length === 0 && (
+              <div className={`text-center py-4 px-3 border-2 border-dashed rounded-lg ${
+                darkMode 
+                  ? 'border-gray-700 text-gray-500' 
+                  : 'border-gray-300 text-gray-400'
+              }`}>
+                <File size={24} className={`mx-auto mb-2 ${
+                  darkMode ? 'text-gray-600' : 'text-gray-400'
+                }`} />
+                <p className="text-xs lg:text-sm">
+                  {isMobile ? 'Drag files here' : 'Drag and drop files here to start editing'}
+                </p>
+              </div>
+            )}
             <textarea
               ref={textareaRef}
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
               placeholder={isMobile ? 
-                "Drop files and describe changes..." : 
-                "Paste your code here and describe what changes you want..."
+                "Describe the changes you want..." : 
+                "Describe what changes you want to make to the files above..."
               }
               className={`w-full p-2 lg:p-3 rounded-lg resize-none text-xs lg:text-sm ${
                 darkMode
@@ -991,9 +1067,9 @@ const ShareCodeAgent = ({ darkMode, onClose, repoOwner, authToken, onApplyChange
             <div className="flex justify-end">
               <button
                 onClick={handleSendPrompt}
-                disabled={!editPrompt.trim() || isGenerating}
+                disabled={!editPrompt.trim() || isGenerating || droppedFiles.length === 0}
                 className={`px-3 lg:px-4 py-2 rounded-md flex items-center gap-1 lg:gap-1.5 text-xs lg:text-sm ${
-                  editPrompt.trim() && !isGenerating
+                  editPrompt.trim() && !isGenerating && droppedFiles.length > 0
                     ? darkMode
                       ? 'bg-violet-600 hover:bg-violet-700 text-white'
                       : 'bg-cyan-600 hover:bg-cyan-700 text-white'

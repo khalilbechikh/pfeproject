@@ -151,7 +151,7 @@ private formatWarningResponse(message: string): {
                         is_admin: response.data.is_admin 
                     },
                     JWT_SECRET,
-                    { expiresIn: '30d' }
+                    { expiresIn: '1d' }
                 );
                 
                 res.header('Authorization', `Bearer ${token}`);
