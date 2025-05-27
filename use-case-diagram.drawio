@@ -1,0 +1,55 @@
+<mxfile>
+  <diagram id="XVv77vLJ6xCtPW0qUYid" name="Page-1">
+    <mxGraphModel dx="426" dy="571" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Use Case Diagram" id="use-case-diagram">
+    <mxGraphModel dx="426" dy="571" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="     Utilisateur" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;" parent="1" vertex="1">
+          <mxGeometry x="60" y="100" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="Gérer compte" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;labelPosition=center;verticalLabelPosition=middle;" parent="1" vertex="1">
+          <mxGeometry x="230" y="105" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="-Ig01wVtwPmFdi3REyHD-12" style="edgeStyle=none;html=1;endArrow=block;endFill=0;" parent="1" source="4" target="3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="&lt;span style=&quot;color: rgb(0, 0, 0);&quot;&gt;Consulter compte&lt;/span&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;labelPosition=center;verticalLabelPosition=middle;" parent="1" vertex="1">
+          <mxGeometry x="240" y="190" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="Supprimer compte" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;labelPosition=center;verticalLabelPosition=middle;" parent="1" vertex="1">
+          <mxGeometry x="170" y="290" width="140" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="7" style="endArrow=none;html=1;" parent="1" source="2" target="3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;" style="dashed=1;endArrow=block;html=1;endFill=0;" parent="1" source="4" target="6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-Ig01wVtwPmFdi3REyHD-13" value="Modifier compte" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;labelPosition=center;verticalLabelPosition=middle;" parent="1" vertex="1">
+          <mxGeometry x="330" y="290" width="140" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="-Ig01wVtwPmFdi3REyHD-14" value="&amp;lt;&amp;lt;extend&amp;gt;&amp;gt;" style="dashed=1;endArrow=block;html=1;endFill=0;exitX=1;exitY=1;exitDx=0;exitDy=0;" parent="1" source="4" target="-Ig01wVtwPmFdi3REyHD-13" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="448" y="230" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="N2eVXLiL14E3vEFZhvzj" name="Page-3">
+    <mxGraphModel dx="426" dy="571" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

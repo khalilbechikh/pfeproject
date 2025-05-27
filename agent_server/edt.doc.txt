@@ -1,0 +1,281 @@
+# `/edit` Endpoint Documentation
+
+The `/edit` endpoint provides a programmatic interface to a code-editing AI agent capable of suggesting, reviewing, and helping apply changes to code files. The endpoint supports maintaining conversation history, sending files as editable objects, and receives structured outputs describing how files should be changed.
+
+---
+
+## Overview
+
+* **Endpoint:** `POST /edit`
+* **Purpose:** Request code edits or reviews from an AI code assistant. The agent can suggest file insertions, deletions, and replacements using specific tool calls, and will return those tool calls in the response for maximum clarity and integration flexibility.
+* **Persistence:** Every conversation is saved in the backend database and can be resumed by passing the previous `conversation_id`.
+
+---
+
+## Request
+
+### **Fields**
+
+| Field             | Type                | Required | Description                                                                                           |
+| ----------------- | ------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `prompt`          | `string`            | Yes      | The instruction/question for the AI. Natural language—describe the code changes or requests you want. |
+| `files`           | `object`            | Yes      | Object mapping file names to line dicts (each line: `line_number` → `line_content`).                  |
+| `conversation_id` | `string` (optional) | No       | Use this to continue a previous conversation (keeps chat and edit history/context).                   |
+
+### **How to Structure Files**
+
+The `files` object allows you to send one or more files for editing. Each file is represented as an object:
+
+* **Key:** file name (e.g., `"main.py"`)
+* **Value:** a dictionary where each key is a line number (starting from `1`) and each value is the line of code as a string.
+* You can send multiple files in one request.
+
+**Example:**
+
+```json
+"files": {
+  "main.py": {
+    "1": "import os",
+    "2": "def foo():",
+    "3": "    return 42"
+  },
+  "utils.py": {
+    "1": "def helper():",
+    "2": "    pass"
+  }
+}
+```
+
+### **Full Request Example**
+
+```json
+{
+  "prompt": "Please add a comment at the top of this file explaining its purpose.",
+  "files": {
+    "main.py": {
+      "1": "import os",
+      "2": "def foo():",
+      "3": "    return 42"
+    }
+  }
+}
+```
+
+---
+
+## Response
+
+### **Fields**
+
+| Field             | Type                 | Description                                                                                                     |
+| ----------------- | -------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `conversation_id` | `string`             | Unique identifier for this conversation. Use it to continue the context in future requests.                     |
+| `message`         | `string` or `object` | Agent's natural language reply. May be a clarification, confirmation, or code commentary.                       |
+| `files`           | `object`             | The current state of the files (by default, this matches the files you sent, unless the backend applies edits). |
+| `tool_calls`      | `array` or `null`    | List of tool call objects describing what actions the agent would take to edit files.                           |
+
+### **Response Example**
+
+```json
+{
+  "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+  "message": "",
+  "files": {
+    "main.py": {
+      "1": "import os",
+      "2": "def foo():",
+      "3": "    return 42"
+    }
+  },
+  "tool_calls": [
+    {
+      "name": "insert_code_at_lines",
+      "args": {
+        "changes": [
+          {
+            "file_name": "main.py",
+            "insertions": [
+              {
+                "insert_line": 0,
+                "code": "# This file contains the main logic for the application, defining essential functions like `foo`.\n"
+              }
+            ]
+          }
+        ]
+      },
+      "id": "Z02AqqyrF",
+      "type": "tool_call"
+    }
+  ]
+}
+```
+
+---
+
+## Tool Call Objects: Structure and Semantics
+
+### **What is a Tool Call?**
+
+A tool call is a structured instruction from the AI specifying exactly what code changes it recommends. This is not a code diff, but a semantic action—e.g., "insert this line before line 1," or "replace lines 2-3 with this content."
+
+### **Tool Call Fields**
+
+| Field  | Type     | Description                                                                  |
+| ------ | -------- | ---------------------------------------------------------------------------- |
+| `name` | `string` | Tool called by the AI. Supported: `insert_code_at_lines`, `edit_file_lines`. |
+| `args` | `object` | Arguments for the tool, specifying which files and what changes.             |
+| `id`   | `string` | Tool call unique id (for tracking, can usually be ignored in the UI).        |
+| `type` | `string` | Always `tool_call`.                                                          |
+
+### **Supported Tool Calls**
+
+#### `insert_code_at_lines`
+
+* **Purpose:** Insert one or more lines into the file at specified positions.
+* **Arguments structure:**
+
+  ```json
+  {
+    "changes": [
+      {
+        "file_name": "main.py",
+        "insertions": [
+          {
+            "insert_line": 0,  // Insert before this line number (0 = very top)
+            "code": "# Add your comment here\n"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
+#### `edit_file_lines`
+
+* **Purpose:** Replace or delete a range of lines in a file.
+* **Arguments structure:**
+
+  ```json
+  {
+    "changes": [
+      {
+        "file_name": "main.py",
+        "edits": [
+          {
+            "line_start": 2,
+            "line_end": 2,
+            "new_content": "def foo():\n    print('Edited!')"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+* If `new_content` is empty, delete the specified range.
+
+---
+
+## How to Apply Tool Calls on the Frontend
+
+1. **`insert_code_at_lines`:**
+
+   * For each insertion, insert the `code` *before* the line with number `insert_line` (use `0` to insert at the top).
+   * Example: If `insert_line` is `0`, insert at the very beginning. If `insert_line` is `3`, insert before line 3 (i.e., between line 2 and line 3).
+
+2. **`edit_file_lines`:**
+
+   * For each edit, replace all lines from `line_start` to `line_end` (inclusive) with the contents of `new_content`. If `new_content` is an empty string, delete those lines.
+   * You can split `new_content` by `\n` to get multiple lines to insert.
+
+### **Workflow Example**
+
+* Send your files and prompt to `/edit`.
+* Receive the response containing `tool_calls`.
+* For each tool call, update your in-memory representation of the file(s):
+
+  * Insert new code lines as instructed.
+  * Replace/delete specified lines as per the tool calls.
+* Optionally, display a diff or preview to the user.
+* If you want to keep editing, send the new files and the same `conversation_id` to `/edit` again.
+
+---
+
+## Best Practices for the Frontend
+
+* **Always save the returned `conversation_id`** and send it with each follow-up `/edit` request to maintain AI context.
+* **Show the AI message** (`message` field) to the user; sometimes the agent may ask for clarification.
+* **Tool calls** are your source of truth for file modifications. You can safely apply them or show them as suggestions.
+* **File lines are always 1-indexed** in requests and responses.
+* If multiple files are sent, tool calls will reference the `file_name` for each change.
+
+---
+
+## Error Handling
+
+* If you send an invalid request, you may receive an HTTP 400/422 error with a description of what was wrong.
+* If you send a non-existent `conversation_id`, you will receive a 404 error.
+* If the agent did not perform any tool call, `tool_calls` will be `null` or an empty array.
+
+---
+
+## Example: Full Cycle
+
+**Initial Request:**
+
+```json
+{
+  "prompt": "Add a copyright notice at the top.",
+  "files": {
+    "main.py": {
+      "1": "def foo():",
+      "2": "    return 42"
+    }
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "conversation_id": "a1b2c3d4-e5f6-7890-1234-56789abcdef0",
+  "message": "",
+  "files": {
+    "main.py": {
+      "1": "def foo():",
+      "2": "    return 42"
+    }
+  },
+  "tool_calls": [
+    {
+      "name": "insert_code_at_lines",
+      "args": {
+        "changes": [
+          {
+            "file_name": "main.py",
+            "insertions": [
+              {
+                "insert_line": 0,
+                "code": "# Copyright (c) 2024 Example Company\n"
+              }
+            ]
+          }
+        ]
+      },
+      "id": "AbCdEf123",
+      "type": "tool_call"
+    }
+  ]
+}
+```
+
+---
+
+## Contact and Support
+
+* For technical backend or API support, contact your backend engineering team.
+* If you need additional tool call types supported or auto-application of edits in the backend, submit a feature request.
+
+---
+
+**End of `/edit` endpoint documentation**

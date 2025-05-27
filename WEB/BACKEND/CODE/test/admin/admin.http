@@ -1,0 +1,92 @@
+@baseUrl = http://localhost:5000/v1/api/users
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoiam9iIiwiaWF0IjoxNzQ3MDY2NjcxLCJleHAiOjE3NDk2NTg2NzF9.dLfTMl7LEcaoWdSTgHM1SrPEqxpRx7GYQSz6Fq1vCFk
+@existingUserId = 5
+@alreadySuspendedUserId = 5
+@notSuspendedUserId = 4
+@nonExistentUserId = 9999
+
+### Suspend User - Success
+PATCH {{baseUrl}}/{{existingUserId}}/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": true
+}
+
+### Suspend User - Already Suspended
+PATCH {{baseUrl}}/{{alreadySuspendedUserId}}/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": true
+}
+
+### Unsuspend User - Success
+PATCH {{baseUrl}}/{{alreadySuspendedUserId}}/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": false
+}
+
+### Unsuspend User - Not Suspended
+PATCH {{baseUrl}}/{{notSuspendedUserId}}/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": false
+}
+
+### Suspend User - Not Found
+PATCH {{baseUrl}}/{{nonExistentUserId}}/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": true
+}
+
+### Suspend User - Invalid ID
+PATCH {{baseUrl}}/invalid-id/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": true
+}
+
+### Suspend User - Invalid Body (suspend not boolean)
+PATCH {{baseUrl}}/{{existingUserId}}/suspend
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "suspend": "yes"
+}
+
+### Suspend User - Unauthorized (No Token)
+PATCH {{baseUrl}}/{{existingUserId}}/suspend
+Content-Type: application/json
+
+{
+    "suspend": true
+}
+
+### Archive Repository - Success
+PATCH http://localhost:5000/v1/api/repositories/23/archive
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+### Restore Repository - Success
+PATCH http://localhost:5000/v1/api/repositories/23/restore
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+### Get All Repositories Including Archived (Admin)
+GET http://localhost:5000/v1/api/repositories/all-including-archived
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

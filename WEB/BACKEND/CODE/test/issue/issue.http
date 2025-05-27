@@ -1,0 +1,146 @@
+@baseUrl = http://localhost:5000/v1/api/issues
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInVzZXJuYW1lIjoiam9iIiwiaWF0IjoxNzQ2MzY0NTAyLCJleHAiOjE3NDg5NTY1MDJ9.AF4t4Z9swlHmbCxD3MsjayLpqTymbtmVefIpFOYXuBo
+@existingIssueId = 2
+@nonExistentIssueId = 9999
+@repositoryId = 4
+@userId = 1
+
+### Get All Issues for a Repository - Success
+GET {{baseUrl}}/repository/{{repositoryId}}
+Authorization: {{authToken}}
+
+### Get All Issues for a Repository - Invalid ID
+GET {{baseUrl}}/repository/invalid-id
+Authorization: {{authToken}}
+
+### Get All Issues for a Repository - Not Found
+GET {{baseUrl}}/repository/{{nonExistentIssueId}}
+Authorization: {{authToken}}
+
+### Get Issue by ID - Success
+GET {{baseUrl}}/{{existingIssueId}}
+Authorization: {{authToken}}
+
+### Get Issue by ID - Not Found
+GET {{baseUrl}}/{{nonExistentIssueId}}
+Authorization: {{authToken}}
+
+### Get Issue by ID - Invalid ID
+GET {{baseUrl}}/invalid-id
+Authorization: {{authToken}}
+
+### Create Issue - Success
+POST {{baseUrl}}
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "repositoryId": 4,
+  "authorId": {{userId}},
+  "title": "Bug",
+  "description": "bug"
+}
+
+### Create Issue - Missing Required Fields
+POST {{baseUrl}}
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "description": "Missing required fields"
+}
+
+### Update Issue - Success
+PUT {{baseUrl}}/{{existingIssueId}}
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "title": "Updated issue title",
+  "description": "Updated issue description",
+  "status": "closed"
+}
+
+### Update Issue - Not Found
+PUT {{baseUrl}}/{{nonExistentIssueId}}
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "title": "This won't work"
+}
+
+### Update Issue - Validation Error
+PUT {{baseUrl}}/{{existingIssueId}}
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "title": ""
+}
+
+### Delete Issue - Success
+DELETE {{baseUrl}}/{{existingIssueId}}
+Authorization: {{authToken}}
+
+### Delete Issue - Not Found
+DELETE {{baseUrl}}/{{nonExistentIssueId}}
+Authorization: {{authToken}}
+
+### Add Comment to Issue - Success
+POST {{baseUrl}}/comments
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "issueId": {{existingIssueId}},
+  "authorId": {{userId}},
+  "content": "This issue is now fixed in PR #123"
+}
+
+### Add Comment to Issue - Validation Error
+POST {{baseUrl}}/comments
+Content-Type: application/json
+Authorization: {{authToken}}
+
+{
+  "issueId": "",
+  "authorId": "",
+  "content": ""
+}
+
+### Get All Issues Created by a User - Success
+GET {{baseUrl}}/user/{{userId}}
+Authorization: {{authToken}}
+
+### Get All Issues Created by a User - Invalid ID
+GET {{baseUrl}}/user/invalid-id
+Authorization: {{authToken}}
+### end qll here
+### Search Issues in Repository - Success (Found)
+GET {{baseUrl}}/repository/4/search?searchQuery=bug
+Authorization: {{authToken}}
+
+### Search Issues in Repository - Success (Not Found)
+GET {{baseUrl}}/repository/{{repositoryId}}/search?searchQuery=azertyuio
+Authorization: {{authToken}}
+
+### Search Issues in Repository - Missing Query
+GET {{baseUrl}}/repository/{{repositoryId}}/search
+Authorization: {{authToken}}
+
+### Find all issues (global search)
+GET http://localhost:5000/v1/api/issues/search
+Authorization: {{authToken}}
+
+### Get Comments for Issue - Success
+GET {{baseUrl}}/4/comments
+Authorization: {{authToken}}
+
+### Get Comments for Issue - Not Found
+GET {{baseUrl}}/{{nonExistentIssueId}}/comments
+Authorization: {{authToken}}
+
+### Get Comments for Issue - Invalid ID
+GET {{baseUrl}}/invalid-id/comments
+Authorization: {{authToken}}
