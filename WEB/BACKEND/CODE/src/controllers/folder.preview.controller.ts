@@ -244,7 +244,7 @@ export class FolderPreviewController {
         }
         const username = req.user.username;
         const { repoName } = req.params;
-        const { commitMessage } = req.body; // Optional commit message
+        const { commitMessage } = req.body; 
 
         // Basic input validation
         if (!repoName) {
@@ -264,7 +264,6 @@ export class FolderPreviewController {
             commitMessage || 'Update from web editor'
         );
 
-        // Send response based on service result
         const statusCode = getStatusCode(serviceResponse, 200); // 200 OK for successful push
         res.status(statusCode).json(serviceResponse);
     }
