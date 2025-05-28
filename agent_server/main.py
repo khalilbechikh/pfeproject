@@ -10,6 +10,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware  # Add this import
+from dotenv import load_dotenv
 
 # LangChain imports
 from langchain.chat_models import init_chat_model
@@ -17,13 +18,18 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import tool
 
 # ---------- Environment ----------
-os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_API_KEY"] = "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"
-os.environ["GOOGLE_API_KEY"] = "AIzaSyDn8gwKzBIcNLycAbOlgb2eFEkZ62rKiO8"
-os.environ["LANGSMITH_PROJECT"] = "my_simple_agent"
-os.environ["MISTRAL_API_KEY"] = "k3shfi7NikeOP4P18AU4PLj5iMOb0GfE"
-os.environ["OPENAI_API_KEY"] = "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"
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/chat_history"
+# Load environment variables from .env file
+load_dotenv()
+
+# Set environment variables from .env file
+os.environ["LANGSMITH_TRACING"] = os.getenv("LANGSMITH_TRACING", "true")
+os.environ["LANGSMITH_API_KEY"] = os.getenv("LANGSMITH_API_KEY", "")
+os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY", "")
+os.environ["LANGSMITH_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "my_simple_agent")
+os.environ["MISTRAL_API_KEY"] = os.getenv("MISTRAL_API_KEY", "")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/chat_history")
 
 # ---------- Database setup ----------
 Base = declarative_base()
