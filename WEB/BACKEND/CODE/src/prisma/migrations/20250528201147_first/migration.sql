@@ -15,7 +15,10 @@ CREATE TABLE "users" (
     "avatar_path" VARCHAR(255),
     "is_admin" BOOLEAN DEFAULT false,
     "confirmed" BOOLEAN DEFAULT false,
+    "twoFactorSecret" TEXT,
+    "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
     "contribution_count" INTEGER DEFAULT 0,
+    "suspended" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -34,6 +37,7 @@ CREATE TABLE "repository" (
     "forked_at" TIMESTAMP(6),
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "archived" BOOLEAN NOT NULL DEFAULT false,
     "forks_count" INTEGER DEFAULT 0,
     "pull_requests_count" INTEGER DEFAULT 0,
 
