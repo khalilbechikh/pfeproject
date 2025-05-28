@@ -28,6 +28,7 @@ services:
       - app-network
 
   backend:
+    user: "33:33"  # Run as www-data user
     container_name: backend
     build:
       context: ./WEB/BACKEND
